@@ -20,7 +20,8 @@ Unity 6 製、Android / Windows 先行(iOS は後続)。名前はカラオケ機
 
 リポジトリのルートを Unity プロジェクトルートにする。Unity Hub は既存フォルダに直接プロジェクトを作れないため:
 
-1. Unity Hub で別の場所に新規プロジェクトを作成(テンプレート: **2D (Built-in Render Pipeline)**、プロジェクト名 `YukaNavi`)
+1. Unity Hub で別の場所に新規プロジェクトを作成(テンプレート: **Universal 2D (URP)**、プロジェクト名 `YukaNavi`)
+   ※ Built-in Render Pipeline は Unity 6.5 で非推奨になり、最新の Cubism SDK も URP のみサポートのため使わない
 2. 生成された `Assets/` `Packages/` `ProjectSettings/` をこのリポジトリのルートへ移動
 3. Unity Hub の「Add」→ このリポジトリのルートを指定して開く
 4. `art/mascot/` の素材を `Assets/YukaNavi/Art/Mascot/` へコピー
@@ -31,8 +32,12 @@ Unity 6 製、Android / Windows 先行(iOS は後続)。名前はカラオケ機
 SDK は**再配布不可**のためリポジトリに含まれない(`Assets/Live2D/` は .gitignore 済み)。
 
 1. [Live2D 公式サイト](https://www.live2d.com/sdk/download/unity/)から「Cubism SDK for Unity」をダウンロード
+   (**Cubism 5 SDK R5 以降** — URP 対応版。R5 以降は Built-in RP / HDRP がサポート外)
 2. unitypackage をプロジェクトにインポート
-3. 導入した SDK バージョンをこの README に記録すること
+3. URP アセットの Renderer List に `CubismURPRenderer.asset` を設定([公式手順](https://docs.live2d.com/en/cubism-sdk-tutorials/urp-import/))
+4. Cubism Editor と同等の見た目にするため、HDR を無効化し Color Space を Gamma に設定
+   (HDR を使う場合は HDR Precision を 64-bit にしないと背景が黒くなることがある)
+5. 導入した SDK バージョンをこの README に記録すること
 
 導入済み SDK バージョン: (未導入)
 
