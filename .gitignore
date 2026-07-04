@@ -1,0 +1,57 @@
+# ===== Unity 標準 (github/gitignore Unity.gitignore ベース) =====
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# ビルド成果物
+*.apk
+*.aab
+*.app
+*.unitypackage
+*.unitypackage.meta
+
+# Unity 生成ファイル
+sysinfo.txt
+crashlytics-build.properties
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# Addressables / StreamingAssets の自動生成物
+/[Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*/*.bin*
+/[Aa]ssets/[Ss]treamingAssets/aa.meta
+/[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# ===== IDE =====
+.vs/
+.idea/
+.consulo/
+ExportedObj/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.booproj
+*.svd
+*.pidb
+*.mdb
+*.opendb
+*.VC.db
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== Live2D Cubism SDK (再配布不可のためコミットしない) =====
+# 導入手順は README.md を参照
+/[Aa]ssets/Live2D/
+/[Aa]ssets/Live2D.meta
