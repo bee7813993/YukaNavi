@@ -7,7 +7,21 @@ namespace YukaNavi.Core
     {
         const string KeyServerUrl = "yukanavi.server_url";
 
-        public const string DefaultServerUrl = "http://localhost/";
+        /// <summary>
+        /// 既定の接続先。Android 実機は localhost に繋がらないため試験サーバーを使う。
+        /// (接続設定画面は M1 で実装予定。それまでの暫定)
+        /// </summary>
+        public static string DefaultServerUrl
+        {
+            get
+            {
+#if UNITY_ANDROID && !UNITY_EDITOR
+                return "http://ykr.moe:11004/";
+#else
+                return "http://localhost/";
+#endif
+            }
+        }
 
         /// <summary>接続先のゆかりサーバー URL。</summary>
         public static string ServerUrl
