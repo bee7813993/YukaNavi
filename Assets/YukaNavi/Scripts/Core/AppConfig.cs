@@ -1,4 +1,5 @@
 using UnityEngine;
+using YukaNavi.Api;
 
 namespace YukaNavi.Core
 {
@@ -6,10 +7,12 @@ namespace YukaNavi.Core
     public static class AppConfig
     {
         const string KeyServerUrl = "yukanavi.server_url";
+        const string KeyEasyPass = "yukanavi.easypass";
+        const string KeyConfigured = "yukanavi.configured";
+        const string KeyUsername = "yukanavi.username";
 
         /// <summary>
         /// 既定の接続先。Android 実機は localhost に繋がらないため試験サーバーを使う。
-        /// (接続設定画面は M1 で実装予定。それまでの暫定)
         /// </summary>
         public static string DefaultServerUrl
         {
@@ -27,11 +30,34 @@ namespace YukaNavi.Core
         public static string ServerUrl
         {
             get { return PlayerPrefs.GetString(KeyServerUrl, DefaultServerUrl); }
-            set
-            {
-                PlayerPrefs.SetString(KeyServerUrl, value);
-                PlayerPrefs.Save();
-            }
+            set { PlayerPrefs.SetString(KeyServerUrl, value); PlayerPrefs.Save(); }
+        }
+
+        /// <summary>easyauth の認証キーワード (不要なら空)。</summary>
+        public static string EasyPass
+        {
+            get { return PlayerPrefs.GetString(KeyEasyPass, ""); }
+            set { PlayerPrefs.SetString(KeyEasyPass, value); PlayerPrefs.Save(); }
+        }
+
+        /// <summary>予約時に使う「歌う人」の名前。</summary>
+        public static string Username
+        {
+            get { return PlayerPrefs.GetString(KeyUsername, ""); }
+            set { PlayerPrefs.SetString(KeyUsername, value); PlayerPrefs.Save(); }
+        }
+
+        /// <summary>接続設定を一度でも保存したか (false なら初回起動 → 接続設定画面から始める)。</summary>
+        public static bool IsConfigured
+        {
+            get { return PlayerPrefs.GetInt(KeyConfigured, 0) == 1; }
+            set { PlayerPrefs.SetInt(KeyConfigured, value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
+        /// <summary>現在の設定で ApiClient を作る。</summary>
+        public static ApiClient CreateClient()
+        {
+            return new ApiClient(ServerUrl, EasyPass);
         }
     }
 }

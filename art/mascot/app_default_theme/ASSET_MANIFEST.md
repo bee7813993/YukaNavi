@@ -17,6 +17,16 @@ KaraokeRequestorWeb 操作アプリ向けの「ゆかり」ちゃんデフォル
 | 横持ちホーム背景 | `backgrounds/yukanavi_home_background_landscape_1920x1080.png` | 1920x1080, RGB |
 | ホーム背景（ゆかりなし） | `backgrounds/yukanavi_home_background_no_character_1080x1920.png` | 1080x1920, RGB。透過立ち絵重ね用 |
 | 横持ちホーム背景（ゆかりなし） | `backgrounds/yukanavi_home_background_no_character_landscape_1920x1080.png` | 1920x1080, RGB。透過立ち絵重ね用 |
+| 季節ホーム背景: 春・野外ステージ | `backgrounds/seasonal/yukanavi_home_background_spring_outdoor_1080x1920.png` | 1080x1920, RGB。透過立ち絵重ね用 |
+| 季節ホーム背景: 春・野外ステージ横 | `backgrounds/seasonal/yukanavi_home_background_spring_outdoor_landscape_1920x1080.png` | 1920x1080, RGB。透過立ち絵重ね用 |
+| 季節ホーム背景: 夏・野外ステージ | `backgrounds/seasonal/yukanavi_home_background_summer_outdoor_1080x1920.png` | 1080x1920, RGB。透過立ち絵重ね用 |
+| 季節ホーム背景: 夏・野外ステージ横 | `backgrounds/seasonal/yukanavi_home_background_summer_outdoor_landscape_1920x1080.png` | 1920x1080, RGB。透過立ち絵重ね用 |
+| 季節ホーム背景: 秋・野外ステージ | `backgrounds/seasonal/yukanavi_home_background_autumn_outdoor_1080x1920.png` | 1080x1920, RGB。透過立ち絵重ね用 |
+| 季節ホーム背景: 秋・野外ステージ横 | `backgrounds/seasonal/yukanavi_home_background_autumn_outdoor_landscape_1920x1080.png` | 1920x1080, RGB。透過立ち絵重ね用 |
+| 季節ホーム背景: 冬・野外ステージ | `backgrounds/seasonal/yukanavi_home_background_winter_outdoor_1080x1920.png` | 1080x1920, RGB。透過立ち絵重ね用 |
+| 季節ホーム背景: 冬・野外ステージ横 | `backgrounds/seasonal/yukanavi_home_background_winter_outdoor_landscape_1920x1080.png` | 1920x1080, RGB。透過立ち絵重ね用 |
+| ホーム背景ループ動画 | `videos/yukanavi_home_background_loop_portrait_1080x1920.mp4` | 1080x1920, H.264 mp4, 15秒, 20fps, 音声なし |
+| 横持ちホーム背景ループ動画 | `videos/yukanavi_home_background_loop_landscape_1920x1080.mp4` | 1920x1080, H.264 mp4, 15秒, 20fps, 音声なし |
 | スプラッシュ縦 | `splash/yukanavi_splash_portrait_1080x1920.png` | 1080x1920, RGB。ロゴ+ゆかりちゃん |
 | スプラッシュ横 | `splash/yukanavi_splash_landscape_1920x1080.png` | 1920x1080, RGB。ロゴ+ゆかりちゃん |
 
@@ -50,5 +60,7 @@ KaraokeRequestorWeb 操作アプリ向けの「ゆかり」ちゃんデフォル
 - 画像確認用プレビュー: `yukanavi_default_theme_preview.png`
 - 追加素材確認用プレビュー: `yukanavi_extra_assets_preview.png`
 - ゆかりなし背景確認用プレビュー: `yukanavi_backgrounds_no_character_preview.png`
+- 季節背景確認用プレビュー: `yukanavi_seasonal_backgrounds_preview.png`
+- ホーム背景ループ動画確認用プレビュー: `yukanavi_home_background_loop_preview.png`
 - 表情・ポーズ追加素材確認用プレビュー: `yukanavi_interaction_assets_preview.png`
 - スプラッシュ確認用プレビュー: `yukanavi_splash_preview.png`
