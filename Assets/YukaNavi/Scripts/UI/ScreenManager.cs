@@ -4,13 +4,14 @@ using UnityEngine;
 namespace YukaNavi.UI
 {
     /// <summary>
-    /// 単一シーン + パネル切替の画面管理。
+    /// 単一シーン + パネル切替の画面管理。画面履歴を持ち「戻る」に対応する。
     /// 各画面は ScreenBase を継承し、BuildUi() で自分の UI をコードで組み立てる。
     /// </summary>
     public class ScreenManager
     {
         readonly Transform _screenLayer;
         readonly Dictionary<System.Type, ScreenBase> _screens = new Dictionary<System.Type, ScreenBase>();
+        readonly Stack<ScreenBase> _history = new Stack<ScreenBase>();
         ScreenBase _current;
 
         public ScreenManager(Transform screenLayer)
@@ -33,13 +34,39 @@ namespace YukaNavi.UI
             return screen;
         }
 
-        /// <summary>画面を切り替える。</summary>
+        /// <summary>画面を切り替える (現在の画面を履歴に積む)。</summary>
         public void Show<T>() where T : ScreenBase
         {
-            var next = _screens[typeof(T)];
+            ShowInternal(_screens[typeof(T)], true);
+        }
+
+        /// <summary>履歴をクリアして画面を表示する (ホームへの移動用)。</summary>
+        public void ShowAsRoot<T>() where T : ScreenBase
+        {
+            _history.Clear();
+            ShowInternal(_screens[typeof(T)], false);
+        }
+
+        /// <summary>ひとつ前の画面へ戻る。履歴が無ければ false。</summary>
+        public bool Back()
+        {
+            if (_history.Count == 0)
+            {
+                return false;
+            }
+            ShowInternal(_history.Pop(), false);
+            return true;
+        }
+
+        void ShowInternal(ScreenBase next, bool pushHistory)
+        {
             if (_current == next)
             {
                 return;
+            }
+            if (pushHistory && _current != null)
+            {
+                _history.Push(_current);
             }
             if (_current != null)
             {

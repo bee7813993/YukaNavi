@@ -87,6 +87,9 @@ namespace YukaNavi.UI
             text.alignment = align;
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
             text.verticalOverflow = VerticalWrapMode.Overflow;
+            // 装飾用テキストが他のボタンへのタップを横取りしないようにする
+            // (ボタンや入力欄のタップ判定は各自の Image が受ける)
+            text.raycastTarget = false;
             return text;
         }
 

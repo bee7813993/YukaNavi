@@ -177,7 +177,7 @@ namespace YukaNavi.UI
             AppConfig.EasyPass = (_passInput.text ?? "").Trim();
             AppConfig.IsConfigured = true;
             Se.Play(Se.Transition);
-            Manager.Show<HomeScreen>();
+            Manager.ShowAsRoot<HomeScreen>();
         }
 
         void SetResult(string message, bool isError)

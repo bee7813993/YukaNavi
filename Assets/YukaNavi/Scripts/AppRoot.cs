@@ -63,18 +63,24 @@ namespace YukaNavi
                 _bgmSource.Play();
             }
 
-            // 画面登録と初期画面
-            _screens = new ScreenManager(canvasGo.transform);
+            // 画面登録 (専用レイヤーに置き、後から作るナビバーが常に前面になるようにする)
+            var screenLayer = UiFactory.CreatePanel(canvasGo.transform, "Screens");
+            UiFactory.StretchFull(screenLayer);
+            _screens = new ScreenManager(screenLayer);
             _screens.Register<HomeScreen>();
             _screens.Register<ConnectScreen>();
+            _screens.Register<SearchScreen>();
+
+            // 下部の常時表示ナビゲーションバー (戻る / メニュー / ホーム)
+            GlobalNav.Create(canvasGo.transform, _screens);
 
             if (AppConfig.IsConfigured)
             {
-                _screens.Show<HomeScreen>();
+                _screens.ShowAsRoot<HomeScreen>();
             }
             else
             {
-                _screens.Show<ConnectScreen>();
+                _screens.ShowAsRoot<ConnectScreen>();
             }
         }
     }

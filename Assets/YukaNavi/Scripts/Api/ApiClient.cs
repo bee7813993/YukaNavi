@@ -55,6 +55,67 @@ namespace YukaNavi.Api
         public Task<NowPlayingDto> GetNowPlayingAsync()
             => GetApiAsync<NowPlayingDto>("api/nowplaying.php");
 
+        /// <summary>
+        /// 予約投稿 (exec.php の XHR モード)。成功で新しい予約 ID を返す。
+        /// 注意: exec.php は不正入力を HTTP 200 + 空応答で拒否する (api/README.md 参照)。
+        /// </summary>
+        public async Task<int> PostRequestAsync(string filename, string fullpath, string singerName,
+                                                string comment, string kind = "動画", bool secret = false)
+        {
+            var form = new UnityEngine.WWWForm();
+            form.AddField("filename", filename);
+            form.AddField("fullpath", fullpath);
+            form.AddField("singer", "");
+            form.AddField("freesinger", singerName);
+            form.AddField("comment", comment ?? "");
+            form.AddField("kind", kind);
+            if (secret)
+            {
+                form.AddField("secret", "1");
+            }
+
+            string url = BaseUrl.TrimEnd('/') + "/exec.php";
+            if (!string.IsNullOrEmpty(EasyPass))
+            {
+                url += "?easypass=" + UnityWebRequest.EscapeURL(EasyPass);
+            }
+            using (var req = UnityWebRequest.Post(url, form))
+            {
+                req.SetRequestHeader("X-Requested-With", "XMLHttpRequest");
+                req.timeout = TimeoutSeconds;
+                var op = req.SendWebRequest();
+                while (!op.isDone)
+                {
+                    await Task.Yield();
+                }
+                if (req.result != UnityWebRequest.Result.Success)
+                {
+                    throw new ApiException($"{req.error} ({url})", (int)req.responseCode);
+                }
+                // 応答は {"newid":N}。先頭に改行が付くため trim する
+                string text = (req.downloadHandler.text ?? "").Trim();
+                if (text == "")
+                {
+                    throw new ApiException("予約が受け付けられませんでした (入力内容を確認してください)");
+                }
+                try
+                {
+                    var result = JsonConvert.DeserializeObject<NewRequestResult>(text);
+                    return result.NewId;
+                }
+                catch (JsonException)
+                {
+                    string head = text.Length > 80 ? text.Substring(0, 80) : text;
+                    throw new ApiException("予約応答の解釈に失敗: " + head);
+                }
+            }
+        }
+
+        class NewRequestResult
+        {
+            [JsonProperty("newid")] public int NewId;
+        }
+
         /// <summary>/api/ エンベロープ応答を解釈して data を返す。</summary>
         async Task<T> GetApiAsync<T>(string path, bool withAuth = true)
         {
