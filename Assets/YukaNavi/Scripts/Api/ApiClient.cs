@@ -116,6 +116,32 @@ namespace YukaNavi.Api
             [JsonProperty("newid")] public int NewId;
         }
 
+        /// <summary>
+        /// 予約の個別移動。action は up / down / warikomi (次に再生)。
+        /// 戻り値は情報メッセージ (「すでに一番上です。」等。空 = 正常に移動)。
+        /// </summary>
+        public async Task<string> MoveRequestAsync(int id, string action)
+        {
+            var data = await GetApiAsync<MoveResult>($"api/request_move.php?id={id}&action={action}");
+            return data.Message ?? "";
+        }
+
+        /// <summary>予約の削除。</summary>
+        public async Task DeleteRequestAsync(int id)
+        {
+            await GetApiAsync<DeleteResult>("api/request_delete.php?id=" + id);
+        }
+
+        class MoveResult
+        {
+            [JsonProperty("message")] public string Message;
+        }
+
+        class DeleteResult
+        {
+            [JsonProperty("deleted")] public bool Deleted;
+        }
+
         /// <summary>/api/ エンベロープ応答を解釈して data を返す。</summary>
         async Task<T> GetApiAsync<T>(string path, bool withAuth = true)
         {

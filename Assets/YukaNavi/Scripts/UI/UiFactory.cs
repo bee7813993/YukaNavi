@@ -106,6 +106,51 @@ namespace YukaNavi.UI
             return button;
         }
 
+        /// <summary>
+        /// 縦スクロールのリストを作る。位置は戻り値の scroll (ScrollRect の RectTransform) で調整し、
+        /// 行は content に追加する (VerticalLayoutGroup + ContentSizeFitter 設定済み)。
+        /// </summary>
+        public static RectTransform CreateScrollList(Transform parent, string name, out RectTransform content)
+        {
+            var scrollGo = new GameObject(name);
+            scrollGo.transform.SetParent(parent, false);
+            var scrollRectT = scrollGo.AddComponent<RectTransform>();
+            var scrollBg = scrollGo.AddComponent<Image>();
+            scrollBg.color = new Color(1f, 1f, 1f, 0.45f);
+            var scrollRect = scrollGo.AddComponent<ScrollRect>();
+
+            var viewportGo = new GameObject("Viewport");
+            viewportGo.transform.SetParent(scrollGo.transform, false);
+            var viewportRect = viewportGo.AddComponent<RectTransform>();
+            StretchFull(viewportRect);
+            viewportGo.AddComponent<Image>().color = Color.white;
+            var mask = viewportGo.AddComponent<Mask>();
+            mask.showMaskGraphic = false;
+
+            var contentGo = new GameObject("Content");
+            contentGo.transform.SetParent(viewportGo.transform, false);
+            content = contentGo.AddComponent<RectTransform>();
+            content.anchorMin = new Vector2(0f, 1f);
+            content.anchorMax = new Vector2(1f, 1f);
+            content.pivot = new Vector2(0.5f, 1f);
+            var layout = contentGo.AddComponent<VerticalLayoutGroup>();
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.spacing = 8f;
+            layout.padding = new RectOffset(8, 8, 8, 8);
+            var fitter = contentGo.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            scrollRect.content = content;
+            scrollRect.viewport = viewportRect;
+            scrollRect.horizontal = false;
+            scrollRect.movementType = ScrollRect.MovementType.Clamped;
+            scrollRect.scrollSensitivity = 30f;
+            return scrollRectT;
+        }
+
         /// <summary>1行入力欄 (legacy InputField)。</summary>
         public static InputField CreateInputField(Transform parent, string name, string placeholder, int fontSize = 34)
         {

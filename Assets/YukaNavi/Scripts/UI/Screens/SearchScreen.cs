@@ -88,46 +88,11 @@ namespace YukaNavi.UI
 
         void BuildResultList()
         {
-            var scrollGo = new GameObject("ResultList");
-            scrollGo.transform.SetParent(transform, false);
-            var scrollRectT = scrollGo.AddComponent<RectTransform>();
+            var scrollRectT = UiFactory.CreateScrollList(transform, "ResultList", out _listContent);
             scrollRectT.anchorMin = new Vector2(0f, 0f);
             scrollRectT.anchorMax = new Vector2(1f, 1f);
             scrollRectT.offsetMin = new Vector2(20f, GlobalNav.BarHeight + 16f);
             scrollRectT.offsetMax = new Vector2(-20f, -290f);
-            var scrollBg = scrollGo.AddComponent<Image>();
-            scrollBg.color = new Color(1f, 1f, 1f, 0.45f);
-            var scrollRect = scrollGo.AddComponent<ScrollRect>();
-
-            var viewportGo = new GameObject("Viewport");
-            viewportGo.transform.SetParent(scrollGo.transform, false);
-            var viewportRect = viewportGo.AddComponent<RectTransform>();
-            UiFactory.StretchFull(viewportRect);
-            viewportGo.AddComponent<Image>().color = Color.white;
-            var mask = viewportGo.AddComponent<Mask>();
-            mask.showMaskGraphic = false;
-
-            var contentGo = new GameObject("Content");
-            contentGo.transform.SetParent(viewportGo.transform, false);
-            _listContent = contentGo.AddComponent<RectTransform>();
-            _listContent.anchorMin = new Vector2(0f, 1f);
-            _listContent.anchorMax = new Vector2(1f, 1f);
-            _listContent.pivot = new Vector2(0.5f, 1f);
-            var layout = contentGo.AddComponent<VerticalLayoutGroup>();
-            layout.childForceExpandWidth = true;
-            layout.childForceExpandHeight = false;
-            layout.childControlWidth = true;
-            layout.childControlHeight = true;
-            layout.spacing = 8f;
-            layout.padding = new RectOffset(8, 8, 8, 8);
-            var fitter = contentGo.AddComponent<ContentSizeFitter>();
-            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-            scrollRect.content = _listContent;
-            scrollRect.viewport = viewportRect;
-            scrollRect.horizontal = false;
-            scrollRect.movementType = ScrollRect.MovementType.Clamped;
-            scrollRect.scrollSensitivity = 30f;
         }
 
         void BuildConfirmModal()

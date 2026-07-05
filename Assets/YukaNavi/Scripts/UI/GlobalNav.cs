@@ -86,7 +86,7 @@ namespace YukaNavi.UI
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             AddMenuItem("曲をさがす", true, () => _screens.Show<SearchScreen>());
-            AddMenuItem("予約一覧 (準備中)", false, null);
+            AddMenuItem("予約一覧", true, () => _screens.Show<QueueScreen>());
             AddMenuItem("リモコン (準備中)", false, null);
             AddMenuItem("接続設定", true, () => _screens.Show<ConnectScreen>());
 
