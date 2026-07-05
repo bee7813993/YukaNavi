@@ -1,0 +1,137 @@
+{
+  "source": "J:/Git/KaraokeRequestorWeb/images/マスコット/yukari_mascot_transparent.png",
+  "canvas": {
+    "width": 1024,
+    "height": 1536
+  },
+  "psd": "yukari_parts_source.psd",
+  "coordinate_convention": "left/right in file names are screen/viewer left and right",
+  "notes": [
+    "Generated from existing transparent Yukari standing artwork.",
+    "Draft rigging PSD: hidden-under-overlap areas are approximated, not fully redrawn.",
+    "Mouth_closed and reference_full are hidden by default in the PSD layer flags.",
+    "Tablet, legs/boots, and headset/ribbon are auxiliary layers to preserve the current artwork."
+  ],
+  "layers_bottom_to_top": [
+    {
+      "name": "01_hair_back",
+      "file": "parts/01_hair_back.png",
+      "hidden": false
+    },
+    {
+      "name": "02_face_base",
+      "file": "parts/02_face_base.png",
+      "hidden": false
+    },
+    {
+      "name": "03_body",
+      "file": "parts/03_body.png",
+      "hidden": false
+    },
+    {
+      "name": "04_legs_boots",
+      "file": "parts/04_legs_boots.png",
+      "hidden": false
+    },
+    {
+      "name": "05_skirt",
+      "file": "parts/05_skirt.png",
+      "hidden": false
+    },
+    {
+      "name": "06_arm_left_screen",
+      "file": "parts/06_arm_left_screen.png",
+      "hidden": false
+    },
+    {
+      "name": "07_arm_right_screen",
+      "file": "parts/07_arm_right_screen.png",
+      "hidden": false
+    },
+    {
+      "name": "08_hair_side_left_screen",
+      "file": "parts/08_hair_side_left_screen.png",
+      "hidden": false
+    },
+    {
+      "name": "09_hair_side_right_screen",
+      "file": "parts/09_hair_side_right_screen.png",
+      "hidden": false
+    },
+    {
+      "name": "10_eye_left_screen_white",
+      "file": "parts/10_eye_left_screen_white.png",
+      "hidden": false
+    },
+    {
+      "name": "11_eye_left_screen_iris",
+      "file": "parts/11_eye_left_screen_iris.png",
+      "hidden": false
+    },
+    {
+      "name": "12_eye_left_screen_lid",
+      "file": "parts/12_eye_left_screen_lid.png",
+      "hidden": false
+    },
+    {
+      "name": "13_eye_right_screen_white",
+      "file": "parts/13_eye_right_screen_white.png",
+      "hidden": false
+    },
+    {
+      "name": "14_eye_right_screen_iris",
+      "file": "parts/14_eye_right_screen_iris.png",
+      "hidden": false
+    },
+    {
+      "name": "15_eye_right_screen_lid",
+      "file": "parts/15_eye_right_screen_lid.png",
+      "hidden": false
+    },
+    {
+      "name": "16_brow_left_screen",
+      "file": "parts/16_brow_left_screen.png",
+      "hidden": false
+    },
+    {
+      "name": "17_brow_right_screen",
+      "file": "parts/17_brow_right_screen.png",
+      "hidden": false
+    },
+    {
+      "name": "18_mouth_open",
+      "file": "parts/18_mouth_open.png",
+      "hidden": false
+    },
+    {
+      "name": "19_mouth_closed",
+      "file": "parts/19_mouth_closed.png",
+      "hidden": true
+    },
+    {
+      "name": "20_hair_front_bangs",
+      "file": "parts/20_hair_front_bangs.png",
+      "hidden": false
+    },
+    {
+      "name": "21_headset_ribbon",
+      "file": "parts/21_headset_ribbon.png",
+      "hidden": false
+    },
+    {
+      "name": "22_microphone",
+      "file": "parts/22_microphone.png",
+      "hidden": false
+    },
+    {
+      "name": "23_tablet_extra",
+      "file": "parts/23_tablet_extra.png",
+      "hidden": false
+    },
+    {
+      "name": "99_reference_full_hidden",
+      "file": "parts/99_reference_full_hidden.png",
+      "hidden": true
+    }
+  ]
+}

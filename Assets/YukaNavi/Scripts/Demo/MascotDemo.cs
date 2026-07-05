@@ -43,8 +43,11 @@ namespace YukaNavi.Demo
         AudioSource _bgmSource;
         AudioClip _tapSe;
         Sprite[] _expressions;
+        Sprite _eyesClosed;
         int _expressionIndex;
         float _baseY;
+        float _nextBlinkTime;
+        bool _blinking;
         Coroutine _squash;
 
         void Start()
@@ -62,6 +65,12 @@ namespace YukaNavi.Demo
                 float y = _baseY + Mathf.Sin(Time.time * 1.6f) * 12f;
                 var p = _mascotRect.anchoredPosition;
                 _mascotRect.anchoredPosition = new Vector2(p.x, y);
+            }
+
+            // 通常表情のときだけランダム間隔でまばたき
+            if (_expressionIndex == 0 && !_blinking && _eyesClosed != null && Time.time >= _nextBlinkTime)
+            {
+                StartCoroutine(BlinkRoutine());
             }
         }
 
@@ -88,7 +97,7 @@ namespace YukaNavi.Demo
             canvasGo.AddComponent<GraphicRaycaster>();
 
             // 背景 (画面全体)
-            var bg = CreateImage(canvasGo.transform, "Background", "Art/Backgrounds/yukanavi_home_background_1080x1920");
+            var bg = CreateImage(canvasGo.transform, "Background", "Art/Backgrounds/yukanavi_home_background_no_character_1080x1920");
             var bgRect = bg.rectTransform;
             bgRect.anchorMin = Vector2.zero;
             bgRect.anchorMax = Vector2.one;
@@ -101,6 +110,8 @@ namespace YukaNavi.Demo
             {
                 _expressions[i] = LoadSprite(ExpressionPaths[i]);
             }
+            _eyesClosed = LoadSprite("Art/Mascot/yukari_expr_eyes_closed");
+            _nextBlinkTime = Time.time + Random.Range(2f, 4f);
             _mascotImage = CreateImage(canvasGo.transform, "Mascot", null);
             _mascotImage.sprite = _expressions[0];
             _mascotImage.preserveAspect = true;
@@ -186,6 +197,20 @@ namespace YukaNavi.Demo
                 yield return null;
             }
             _mascotRect.localScale = Vector3.one;
+        }
+
+        /// <summary>一瞬目を閉じて戻す (通常表情のときのみ Update から起動される)。</summary>
+        IEnumerator BlinkRoutine()
+        {
+            _blinking = true;
+            _mascotImage.sprite = _eyesClosed;
+            yield return new WaitForSeconds(0.12f);
+            if (_expressionIndex == 0)
+            {
+                _mascotImage.sprite = _expressions[0];
+            }
+            _blinking = false;
+            _nextBlinkTime = Time.time + Random.Range(2.5f, 6f);
         }
 
         async Task UpdateConnectionStatusAsync()
