@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -27,6 +28,7 @@ namespace YukaNavi.UI
         BarcodeReaderGeneric _reader;
         float _nextScanTime;
         float _cameraStartedAt;
+        bool _orientationApplied;
 
         public override void BuildUi()
         {
@@ -74,13 +76,39 @@ namespace YukaNavi.UI
         {
             LastScannedText = null;
             SetStatus("カメラを起動中...", false);
+            StartCoroutine(StartCameraRoutine());
+        }
 
+        /// <summary>カメラ権限の応答を待ってからカメラを起動する。</summary>
+        IEnumerator StartCameraRoutine()
+        {
 #if UNITY_ANDROID && !UNITY_EDITOR
             if (!Permission.HasUserAuthorizedPermission(Permission.Camera))
             {
-                Permission.RequestUserPermission(Permission.Camera);
+                SetStatus("カメラの使用許可を待っています...", false);
+                int state = 0; // 0=応答待ち 1=許可 2=拒否
+                var callbacks = new PermissionCallbacks();
+                callbacks.PermissionGranted += _ => state = 1;
+                callbacks.PermissionDenied += _ => state = 2;
+                Permission.RequestUserPermission(Permission.Camera, callbacks);
+                while (state == 0)
+                {
+                    yield return null;
+                }
+                if (state == 2)
+                {
+                    SetStatus("カメラの使用が許可されませんでした。URL を手入力してください", true);
+                    yield break;
+                }
+                SetStatus("カメラを起動中...", false);
             }
 #endif
+            StartCamera();
+            yield break;
+        }
+
+        void StartCamera()
+        {
             var devices = WebCamTexture.devices;
             if (devices.Length == 0)
             {
@@ -98,6 +126,7 @@ namespace YukaNavi.UI
             _camTexture = new WebCamTexture(devices[0].name);
             _camTexture.Play();
             _cameraStartedAt = Time.time;
+            _orientationApplied = false;
             _preview.texture = _camTexture;
 
             _reader = new BarcodeReaderGeneric
@@ -140,12 +169,45 @@ namespace YukaNavi.UI
                 }
                 return;
             }
+            if (!_orientationApplied)
+            {
+                ApplyPreviewOrientation();
+            }
             if (Time.time < _nextScanTime)
             {
                 return;
             }
             _nextScanTime = Time.time + 0.5f;
             TryDecode();
+        }
+
+        /// <summary>
+        /// Android のカメラ映像はセンサー基準で回転して届くため、プレビューの回転・ミラー・
+        /// アスペクト比を補正する (映像サイズ確定後に1回だけ)。
+        /// </summary>
+        void ApplyPreviewOrientation()
+        {
+            _orientationApplied = true;
+            int angle = _camTexture.videoRotationAngle;
+            _preview.rectTransform.localEulerAngles = new Vector3(0f, 0f, -angle);
+            _preview.uvRect = _camTexture.videoVerticallyMirrored
+                ? new Rect(0f, 1f, 1f, -1f)
+                : new Rect(0f, 0f, 1f, 1f);
+
+            // 映像のアスペクト比を保ちつつ、回転後の見た目が 920x920 に収まるようにする
+            const float box = 920f;
+            float aspect = (float)_camTexture.width / _camTexture.height;
+            bool quarterTurn = (angle % 180) != 0;
+            // 画面上の見た目サイズ (90/270度回転時は縦横が入れ替わる)
+            float dispW = quarterTurn ? box / aspect : box;
+            float dispH = quarterTurn ? box : box / aspect;
+            float scale = Mathf.Min(box / dispW, box / dispH, 1f);
+            dispW *= scale;
+            dispH *= scale;
+            // sizeDelta は回転前の軸で指定する (90/270度回転時は幅と高さが入れ替わって見える)
+            _preview.rectTransform.sizeDelta = quarterTurn
+                ? new Vector2(dispH, dispW)
+                : new Vector2(dispW, dispH);
         }
 
         void TryDecode()

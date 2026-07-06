@@ -79,6 +79,9 @@ namespace YukaNavi.EditorTools
             // ゆかりは LAN 内の http 運用が基本のため、Android の非 HTTPS 通信を許可する
             PlayerSettings.insecureHttpOption = InsecureHttpOption.AlwaysAllowed;
 
+            // 現状の UI は縦持ち専用のため Android は Portrait 固定 (横レイアウトは将来対応)
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
+
             var icon = AssetDatabase.LoadAssetAtPath<Texture2D>(IconPath);
             if (icon != null)
             {
