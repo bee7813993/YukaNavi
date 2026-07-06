@@ -10,6 +10,7 @@ namespace YukaNavi.Core
         const string KeyEasyPass = "yukanavi.easypass";
         const string KeyConfigured = "yukanavi.configured";
         const string KeyUsername = "yukanavi.username";
+        const string KeySkinId = "yukanavi.skin_id";
 
         /// <summary>
         /// 既定の接続先。Android 実機は localhost に繋がらないため試験サーバーを使う。
@@ -45,6 +46,13 @@ namespace YukaNavi.Core
         {
             get { return PlayerPrefs.GetString(KeyUsername, ""); }
             set { PlayerPrefs.SetString(KeyUsername, value); PlayerPrefs.Save(); }
+        }
+
+        /// <summary>選択中のスキン ID (skins/ 配下のフォルダ名。空 = デフォルト)。</summary>
+        public static string SkinId
+        {
+            get { return PlayerPrefs.GetString(KeySkinId, ""); }
+            set { PlayerPrefs.SetString(KeySkinId, value); PlayerPrefs.Save(); }
         }
 
         /// <summary>接続設定を一度でも保存したか (false なら初回起動 → 接続設定画面から始める)。</summary>

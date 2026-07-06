@@ -73,6 +73,7 @@ namespace YukaNavi
             _screens.Register<QueueScreen>();
             _screens.Register<PlayerScreen>();
             _screens.Register<QrScanScreen>();
+            _screens.Register<SkinScreen>();
 
             // 下部の常時表示ナビゲーションバー (戻る / メニュー / ホーム)
             GlobalNav.Create(canvasGo.transform, _screens);

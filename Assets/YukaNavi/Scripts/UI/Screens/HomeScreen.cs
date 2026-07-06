@@ -11,6 +11,7 @@ namespace YukaNavi.UI
 {
     /// <summary>
     /// ホーム画面。動画背景 + 音符パーティクル + ゆかりちゃん + 再生中ティッカー。
+    /// 背景とキャラはスキン (きせかえ) で差し替えられる。
     /// 自分の予約の順番が近づくと「そろそろ出番」バナーを出す。
     /// </summary>
     public class HomeScreen : ScreenBase
@@ -21,20 +22,21 @@ namespace YukaNavi.UI
         Text _tickerNextText;
         GameObject _banner;
         Text _bannerText;
+        GameObject _backgroundGo;
+        MascotView _mascot;
         VideoPlayer _videoPlayer;
         RenderTexture _videoTexture;
+        string _appliedSkinId;
+        int _appliedSkinRevision = -1;
         Coroutine _polling;
         bool _refreshing;
 
         public override void BuildUi()
         {
-            BuildBackground();
+            // 背景とマスコットはスキン依存のため OnShow の ApplySkin() で構築する。
+            // ここでは常設要素のみ作る (描画順: 背景[0] → パーティクル → マスコット → ロゴ以降)
 
-            // 音符パーティクル (背景の上、マスコットの下)
             NoteParticles.Create(transform);
-
-            // マスコット (グローバルナビバーの上に立つ)
-            MascotView.Create(transform, new Vector2(740f, 1110f), GlobalNav.BarHeight + 20f);
 
             // ロゴ (上端中央、1800x520 と同比率)
             var logo = UiFactory.CreateImage(transform, "Logo", "Art/UI/yukanavi_logo");
@@ -68,37 +70,187 @@ namespace YukaNavi.UI
             _banner.SetActive(false);
         }
 
-        /// <summary>背景。ループ動画があれば VideoPlayer で再生、無ければ静止画。</summary>
-        void BuildBackground()
+        /// <summary>現在のスキンに合わせて背景とマスコットを構築する (変更時のみ)。</summary>
+        void ApplySkin()
         {
-            var clip = Resources.Load<VideoClip>("Videos/yukanavi_home_background_loop_rich_portrait_1080x1920");
-            if (clip == null)
+            var skin = SkinManager.Current();
+            if (_appliedSkinId == skin.Id && _appliedSkinRevision == SkinManager.Revision)
             {
-                var bg = UiFactory.CreateImage(transform, "Background",
-                    "Art/Backgrounds/yukanavi_home_background_no_character_1080x1920");
-                UiFactory.StretchFull(bg.rectTransform);
                 return;
             }
+            _appliedSkinId = skin.Id;
+            _appliedSkinRevision = SkinManager.Revision;
 
-            _videoTexture = new RenderTexture((int)clip.width, (int)clip.height, 0);
-            var videoGo = new GameObject("Background");
-            videoGo.transform.SetParent(transform, false);
-            var raw = videoGo.AddComponent<RawImage>();
-            raw.texture = _videoTexture;
-            raw.raycastTarget = false;
-            UiFactory.StretchFull(raw.rectTransform);
+            // 既存の背景・マスコット・動画リソースを破棄
+            if (_backgroundGo != null)
+            {
+                Destroy(_backgroundGo);
+                _backgroundGo = null;
+            }
+            if (_mascot != null)
+            {
+                Destroy(_mascot.gameObject);
+                _mascot = null;
+            }
+            if (_videoPlayer != null)
+            {
+                Destroy(_videoPlayer);
+                _videoPlayer = null;
+            }
+            if (_videoTexture != null)
+            {
+                _videoTexture.Release();
+                Destroy(_videoTexture);
+                _videoTexture = null;
+            }
 
+            BuildBackground(skin);
+            BuildMascot(skin);
+        }
+
+        void BuildBackground(SkinDef skin)
+        {
+            var view = BackgroundView.Create(transform, "Background");
+            bool built = false;
+            if (skin.Folder != null && skin.Background != null)
+            {
+                var bgDef = skin.Background;
+                if (bgDef.Type == "video")
+                {
+                    string path = SkinManager.GetFilePath(skin, bgDef.File);
+                    if (path != null)
+                    {
+                        SetupVideo(view, null, path);
+                        built = true;
+                    }
+                }
+                else if (bgDef.Type == "image")
+                {
+                    var tex = SkinManager.LoadTexture(skin, bgDef.File);
+                    if (tex != null)
+                    {
+                        view.SetTexture(tex, (float)tex.width / tex.height);
+                        built = true;
+                    }
+                }
+                if (built)
+                {
+                    view.SetAdjust(bgDef.Rotation, bgDef.Zoom, new Vector2(bgDef.OffsetX, bgDef.OffsetY));
+                }
+            }
+            if (!built)
+            {
+                // 組み込みデフォルト: rich 動画 → 静止画の順で試す
+                var clip = Resources.Load<VideoClip>("Videos/yukanavi_home_background_loop_rich_portrait_1080x1920");
+                if (clip != null)
+                {
+                    SetupVideo(view, clip, null);
+                }
+                else
+                {
+                    var tex = Resources.Load<Texture2D>("Art/Backgrounds/yukanavi_home_background_no_character_1080x1920");
+                    if (tex != null)
+                    {
+                        view.SetTexture(tex, (float)tex.width / tex.height);
+                    }
+                }
+            }
+            view.transform.SetSiblingIndex(0);
+            _backgroundGo = view.gameObject;
+        }
+
+        /// <summary>動画背景。clip (組み込み) または filePath (スキン) のどちらかを指定する。</summary>
+        void SetupVideo(BackgroundView view, VideoClip clip, string filePath)
+        {
             _videoPlayer = gameObject.AddComponent<VideoPlayer>();
-            _videoPlayer.clip = clip;
             _videoPlayer.renderMode = VideoRenderMode.RenderTexture;
-            _videoPlayer.targetTexture = _videoTexture;
             _videoPlayer.isLooping = true;
             _videoPlayer.playOnAwake = false;
             _videoPlayer.audioOutputMode = VideoAudioOutputMode.None;
+            if (clip != null)
+            {
+                _videoPlayer.clip = clip;
+                CreateVideoTexture(view, (int)clip.width, (int)clip.height);
+            }
+            else
+            {
+                _videoPlayer.source = VideoSource.Url;
+                _videoPlayer.url = filePath;
+                // 動画の実サイズは prepare 後に判明するため、それから RenderTexture を作る
+                // (固定サイズの RenderTexture に描くとアスペクト比が崩れるため)
+                _videoPlayer.prepareCompleted += vp =>
+                {
+                    CreateVideoTexture(view, (int)vp.width, (int)vp.height);
+                    vp.Play();
+                };
+                _videoPlayer.Prepare();
+            }
+        }
+
+        void CreateVideoTexture(BackgroundView view, int width, int height)
+        {
+            if (width <= 0 || height <= 0)
+            {
+                width = 1080;
+                height = 1920;
+            }
+            if (_videoTexture != null)
+            {
+                _videoTexture.Release();
+                Destroy(_videoTexture);
+            }
+            _videoTexture = new RenderTexture(width, height, 0);
+            _videoPlayer.targetTexture = _videoTexture;
+            view.SetTexture(_videoTexture, (float)width / height);
+        }
+
+        void BuildMascot(SkinDef skin)
+        {
+            Sprite custom = null;
+            float scale = 1f;
+            if (skin.Folder != null && skin.Character != null)
+            {
+                if (skin.Character.Type == "none")
+                {
+                    return; // キャラなしスキン
+                }
+                if (skin.Character.Type == "image")
+                {
+                    var tex = SkinManager.LoadTexture(skin, skin.Character.File);
+                    if (tex != null)
+                    {
+                        custom = Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height),
+                            new Vector2(0.5f, 0.5f), 100f);
+                        scale = Mathf.Clamp(skin.Character.Scale, 0.3f, 2f);
+                    }
+                }
+                // 読み込み失敗・未対応 type (live2d 等) はデフォルトのゆかりちゃんにフォールバック
+            }
+            var size = new Vector2(740f, 1110f) * scale;
+            _mascot = MascotView.Create(transform, size, GlobalNav.BarHeight + 20f, custom);
+            // 描画順: 背景[0] → パーティクル[1] → マスコット[2]
+            _mascot.transform.SetSiblingIndex(2);
+        }
+
+        /// <summary>ティッカーの1行分のテキストを作る (長い曲名は行内で切り詰め)。</summary>
+        Text CreateTickerLine(RectTransform parent, string name, float y)
+        {
+            var text = UiFactory.CreateText(parent, name, "", 28, UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
+            var rect = text.rectTransform;
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, y);
+            rect.offsetMin = new Vector2(24f, rect.offsetMin.y);
+            rect.offsetMax = new Vector2(-24f, rect.offsetMax.y);
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, 40f);
+            text.verticalOverflow = VerticalWrapMode.Truncate;
+            return text;
         }
 
         public override void OnShow()
         {
+            ApplySkin();
             if (_videoPlayer != null)
             {
                 _videoPlayer.Play();
@@ -153,22 +305,6 @@ namespace YukaNavi.UI
             {
                 _refreshing = false;
             }
-        }
-
-        /// <summary>ティッカーの1行分のテキストを作る (長い曲名は行内で切り詰め)。</summary>
-        Text CreateTickerLine(RectTransform parent, string name, float y)
-        {
-            var text = UiFactory.CreateText(parent, name, "", 28, UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
-            var rect = text.rectTransform;
-            rect.anchorMin = new Vector2(0f, 1f);
-            rect.anchorMax = new Vector2(1f, 1f);
-            rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = new Vector2(0f, y);
-            rect.offsetMin = new Vector2(24f, rect.offsetMin.y);
-            rect.offsetMax = new Vector2(-24f, rect.offsetMax.y);
-            rect.sizeDelta = new Vector2(rect.sizeDelta.x, 40f);
-            text.verticalOverflow = VerticalWrapMode.Truncate;
-            return text;
         }
 
         void UpdateTicker(NowPlayingDto now, RequestListDto requests)
