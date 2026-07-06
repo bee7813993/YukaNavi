@@ -18,6 +18,12 @@ namespace YukaNavi.Api
         /// <summary>easyauth の認証キーワード (不要なら null/空)。クエリ easypass= として送る。</summary>
         public string EasyPass;
 
+        /// <summary>マイページのユーザー ID (Cookie YkariUserID として送る)。</summary>
+        public string UserId;
+
+        /// <summary>歌う人の名前 (Cookie YkariUsername として送る)。</summary>
+        public string Username;
+
         /// <summary>タイムアウト秒</summary>
         public int TimeoutSeconds = 10;
 
@@ -69,6 +75,24 @@ namespace YukaNavi.Api
             }
         }
 
+        /// <summary>
+        /// ユーザー識別 Cookie (YkariUserID / YkariUsername) を付与する。
+        /// これにより予約が Web 版と同じ仕組みでユーザーの履歴に紐づく。
+        /// </summary>
+        void ApplyCookies(UnityWebRequest req)
+        {
+            if (string.IsNullOrEmpty(UserId))
+            {
+                return;
+            }
+            string cookie = "YkariUserID=" + UserId;
+            if (!string.IsNullOrEmpty(Username))
+            {
+                cookie += "; YkariUsername=" + UnityWebRequest.EscapeURL(Username);
+            }
+            req.SetRequestHeader("Cookie", cookie);
+        }
+
         /// <summary>予約一覧。limit=0 で全件。</summary>
         public Task<RequestListDto> GetRequestsAsync(int limit = 0, int offset = 0)
         {
@@ -112,6 +136,7 @@ namespace YukaNavi.Api
             {
                 req.SetRequestHeader("X-Requested-With", "XMLHttpRequest");
                 req.timeout = TimeoutSeconds;
+                ApplyCookies(req);
                 var op = req.SendWebRequest();
                 while (!op.isDone)
                 {
@@ -216,6 +241,7 @@ namespace YukaNavi.Api
             using (var req = UnityWebRequest.Get(url))
             {
                 req.timeout = TimeoutSeconds;
+                ApplyCookies(req);
                 var op = req.SendWebRequest();
                 while (!op.isDone)
                 {

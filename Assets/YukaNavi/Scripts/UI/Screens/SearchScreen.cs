@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -10,21 +9,12 @@ namespace YukaNavi.UI
 {
     /// <summary>
     /// 検索画面。「ファイル名 (Everything)」と「アニソンDB (ListerDB)」の2モードを持つ。
-    /// キーワード検索 → 結果リスト → 予約確認モーダル → 予約完了演出。
+    /// キーワード検索 → 結果リスト → 予約 (ReserveDialog)。
     /// </summary>
     public class SearchScreen : ScreenBase
     {
         /// <summary>結果リストの表示上限 (UGUI の負荷対策。超過分は絞り込みを促す)</summary>
         const int MaxRows = 100;
-
-        /// <summary>検索結果の共通形 (どちらのモードでも同じ予約フローに流す)。</summary>
-        class SearchEntry
-        {
-            public string Line1;     // 曲名 (またはファイル名)
-            public string Line2;     // 歌手 / 作品 (ファイル検索では空)
-            public string Filename;  // 予約に使う表示ファイル名
-            public string FullPath;  // 予約に使うフルパス
-        }
 
         bool _listerMode;
         Button _fileTab;
@@ -34,19 +24,7 @@ namespace YukaNavi.UI
         Text _statusText;
         RectTransform _listContent;
         readonly List<GameObject> _rows = new List<GameObject>();
-
-        // 予約確認モーダル
-        GameObject _modal;
-        Text _modalSongText;
-        Text _modalErrorText;
-        InputField _nameInput;
-        InputField _commentInput;
-        Button _submitButton;
-        SearchEntry _selected;
-
-        // 予約完了演出
-        GameObject _completeOverlay;
-        RectTransform _completePose;
+        ReserveDialog _reserveDialog;
 
         public override void BuildUi()
         {
@@ -109,9 +87,13 @@ namespace YukaNavi.UI
             statusRect.anchoredPosition = new Vector2(0f, -308f);
             statusRect.sizeDelta = new Vector2(-40f, 40f);
 
-            BuildResultList();
-            BuildConfirmModal();
-            BuildCompleteOverlay();
+            var scrollRectT = UiFactory.CreateScrollList(transform, "ResultList", out _listContent);
+            scrollRectT.anchorMin = new Vector2(0f, 0f);
+            scrollRectT.anchorMax = new Vector2(1f, 1f);
+            scrollRectT.offsetMin = new Vector2(20f, GlobalNav.BarHeight + 16f);
+            scrollRectT.offsetMax = new Vector2(-20f, -356f);
+
+            _reserveDialog = ReserveDialog.Create(transform);
             SetMode(false);
         }
 
@@ -128,129 +110,9 @@ namespace YukaNavi.UI
             SetStatus("", false);
         }
 
-        void BuildResultList()
-        {
-            var scrollRectT = UiFactory.CreateScrollList(transform, "ResultList", out _listContent);
-            scrollRectT.anchorMin = new Vector2(0f, 0f);
-            scrollRectT.anchorMax = new Vector2(1f, 1f);
-            scrollRectT.offsetMin = new Vector2(20f, GlobalNav.BarHeight + 16f);
-            scrollRectT.offsetMax = new Vector2(-20f, -356f);
-        }
-
-        void BuildConfirmModal()
-        {
-            _modal = new GameObject("ConfirmModal");
-            _modal.transform.SetParent(transform, false);
-            var overlayRect = _modal.AddComponent<RectTransform>();
-            UiFactory.StretchFull(overlayRect);
-            var overlay = _modal.AddComponent<Image>();
-            overlay.color = new Color(0f, 0f, 0f, 0.55f);
-
-            var card = UiFactory.CreatePanel(_modal.transform, "Card", Color.white);
-            card.anchorMin = card.anchorMax = new Vector2(0.5f, 0.55f);
-            card.pivot = new Vector2(0.5f, 0.5f);
-            card.sizeDelta = new Vector2(940f, 820f);
-
-            var title = UiFactory.CreateText(card, "Title", "この曲を予約しますか？", 40, UiFactory.PrimaryDark);
-            SetCardRow(title.rectTransform, -30f, 60f);
-
-            _modalSongText = UiFactory.CreateText(card, "Song", "", 32, UiFactory.TextDark);
-            SetCardRow(_modalSongText.rectTransform, -105f, 130f);
-
-            var nameLabel = UiFactory.CreateText(card, "NameLabel", "歌う人の名前", 28,
-                UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
-            SetCardRow(nameLabel.rectTransform, -255f, 36f);
-            _nameInput = UiFactory.CreateInputField(card, "NameInput", "名前 (必須)");
-            SetCardRow(_nameInput.GetComponent<RectTransform>(), -295f, 80f);
-
-            var commentLabel = UiFactory.CreateText(card, "CommentLabel", "コメント (任意)", 28,
-                UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
-            SetCardRow(commentLabel.rectTransform, -395f, 36f);
-            _commentInput = UiFactory.CreateInputField(card, "CommentInput", "");
-            SetCardRow(_commentInput.GetComponent<RectTransform>(), -435f, 80f);
-
-            _modalErrorText = UiFactory.CreateText(card, "Error", "", 26, UiFactory.Danger);
-            SetCardRow(_modalErrorText.rectTransform, -530f, 40f);
-
-            _submitButton = UiFactory.CreateButton(card, "Submit", "予約する", UiFactory.Primary, Color.white, 38);
-            var submitRect = _submitButton.GetComponent<RectTransform>();
-            submitRect.anchorMin = submitRect.anchorMax = new Vector2(0.5f, 0f);
-            submitRect.pivot = new Vector2(0.5f, 0f);
-            submitRect.anchoredPosition = new Vector2(-190f, 40f);
-            submitRect.sizeDelta = new Vector2(340f, 96f);
-            _submitButton.onClick.AddListener(() => _ = SubmitAsync());
-
-            var cancelButton = UiFactory.CreateButton(card, "Cancel", "やめる",
-                new Color(0.75f, 0.73f, 0.80f), Color.white, 38);
-            var cancelRect = cancelButton.GetComponent<RectTransform>();
-            cancelRect.anchorMin = cancelRect.anchorMax = new Vector2(0.5f, 0f);
-            cancelRect.pivot = new Vector2(0.5f, 0f);
-            cancelRect.anchoredPosition = new Vector2(190f, 40f);
-            cancelRect.sizeDelta = new Vector2(340f, 96f);
-            cancelButton.onClick.AddListener(() =>
-            {
-                Se.Play(Se.Tap);
-                _modal.SetActive(false);
-            });
-
-            _modal.SetActive(false);
-        }
-
-        static void SetCardRow(RectTransform rect, float y, float height)
-        {
-            rect.anchorMin = new Vector2(0f, 1f);
-            rect.anchorMax = new Vector2(1f, 1f);
-            rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = new Vector2(0f, y);
-            rect.offsetMin = new Vector2(50f, rect.offsetMin.y);
-            rect.offsetMax = new Vector2(-50f, rect.offsetMax.y);
-            rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
-        }
-
-        void BuildCompleteOverlay()
-        {
-            _completeOverlay = new GameObject("CompleteOverlay");
-            _completeOverlay.transform.SetParent(transform, false);
-            var overlayRect = _completeOverlay.AddComponent<RectTransform>();
-            UiFactory.StretchFull(overlayRect);
-            var overlay = _completeOverlay.AddComponent<Image>();
-            overlay.color = new Color(0.97f, 0.95f, 1f, 0.88f);
-            var closeButton = _completeOverlay.AddComponent<Button>();
-            closeButton.transition = Selectable.Transition.None;
-            closeButton.onClick.AddListener(() =>
-            {
-                Se.Play(Se.Tap);
-                _completeOverlay.SetActive(false);
-            });
-
-            var message = UiFactory.CreateText(_completeOverlay.transform, "Message", "予約したよ♪", 64, UiFactory.Primary);
-            var msgRect = message.rectTransform;
-            msgRect.anchorMin = msgRect.anchorMax = new Vector2(0.5f, 1f);
-            msgRect.pivot = new Vector2(0.5f, 1f);
-            msgRect.anchoredPosition = new Vector2(0f, -220f);
-            msgRect.sizeDelta = new Vector2(800f, 90f);
-
-            var pose = UiFactory.CreateImage(_completeOverlay.transform, "Pose", "Art/Mascot/yukari_pose_request_complete");
-            pose.preserveAspect = true;
-            _completePose = pose.rectTransform;
-            _completePose.anchorMin = _completePose.anchorMax = new Vector2(0.5f, 0.45f);
-            _completePose.pivot = new Vector2(0.5f, 0.5f);
-            _completePose.sizeDelta = new Vector2(700f, 1050f);
-
-            var hint = UiFactory.CreateText(_completeOverlay.transform, "Hint", "タップで閉じる", 30, UiFactory.PrimaryDark);
-            var hintRect = hint.rectTransform;
-            hintRect.anchorMin = hintRect.anchorMax = new Vector2(0.5f, 0f);
-            hintRect.pivot = new Vector2(0.5f, 0f);
-            hintRect.anchoredPosition = new Vector2(0f, 60f);
-            hintRect.sizeDelta = new Vector2(600f, 44f);
-
-            _completeOverlay.SetActive(false);
-        }
-
         public override void OnShow()
         {
-            _modal.SetActive(false);
-            _completeOverlay.SetActive(false);
+            _reserveDialog.HideAll();
         }
 
         void SetStatus(string message, bool isError)
@@ -268,17 +130,6 @@ namespace YukaNavi.UI
             _rows.Clear();
         }
 
-        /// <summary>パス区切り (\ と / の両方) を考慮した basename。</summary>
-        static string BaseName(string path)
-        {
-            if (string.IsNullOrEmpty(path))
-            {
-                return "";
-            }
-            int cut = Mathf.Max(path.LastIndexOf('\\'), path.LastIndexOf('/'));
-            return cut >= 0 ? path.Substring(cut + 1) : path;
-        }
-
         async Task SearchAsync()
         {
             string keyword = (_searchInput.text ?? "").Trim();
@@ -293,7 +144,7 @@ namespace YukaNavi.UI
             ClearRows();
             try
             {
-                var entries = new List<SearchEntry>();
+                var entries = new List<ReserveDialog.Entry>();
                 int total;
                 if (_listerMode)
                 {
@@ -316,11 +167,13 @@ namespace YukaNavi.UI
                                     line2 += " (" + item.OpEd + ")";
                                 }
                             }
-                            entries.Add(new SearchEntry
+                            entries.Add(new ReserveDialog.Entry
                             {
-                                Line1 = string.IsNullOrEmpty(item.SongName) ? BaseName(item.FoundPath) : item.SongName,
+                                Line1 = string.IsNullOrEmpty(item.SongName)
+                                    ? ReserveDialog.BaseName(item.FoundPath)
+                                    : item.SongName,
                                 Line2 = line2,
-                                Filename = BaseName(item.FoundPath),
+                                Filename = ReserveDialog.BaseName(item.FoundPath),
                                 FullPath = item.FoundPath,
                             });
                         }
@@ -334,7 +187,7 @@ namespace YukaNavi.UI
                     {
                         foreach (var item in result.Items)
                         {
-                            entries.Add(new SearchEntry
+                            entries.Add(new ReserveDialog.Entry
                             {
                                 Line1 = item.Name,
                                 Line2 = "",
@@ -370,7 +223,7 @@ namespace YukaNavi.UI
             }
         }
 
-        void AddResultRow(SearchEntry entry)
+        void AddResultRow(ReserveDialog.Entry entry)
         {
             bool twoLines = !string.IsNullOrEmpty(entry.Line2);
             var rowGo = new GameObject("Row");
@@ -380,7 +233,7 @@ namespace YukaNavi.UI
             var le = rowGo.AddComponent<LayoutElement>();
             le.preferredHeight = twoLines ? 132f : 112f;
             var button = rowGo.AddComponent<Button>();
-            button.onClick.AddListener(() => OpenConfirm(entry));
+            button.onClick.AddListener(() => _reserveDialog.Open(entry));
 
             var nameText = UiFactory.CreateText(rowGo.transform, "Name", entry.Line1, 30,
                 UiFactory.TextDark, twoLines ? TextAnchor.UpperLeft : TextAnchor.MiddleLeft);
@@ -400,74 +253,6 @@ namespace YukaNavi.UI
             }
 
             _rows.Add(rowGo);
-        }
-
-        void OpenConfirm(SearchEntry entry)
-        {
-            Se.Play(Se.Tap);
-            _selected = entry;
-            _modalSongText.text = string.IsNullOrEmpty(entry.Line2)
-                ? entry.Line1
-                : entry.Line1 + "\n" + entry.Line2;
-            _modalErrorText.text = "";
-            _nameInput.text = AppConfig.Username;
-            _commentInput.text = "";
-            _submitButton.interactable = true;
-            _modal.SetActive(true);
-        }
-
-        async Task SubmitAsync()
-        {
-            if (_selected == null)
-            {
-                return;
-            }
-            string name = (_nameInput.text ?? "").Trim();
-            if (name == "")
-            {
-                _modalErrorText.text = "名前を入力してください";
-                Se.Play(Se.Error);
-                return;
-            }
-            AppConfig.Username = name;
-            _submitButton.interactable = false;
-            _modalErrorText.text = "";
-            try
-            {
-                await AppConfig.CreateClient().PostRequestAsync(
-                    _selected.Filename, _selected.FullPath, name, (_commentInput.text ?? "").Trim());
-                _modal.SetActive(false);
-                ShowComplete();
-            }
-            catch (System.Exception e)
-            {
-                _modalErrorText.text = "予約に失敗: " + e.Message;
-                Se.Play(Se.Error);
-                _submitButton.interactable = true;
-            }
-        }
-
-        void ShowComplete()
-        {
-            Se.Play(Se.ReservationComplete);
-            _completeOverlay.SetActive(true);
-            StartCoroutine(CompletePopRoutine());
-        }
-
-        /// <summary>完了ポーズをぽよんと登場させる (0.7 → 1.05 → 1.0)。</summary>
-        IEnumerator CompletePopRoutine()
-        {
-            const float duration = 0.35f;
-            for (float e = 0f; e < duration; e += Time.deltaTime)
-            {
-                float t = e / duration;
-                float scale = t < 0.7f
-                    ? Mathf.Lerp(0.7f, 1.05f, t / 0.7f)
-                    : Mathf.Lerp(1.05f, 1.0f, (t - 0.7f) / 0.3f);
-                _completePose.localScale = new Vector3(scale, scale, 1f);
-                yield return null;
-            }
-            _completePose.localScale = Vector3.one;
         }
     }
 }

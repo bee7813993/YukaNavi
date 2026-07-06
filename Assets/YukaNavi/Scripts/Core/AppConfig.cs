@@ -11,6 +11,7 @@ namespace YukaNavi.Core
         const string KeyConfigured = "yukanavi.configured";
         const string KeyUsername = "yukanavi.username";
         const string KeySkinId = "yukanavi.skin_id";
+        const string KeyMypageUserId = "yukanavi.mypage_userid";
 
         /// <summary>
         /// 既定の接続先。Android 実機は localhost に繋がらないため試験サーバーを使う。
@@ -62,10 +63,32 @@ namespace YukaNavi.Core
             set { PlayerPrefs.SetInt(KeyConfigured, value ? 1 : 0); PlayerPrefs.Save(); }
         }
 
+        /// <summary>
+        /// マイページのユーザー ID (UUID)。初回アクセス時に生成して永続化する。
+        /// Web 版の Cookie YkariUserID に相当し、同じ値を送ることでデータを共有できる。
+        /// </summary>
+        public static string MypageUserId
+        {
+            get
+            {
+                string id = PlayerPrefs.GetString(KeyMypageUserId, "");
+                if (string.IsNullOrEmpty(id))
+                {
+                    id = System.Guid.NewGuid().ToString();
+                    PlayerPrefs.SetString(KeyMypageUserId, id);
+                    PlayerPrefs.Save();
+                }
+                return id;
+            }
+        }
+
         /// <summary>現在の設定で ApiClient を作る。</summary>
         public static ApiClient CreateClient()
         {
-            return new ApiClient(ServerUrl, EasyPass);
+            var client = new ApiClient(ServerUrl, EasyPass);
+            client.UserId = MypageUserId;
+            client.Username = Username;
+            return client;
         }
     }
 }
