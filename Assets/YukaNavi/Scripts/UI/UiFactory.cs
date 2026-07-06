@@ -40,6 +40,19 @@ namespace YukaNavi.UI
             return Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
         }
 
+        /// <summary>9-slice 用の Sprite を生成する。border は (左, 下, 右, 上)。</summary>
+        public static Sprite LoadSprite9Slice(string path, Vector4 border)
+        {
+            var tex = Resources.Load<Texture2D>(path);
+            if (tex == null)
+            {
+                Debug.LogError("[YukaNavi] テクスチャが見つかりません: Resources/" + path);
+                return null;
+            }
+            return Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height), new Vector2(0.5f, 0.5f),
+                100f, 0, SpriteMeshType.FullRect, border);
+        }
+
         /// <summary>RectTransform を親いっぱいに広げる。</summary>
         public static void StretchFull(RectTransform rect)
         {

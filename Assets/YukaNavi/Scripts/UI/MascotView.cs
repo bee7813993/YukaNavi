@@ -21,6 +21,16 @@ namespace YukaNavi.UI
             "Art/Mascot/yukari_expr_surprised",
         };
 
+        // タップ時にランダムで出すセリフ
+        static readonly string[] SpeechLines =
+        {
+            "うたっていこ〜♪",
+            "今日はなにうたう？",
+            "タップありがと♪",
+            "いっぱい予約してね！",
+            "じゅんびばっちりだよ〜",
+        };
+
         public System.Action OnTapped;
 
         Image _image;
@@ -32,6 +42,9 @@ namespace YukaNavi.UI
         float _nextBlinkTime;
         bool _blinking;
         Coroutine _squash;
+        GameObject _bubble;
+        Text _bubbleText;
+        Coroutine _bubbleRoutine;
 
         /// <summary>下端中央アンカーで立ち絵を生成する。</summary>
         public static MascotView Create(Transform parent, Vector2 size, float baseY)
@@ -67,6 +80,70 @@ namespace YukaNavi.UI
             var button = gameObject.AddComponent<Button>();
             button.transition = Selectable.Transition.None;
             button.onClick.AddListener(HandleTap);
+
+            BuildBubble();
+        }
+
+        /// <summary>セリフ吹き出し (しっぽが左下向き → キャラの右上に置く)。</summary>
+        void BuildBubble()
+        {
+            _bubble = new GameObject("Bubble");
+            _bubble.transform.SetParent(transform, false);
+            var img = _bubble.AddComponent<Image>();
+            // ASSET_MANIFEST の推奨 9-slice border: L=170, R=80, T=80, B=135
+            img.sprite = UiFactory.LoadSprite9Slice("Art/UI/yukanavi_speech_bubble_9slice_tail_left",
+                new Vector4(170f, 135f, 80f, 80f));
+            img.type = Image.Type.Sliced;
+            // border 合計 (縦215px) が表示サイズを超えると枠が潰れるため、実効スケールを縮める
+            img.pixelsPerUnitMultiplier = 1.6f;
+            img.raycastTarget = false;
+            var rect = img.rectTransform;
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
+            rect.pivot = new Vector2(0.1f, 0.05f);
+            rect.anchoredPosition = new Vector2(60f, -140f);
+            rect.sizeDelta = new Vector2(470f, 190f);
+
+            _bubbleText = UiFactory.CreateText(_bubble.transform, "Text", "", 30, UiFactory.TextDark,
+                TextAnchor.MiddleLeft);
+            UiFactory.StretchFull(_bubbleText.rectTransform);
+            // 枠の内側に収める (左の border はしっぽ込みの値のため、見た目に合わせて詰める)
+            _bubbleText.rectTransform.offsetMin = new Vector2(68f, 85f);
+            _bubbleText.rectTransform.offsetMax = new Vector2(-45f, -50f);
+            _bubbleText.horizontalOverflow = HorizontalWrapMode.Overflow;
+
+            _bubble.SetActive(false);
+        }
+
+        /// <summary>吹き出しにセリフを表示する (数秒で自動的に消える)。</summary>
+        public void Say(string line)
+        {
+            if (_bubbleRoutine != null)
+            {
+                StopCoroutine(_bubbleRoutine);
+            }
+            _bubbleRoutine = StartCoroutine(BubbleRoutine(line));
+        }
+
+        IEnumerator BubbleRoutine(string line)
+        {
+            _bubbleText.text = line;
+            _bubble.SetActive(true);
+            var rect = _bubble.GetComponent<RectTransform>();
+            // セリフの長さに合わせて吹き出しの横幅を調整する (左右の余白 + テキスト幅)
+            float width = Mathf.Clamp(_bubbleText.preferredWidth + 68f + 45f + 14f, 250f, 640f);
+            rect.sizeDelta = new Vector2(width, 190f);
+            const float popDuration = 0.18f;
+            for (float e = 0f; e < popDuration; e += Time.deltaTime)
+            {
+                float k = e / popDuration;
+                float scale = Mathf.Lerp(0.6f, 1f, 1f - (1f - k) * (1f - k)); // easeOut
+                rect.localScale = new Vector3(scale, scale, 1f);
+                yield return null;
+            }
+            rect.localScale = Vector3.one;
+            yield return new WaitForSeconds(2.2f);
+            _bubble.SetActive(false);
+            _bubbleRoutine = null;
         }
 
         void Update()
@@ -96,6 +173,7 @@ namespace YukaNavi.UI
                 StopCoroutine(_squash);
             }
             _squash = StartCoroutine(SquashRoutine());
+            Say(SpeechLines[Random.Range(0, SpeechLines.Length)]);
             OnTapped?.Invoke();
         }
 
