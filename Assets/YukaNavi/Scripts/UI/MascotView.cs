@@ -46,24 +46,38 @@ namespace YukaNavi.UI
         Text _bubbleText;
         Coroutine _bubbleRoutine;
 
-        /// <summary>下端中央アンカーで立ち絵を生成する。</summary>
-        public static MascotView Create(Transform parent, Vector2 size, float baseY)
+        bool _isCustom;
+
+        /// <summary>
+        /// 下端中央アンカーで立ち絵を生成する。
+        /// customSprite を渡すとスキンのカスタムキャラ (表情切替・まばたき・セリフなし) になる。
+        /// </summary>
+        public static MascotView Create(Transform parent, Vector2 size, float baseY, Sprite customSprite = null)
         {
             var go = new GameObject("Mascot");
             go.transform.SetParent(parent, false);
             var view = go.AddComponent<MascotView>();
-            view.Build(size, baseY);
+            view.Build(size, baseY, customSprite);
             return view;
         }
 
-        void Build(Vector2 size, float baseY)
+        void Build(Vector2 size, float baseY, Sprite customSprite)
         {
-            _expressions = new Sprite[ExpressionPaths.Length];
-            for (int i = 0; i < ExpressionPaths.Length; i++)
+            if (customSprite != null)
             {
-                _expressions[i] = UiFactory.LoadSprite(ExpressionPaths[i]);
+                _isCustom = true;
+                _expressions = new[] { customSprite };
+                _eyesClosed = null;
             }
-            _eyesClosed = UiFactory.LoadSprite("Art/Mascot/yukari_expr_eyes_closed");
+            else
+            {
+                _expressions = new Sprite[ExpressionPaths.Length];
+                for (int i = 0; i < ExpressionPaths.Length; i++)
+                {
+                    _expressions[i] = UiFactory.LoadSprite(ExpressionPaths[i]);
+                }
+                _eyesClosed = UiFactory.LoadSprite("Art/Mascot/yukari_expr_eyes_closed");
+            }
             _nextBlinkTime = Time.time + Random.Range(2f, 4f);
 
             _image = gameObject.AddComponent<Image>();
@@ -173,7 +187,11 @@ namespace YukaNavi.UI
                 StopCoroutine(_squash);
             }
             _squash = StartCoroutine(SquashRoutine());
-            Say(SpeechLines[Random.Range(0, SpeechLines.Length)]);
+            if (!_isCustom)
+            {
+                // セリフはゆかりちゃん専用 (カスタムキャラには合わないため)
+                Say(SpeechLines[Random.Range(0, SpeechLines.Length)]);
+            }
             OnTapped?.Invoke();
         }
 
