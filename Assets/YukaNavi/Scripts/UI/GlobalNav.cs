@@ -87,7 +87,7 @@ namespace YukaNavi.UI
 
             AddMenuItem("曲をさがす", true, () => _screens.Show<SearchScreen>());
             AddMenuItem("予約一覧", true, () => _screens.Show<QueueScreen>());
-            AddMenuItem("リモコン (準備中)", false, null);
+            AddMenuItem("リモコン", true, () => _screens.Show<PlayerScreen>());
             AddMenuItem("接続設定", true, () => _screens.Show<ConnectScreen>());
 
             _menuPanel.SetActive(false);

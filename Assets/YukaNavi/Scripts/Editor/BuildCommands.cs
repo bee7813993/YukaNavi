@@ -15,9 +15,24 @@ namespace YukaNavi.EditorTools
         const string AndroidIdentifier = "com.bee7813993.yukanavi";
         const string IconPath = "Assets/YukaNavi/Art/Icon/yukanavi_app_icon_1024.png";
 
+        /// <summary>再生モード中のビルドは Unity に拒否されるため、分かりやすく案内して中断する。</summary>
+        static bool CanBuild()
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                Debug.LogError("[YukaNavi] 再生モード中はビルドできません。停止 (■) してから実行してください。");
+                return false;
+            }
+            return true;
+        }
+
         [MenuItem("YukaNavi/ビルド/Windows (Build~Windows)")]
         public static void BuildWindows()
         {
+            if (!CanBuild())
+            {
+                return;
+            }
             EnsureSettings();
             var options = new BuildPlayerOptions
             {
@@ -31,6 +46,10 @@ namespace YukaNavi.EditorTools
         [MenuItem("YukaNavi/ビルド/Android (APK)")]
         public static void BuildAndroid()
         {
+            if (!CanBuild())
+            {
+                return;
+            }
             EnsureSettings();
             // Play ストア提出時は AAB だが、M0 は実機に直接入れる APK で確認する
             EditorUserBuildSettings.buildAppBundle = false;
@@ -59,6 +78,9 @@ namespace YukaNavi.EditorTools
 
             // ゆかりは LAN 内の http 運用が基本のため、Android の非 HTTPS 通信を許可する
             PlayerSettings.insecureHttpOption = InsecureHttpOption.AlwaysAllowed;
+
+            // 現状の UI は縦持ち専用のため Android は Portrait 固定 (横レイアウトは将来対応)
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
 
             var icon = AssetDatabase.LoadAssetAtPath<Texture2D>(IconPath);
             if (icon != null)
