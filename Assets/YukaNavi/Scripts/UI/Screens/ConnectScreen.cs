@@ -39,6 +39,21 @@ namespace YukaNavi.UI
             SetTopRect(urlLabel.rectTransform, -260f, 40f);
             _urlInput = UiFactory.CreateInputField(transform, "UrlInput", "http://192.168.x.x/");
             SetTopRect(_urlInput.GetComponent<RectTransform>(), -310f, 84f);
+            // URL 欄の右に QR 読み取りボタンを置く
+            var urlRect = _urlInput.GetComponent<RectTransform>();
+            urlRect.offsetMax = new Vector2(-310f, urlRect.offsetMax.y);
+            var qrButton = UiFactory.CreateButton(transform, "QrButton", "QRで読取",
+                UiFactory.Primary, Color.white, 30);
+            var qrRect = qrButton.GetComponent<RectTransform>();
+            qrRect.anchorMin = qrRect.anchorMax = new Vector2(1f, 1f);
+            qrRect.pivot = new Vector2(1f, 1f);
+            qrRect.anchoredPosition = new Vector2(-90f, -310f);
+            qrRect.sizeDelta = new Vector2(200f, 84f);
+            qrButton.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Transition);
+                Manager.Show<QrScanScreen>();
+            });
 
             // easyauth パスワード入力
             var passLabel = UiFactory.CreateText(transform, "PassLabel",
@@ -78,6 +93,16 @@ namespace YukaNavi.UI
 
         public override void OnShow()
         {
+            // QR 読み取りから戻ってきた場合は読み取った URL を反映する
+            if (!string.IsNullOrEmpty(QrScanScreen.LastScannedText))
+            {
+                _urlInput.text = QrScanScreen.LastScannedText;
+                QrScanScreen.LastScannedText = null;
+                _resultText.text = "QR を読み取りました。接続テストをしてください";
+                _resultText.color = UiFactory.TextDark;
+                _tested = false;
+                return;
+            }
             _urlInput.text = AppConfig.ServerUrl;
             _passInput.text = AppConfig.EasyPass;
             _resultText.text = AppConfig.IsConfigured
