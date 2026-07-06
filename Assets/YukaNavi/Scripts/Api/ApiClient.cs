@@ -108,12 +108,36 @@ namespace YukaNavi.Api
         public Task<NowPlayingDto> GetNowPlayingAsync()
             => GetApiAsync<NowPlayingDto>("api/nowplaying.php");
 
+        /// <summary>予約オプション (exec.php に渡す任意項目)。</summary>
+        public class RequestOptions
+        {
+            /// <summary>キー変更 (-6〜+6、0 = 変更なし)</summary>
+            public int Keychange;
+            /// <summary>シークレット予約</summary>
+            public bool Secret;
+            /// <summary>BGV モード (exec.php 側で kind がカラオケ配信になる)</summary>
+            public bool Loop;
+            /// <summary>別プレイヤー再生 (exec.php 側で kind が 動画_別プ になる)</summary>
+            public bool OtherPlayer;
+            /// <summary>この曲の後に小休止</summary>
+            public bool Pause;
+            /// <summary>音ズレ補正 ms (-9900〜9900)</summary>
+            public int AudioDelay;
+            /// <summary>音量増減 % (-100〜100、0 = 変更なし)</summary>
+            public int Volume;
+            /// <summary>音声トラック (0 = 1トラック目)</summary>
+            public int Track;
+            /// <summary>既存予約の差し替え先 id (負なら新規)</summary>
+            public int SelectId = -1;
+        }
+
         /// <summary>
         /// 予約投稿 (exec.php の XHR モード)。成功で新しい予約 ID を返す。
         /// 注意: exec.php は不正入力を HTTP 200 + 空応答で拒否する (api/README.md 参照)。
         /// </summary>
         public async Task<int> PostRequestAsync(string filename, string fullpath, string singerName,
-                                                string comment, string kind = "動画", bool secret = false)
+                                                string comment, string kind = "動画",
+                                                RequestOptions options = null)
         {
             var form = new UnityEngine.WWWForm();
             form.AddField("filename", filename);
@@ -122,9 +146,44 @@ namespace YukaNavi.Api
             form.AddField("freesinger", singerName);
             form.AddField("comment", comment ?? "");
             form.AddField("kind", kind);
-            if (secret)
+            if (options != null)
             {
-                form.AddField("secret", "1");
+                if (options.Keychange != 0)
+                {
+                    form.AddField("keychange", options.Keychange.ToString());
+                }
+                if (options.Secret)
+                {
+                    form.AddField("secret", "1");
+                }
+                if (options.Loop)
+                {
+                    form.AddField("loop", "1");
+                }
+                if (options.OtherPlayer)
+                {
+                    form.AddField("otherplayer", "1");
+                }
+                if (options.Pause)
+                {
+                    form.AddField("pause", "1");
+                }
+                if (options.AudioDelay != 0)
+                {
+                    form.AddField("audiodelay", options.AudioDelay.ToString());
+                }
+                if (options.Volume != 0)
+                {
+                    form.AddField("volume", options.Volume.ToString());
+                }
+                if (options.Track > 0)
+                {
+                    form.AddField("track", options.Track.ToString());
+                }
+                if (options.SelectId >= 0)
+                {
+                    form.AddField("selectid", options.SelectId.ToString());
+                }
             }
 
             string url = BaseUrl.TrimEnd('/') + "/exec.php";
@@ -182,6 +241,72 @@ namespace YukaNavi.Api
                 path += "&" + extraQuery;
             }
             return GetApiAsync<PlayerActionDto>(path);
+        }
+
+        /// <summary>
+        /// 音声トラックの一覧を取得する (動画ファイルのみ有効)。
+        /// 戻り値はトラックのラベル一覧。空 = 判別できない (mp4 以外・解析失敗)。
+        /// </summary>
+        public async Task<System.Collections.Generic.List<string>> GetTrackListAsync(string fullpath)
+        {
+            var labels = new System.Collections.Generic.List<string>();
+            try
+            {
+                string json = await GetTextAsync(
+                    "gettracklist_json.php?fullpath=" + UnityWebRequest.EscapeURL(fullpath), true);
+                // 旧サーバーでは JSON の前に PHP Warning が混入することがあるため '[' 以降を読む
+                int start = json.IndexOf('[');
+                if (start < 0)
+                {
+                    return labels;
+                }
+                var arr = Newtonsoft.Json.Linq.JArray.Parse(json.Substring(start));
+                foreach (var item in arr)
+                {
+                    // 各要素は [トラック種別, ラベル] の配列
+                    string label = "";
+                    if (item is Newtonsoft.Json.Linq.JArray inner && inner.Count > 1)
+                    {
+                        label = inner[1]?.ToString() ?? "";
+                    }
+                    labels.Add(label);
+                }
+            }
+            catch
+            {
+                labels.Clear();
+            }
+            return labels;
+        }
+
+        /// <summary>
+        /// 予約に入っている歌う人の一覧。Cookie の YkariUsername (自分の名前) が先頭に入る。
+        /// </summary>
+        public async Task<System.Collections.Generic.List<string>> GetSingerListAsync()
+        {
+            var singers = new System.Collections.Generic.List<string>();
+            try
+            {
+                string json = await GetTextAsync("getsingerlist_json.php", true);
+                int start = json.IndexOf('[');
+                if (start < 0)
+                {
+                    return singers;
+                }
+                var arr = Newtonsoft.Json.Linq.JArray.Parse(json.Substring(start));
+                foreach (var item in arr)
+                {
+                    string name = item?["singer"]?.ToString() ?? "";
+                    if (name != "" && !singers.Contains(name))
+                    {
+                        singers.Add(name);
+                    }
+                }
+            }
+            catch
+            {
+            }
+            return singers;
         }
 
         /// <summary>

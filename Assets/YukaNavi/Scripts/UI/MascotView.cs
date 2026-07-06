@@ -33,6 +33,9 @@ namespace YukaNavi.UI
 
         public System.Action OnTapped;
 
+        /// <summary>true を返す間はタップ演出 (表情切替・セリフ) を止める (ホームの移動モード用)。</summary>
+        public System.Func<bool> SuppressTap;
+
         Image _image;
         RectTransform _rect;
         Sprite[] _expressions;
@@ -176,6 +179,10 @@ namespace YukaNavi.UI
 
         void HandleTap()
         {
+            if (SuppressTap != null && SuppressTap())
+            {
+                return;
+            }
             _expressionIndex = (_expressionIndex + 1) % _expressions.Length;
             if (_expressions[_expressionIndex] != null)
             {
