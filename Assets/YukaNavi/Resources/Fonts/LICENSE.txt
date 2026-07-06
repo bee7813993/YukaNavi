@@ -1,0 +1,5 @@
+﻿M PLUS Rounded 1c (Regular)
+Copyright 2021 The M+ FONTS Project Authors (https://github.com/coz-m/MPLUS_FONTS)
+
+Licensed under the SIL Open Font License, Version 1.1.
+License text: https://openfontlicense.org
