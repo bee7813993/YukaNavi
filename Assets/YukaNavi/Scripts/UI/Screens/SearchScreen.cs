@@ -9,14 +9,26 @@ using YukaNavi.Core;
 namespace YukaNavi.UI
 {
     /// <summary>
-    /// 検索画面。キーワード検索 → 結果リスト → 予約確認モーダル → 予約完了演出。
-    /// デンモクの操作動線 (検索して選んで予約) をキーワード検索メインで実装する。
+    /// 検索画面。「ファイル名 (Everything)」と「アニソンDB (ListerDB)」の2モードを持つ。
+    /// キーワード検索 → 結果リスト → 予約確認モーダル → 予約完了演出。
     /// </summary>
     public class SearchScreen : ScreenBase
     {
         /// <summary>結果リストの表示上限 (UGUI の負荷対策。超過分は絞り込みを促す)</summary>
         const int MaxRows = 100;
 
+        /// <summary>検索結果の共通形 (どちらのモードでも同じ予約フローに流す)。</summary>
+        class SearchEntry
+        {
+            public string Line1;     // 曲名 (またはファイル名)
+            public string Line2;     // 歌手 / 作品 (ファイル検索では空)
+            public string Filename;  // 予約に使う表示ファイル名
+            public string FullPath;  // 予約に使うフルパス
+        }
+
+        bool _listerMode;
+        Button _fileTab;
+        Button _listerTab;
         InputField _searchInput;
         Button _searchButton;
         Text _statusText;
@@ -30,7 +42,7 @@ namespace YukaNavi.UI
         InputField _nameInput;
         InputField _commentInput;
         Button _submitButton;
-        SearchItemDto _selected;
+        SearchEntry _selected;
 
         // 予約完了演出
         GameObject _completeOverlay;
@@ -41,16 +53,32 @@ namespace YukaNavi.UI
             var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.PanelBg);
             UiFactory.StretchFull(bg);
 
-            // 上部バー (戻る + タイトル)
+            // 上部バー
             var topBar = UiFactory.CreatePanel(transform, "TopBar", UiFactory.Primary);
             topBar.anchorMin = new Vector2(0f, 1f);
             topBar.anchorMax = new Vector2(1f, 1f);
             topBar.pivot = new Vector2(0.5f, 1f);
             topBar.sizeDelta = new Vector2(0f, 110f);
-
-            // 戻る操作はグローバルナビバーが担当する
             var title = UiFactory.CreateText(topBar, "Title", "曲をさがす", 42, Color.white);
             UiFactory.StretchFull(title.rectTransform);
+
+            // 検索モードタブ (ファイル名 / アニソンDB)
+            var tabBar = UiFactory.CreatePanel(transform, "Tabs");
+            tabBar.anchorMin = new Vector2(0f, 1f);
+            tabBar.anchorMax = new Vector2(1f, 1f);
+            tabBar.pivot = new Vector2(0.5f, 1f);
+            tabBar.anchoredPosition = new Vector2(0f, -118f);
+            tabBar.offsetMin = new Vector2(20f, tabBar.offsetMin.y);
+            tabBar.offsetMax = new Vector2(-20f, tabBar.offsetMax.y);
+            tabBar.sizeDelta = new Vector2(tabBar.sizeDelta.x, 72f);
+            var tabLayout = tabBar.gameObject.AddComponent<HorizontalLayoutGroup>();
+            tabLayout.childForceExpandWidth = true;
+            tabLayout.childForceExpandHeight = true;
+            tabLayout.spacing = 8f;
+            _fileTab = UiFactory.CreateButton(tabBar, "FileTab", "ファイル名でさがす", UiFactory.Primary, Color.white, 30);
+            _fileTab.onClick.AddListener(() => SetMode(false));
+            _listerTab = UiFactory.CreateButton(tabBar, "ListerTab", "アニソンDBでさがす", UiFactory.Primary, Color.white, 30);
+            _listerTab.onClick.AddListener(() => SetMode(true));
 
             // 検索行 (入力 + ボタン)
             _searchInput = UiFactory.CreateInputField(transform, "SearchInput", "曲名・アーティスト名など");
@@ -58,7 +86,7 @@ namespace YukaNavi.UI
             inputRect.anchorMin = new Vector2(0f, 1f);
             inputRect.anchorMax = new Vector2(1f, 1f);
             inputRect.pivot = new Vector2(0.5f, 1f);
-            inputRect.anchoredPosition = new Vector2(0f, -130f);
+            inputRect.anchoredPosition = new Vector2(0f, -206f);
             inputRect.offsetMin = new Vector2(20f, inputRect.offsetMin.y);
             inputRect.offsetMax = new Vector2(-260f, inputRect.offsetMax.y);
             inputRect.sizeDelta = new Vector2(inputRect.sizeDelta.x, 90f);
@@ -68,7 +96,7 @@ namespace YukaNavi.UI
             var searchBtnRect = _searchButton.GetComponent<RectTransform>();
             searchBtnRect.anchorMin = searchBtnRect.anchorMax = new Vector2(1f, 1f);
             searchBtnRect.pivot = new Vector2(1f, 1f);
-            searchBtnRect.anchoredPosition = new Vector2(-20f, -130f);
+            searchBtnRect.anchoredPosition = new Vector2(-20f, -206f);
             searchBtnRect.sizeDelta = new Vector2(220f, 90f);
             _searchButton.onClick.AddListener(() => _ = SearchAsync());
 
@@ -78,12 +106,26 @@ namespace YukaNavi.UI
             statusRect.anchorMin = new Vector2(0f, 1f);
             statusRect.anchorMax = new Vector2(1f, 1f);
             statusRect.pivot = new Vector2(0.5f, 1f);
-            statusRect.anchoredPosition = new Vector2(0f, -235f);
+            statusRect.anchoredPosition = new Vector2(0f, -308f);
             statusRect.sizeDelta = new Vector2(-40f, 40f);
 
             BuildResultList();
             BuildConfirmModal();
             BuildCompleteOverlay();
+            SetMode(false);
+        }
+
+        /// <summary>検索モードを切り替える (タブの見た目・プレースホルダ・結果クリア)。</summary>
+        void SetMode(bool listerMode)
+        {
+            _listerMode = listerMode;
+            var offColor = new Color(0.78f, 0.76f, 0.84f);
+            _fileTab.image.color = listerMode ? offColor : UiFactory.Primary;
+            _listerTab.image.color = listerMode ? UiFactory.Primary : offColor;
+            var placeholder = (Text)_searchInput.placeholder;
+            placeholder.text = listerMode ? "曲名・歌手・作品名など" : "曲名・アーティスト名など";
+            ClearRows();
+            SetStatus("", false);
         }
 
         void BuildResultList()
@@ -92,7 +134,7 @@ namespace YukaNavi.UI
             scrollRectT.anchorMin = new Vector2(0f, 0f);
             scrollRectT.anchorMax = new Vector2(1f, 1f);
             scrollRectT.offsetMin = new Vector2(20f, GlobalNav.BarHeight + 16f);
-            scrollRectT.offsetMax = new Vector2(-20f, -290f);
+            scrollRectT.offsetMax = new Vector2(-20f, -356f);
         }
 
         void BuildConfirmModal()
@@ -226,6 +268,17 @@ namespace YukaNavi.UI
             _rows.Clear();
         }
 
+        /// <summary>パス区切り (\ と / の両方) を考慮した basename。</summary>
+        static string BaseName(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return "";
+            }
+            int cut = Mathf.Max(path.LastIndexOf('\\'), path.LastIndexOf('/'));
+            return cut >= 0 ? path.Substring(cut + 1) : path;
+        }
+
         async Task SearchAsync()
         {
             string keyword = (_searchInput.text ?? "").Trim();
@@ -240,20 +293,71 @@ namespace YukaNavi.UI
             ClearRows();
             try
             {
-                var result = await AppConfig.CreateClient().SearchAsync(keyword);
-                if (result.Count == 0)
+                var entries = new List<SearchEntry>();
+                int total;
+                if (_listerMode)
+                {
+                    var result = await AppConfig.CreateClient().SearchListerAsync(keyword, MaxRows);
+                    total = result.Total;
+                    if (total > 0 && result.Items != null)
+                    {
+                        foreach (var item in result.Items)
+                        {
+                            if (string.IsNullOrEmpty(item.FoundPath))
+                            {
+                                continue;
+                            }
+                            string line2 = item.Artist ?? "";
+                            if (!string.IsNullOrEmpty(item.ProgramName))
+                            {
+                                line2 += (line2 != "" ? "　／　" : "") + item.ProgramName;
+                                if (!string.IsNullOrEmpty(item.OpEd))
+                                {
+                                    line2 += " (" + item.OpEd + ")";
+                                }
+                            }
+                            entries.Add(new SearchEntry
+                            {
+                                Line1 = string.IsNullOrEmpty(item.SongName) ? BaseName(item.FoundPath) : item.SongName,
+                                Line2 = line2,
+                                Filename = BaseName(item.FoundPath),
+                                FullPath = item.FoundPath,
+                            });
+                        }
+                    }
+                }
+                else
+                {
+                    var result = await AppConfig.CreateClient().SearchAsync(keyword);
+                    total = result.Total;
+                    if (result.Items != null)
+                    {
+                        foreach (var item in result.Items)
+                        {
+                            entries.Add(new SearchEntry
+                            {
+                                Line1 = item.Name,
+                                Line2 = "",
+                                Filename = item.Name,
+                                FullPath = item.FullPath,
+                            });
+                        }
+                    }
+                }
+
+                if (entries.Count == 0)
                 {
                     SetStatus("見つかりませんでした", false);
                     return;
                 }
-                int shown = Mathf.Min(result.Items.Count, MaxRows);
+                int shown = Mathf.Min(entries.Count, MaxRows);
                 for (int i = 0; i < shown; i++)
                 {
-                    AddResultRow(result.Items[i]);
+                    AddResultRow(entries[i]);
                 }
-                SetStatus(result.Count > shown
-                    ? $"{result.Count} 件中 {shown} 件を表示中 (ワードを足して絞り込めます)"
-                    : $"{result.Count} 件見つかりました", false);
+                SetStatus(total > shown
+                    ? $"{total} 件中 {shown} 件を表示中 (ワードを足して絞り込めます)"
+                    : $"{entries.Count} 件見つかりました", false);
             }
             catch (System.Exception e)
             {
@@ -266,32 +370,45 @@ namespace YukaNavi.UI
             }
         }
 
-        void AddResultRow(SearchItemDto item)
+        void AddResultRow(SearchEntry entry)
         {
+            bool twoLines = !string.IsNullOrEmpty(entry.Line2);
             var rowGo = new GameObject("Row");
             rowGo.transform.SetParent(_listContent, false);
             var img = rowGo.AddComponent<Image>();
             img.color = UiFactory.CardBg;
             var le = rowGo.AddComponent<LayoutElement>();
-            le.preferredHeight = 112f;
+            le.preferredHeight = twoLines ? 132f : 112f;
             var button = rowGo.AddComponent<Button>();
-            button.onClick.AddListener(() => OpenConfirm(item));
+            button.onClick.AddListener(() => OpenConfirm(entry));
 
-            var nameText = UiFactory.CreateText(rowGo.transform, "Name", item.Name, 29,
-                UiFactory.TextDark, TextAnchor.MiddleLeft);
+            var nameText = UiFactory.CreateText(rowGo.transform, "Name", entry.Line1, 30,
+                UiFactory.TextDark, twoLines ? TextAnchor.UpperLeft : TextAnchor.MiddleLeft);
             UiFactory.StretchFull(nameText.rectTransform);
-            nameText.rectTransform.offsetMin = new Vector2(24f, 6f);
+            nameText.rectTransform.offsetMin = new Vector2(24f, twoLines ? 52f : 6f);
             nameText.rectTransform.offsetMax = new Vector2(-24f, -6f);
             nameText.verticalOverflow = VerticalWrapMode.Truncate;
+
+            if (twoLines)
+            {
+                var sub = UiFactory.CreateText(rowGo.transform, "Sub", entry.Line2, 24,
+                    new Color(0.45f, 0.42f, 0.55f), TextAnchor.LowerLeft);
+                UiFactory.StretchFull(sub.rectTransform);
+                sub.rectTransform.offsetMin = new Vector2(24f, 10f);
+                sub.rectTransform.offsetMax = new Vector2(-24f, -84f);
+                sub.verticalOverflow = VerticalWrapMode.Truncate;
+            }
 
             _rows.Add(rowGo);
         }
 
-        void OpenConfirm(SearchItemDto item)
+        void OpenConfirm(SearchEntry entry)
         {
             Se.Play(Se.Tap);
-            _selected = item;
-            _modalSongText.text = item.Name;
+            _selected = entry;
+            _modalSongText.text = string.IsNullOrEmpty(entry.Line2)
+                ? entry.Line1
+                : entry.Line1 + "\n" + entry.Line2;
             _modalErrorText.text = "";
             _nameInput.text = AppConfig.Username;
             _commentInput.text = "";
@@ -318,7 +435,7 @@ namespace YukaNavi.UI
             try
             {
                 await AppConfig.CreateClient().PostRequestAsync(
-                    _selected.Name, _selected.FullPath, name, (_commentInput.text ?? "").Trim());
+                    _selected.Filename, _selected.FullPath, name, (_commentInput.text ?? "").Trim());
                 _modal.SetActive(false);
                 ShowComplete();
             }
