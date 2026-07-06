@@ -117,6 +117,20 @@ namespace YukaNavi.Api
         }
 
         /// <summary>
+        /// プレイヤー統一制御 (/api/player.php)。プレイヤー種別はサーバー側で自動判定される。
+        /// 非対応の操作はサーバーが 501 を返す (ApiException.HttpStatus == 501)。
+        /// </summary>
+        public Task<PlayerActionDto> PlayerActionAsync(string action, string extraQuery = null)
+        {
+            string path = "api/player.php?action=" + action;
+            if (!string.IsNullOrEmpty(extraQuery))
+            {
+                path += "&" + extraQuery;
+            }
+            return GetApiAsync<PlayerActionDto>(path);
+        }
+
+        /// <summary>
         /// 予約の個別移動。action は up / down / warikomi (次に再生)。
         /// 戻り値は情報メッセージ (「すでに一番上です。」等。空 = 正常に移動)。
         /// </summary>
