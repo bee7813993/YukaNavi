@@ -17,7 +17,8 @@ namespace YukaNavi.UI
     {
         const float PollIntervalSeconds = 5f;
 
-        Text _tickerText;
+        Text _tickerNowText;
+        Text _tickerNextText;
         GameObject _banner;
         Text _bannerText;
         VideoPlayer _videoPlayer;
@@ -44,24 +45,22 @@ namespace YukaNavi.UI
             logoRect.anchoredPosition = new Vector2(0f, -40f);
             logoRect.sizeDelta = new Vector2(560f, 162f);
 
-            // 再生中ティッカー (ロゴの下の半透明帯)
+            // 再生中ティッカー (ロゴの下の半透明帯。いま/次 の2行構成)
             var tickerBg = UiFactory.CreatePanel(transform, "Ticker", new Color(1f, 1f, 1f, 0.72f));
             tickerBg.anchorMin = new Vector2(0f, 1f);
             tickerBg.anchorMax = new Vector2(1f, 1f);
             tickerBg.pivot = new Vector2(0.5f, 1f);
             tickerBg.anchoredPosition = new Vector2(0f, -212f);
-            tickerBg.sizeDelta = new Vector2(0f, 56f);
-            _tickerText = UiFactory.CreateText(tickerBg, "Text", "", 28, UiFactory.PrimaryDark);
-            UiFactory.StretchFull(_tickerText.rectTransform);
-            _tickerText.rectTransform.offsetMin = new Vector2(20f, 0f);
-            _tickerText.rectTransform.offsetMax = new Vector2(-20f, 0f);
+            tickerBg.sizeDelta = new Vector2(0f, 96f);
+            _tickerNowText = CreateTickerLine(tickerBg, "Now", -6f);
+            _tickerNextText = CreateTickerLine(tickerBg, "Next", -48f);
 
             // そろそろ出番バナー (ティッカーの下)
             var banner = UiFactory.CreatePanel(transform, "Banner", UiFactory.Primary);
             banner.anchorMin = new Vector2(0f, 1f);
             banner.anchorMax = new Vector2(1f, 1f);
             banner.pivot = new Vector2(0.5f, 1f);
-            banner.anchoredPosition = new Vector2(0f, -272f);
+            banner.anchoredPosition = new Vector2(0f, -312f);
             banner.sizeDelta = new Vector2(-120f, 66f);
             _bannerText = UiFactory.CreateText(banner, "Text", "", 32, Color.white);
             UiFactory.StretchFull(_bannerText.rectTransform);
@@ -146,7 +145,8 @@ namespace YukaNavi.UI
             }
             catch (System.Exception e)
             {
-                _tickerText.text = "未接続: " + e.Message;
+                _tickerNowText.text = "未接続: " + e.Message;
+                _tickerNextText.text = "";
                 _banner.SetActive(false);
             }
             finally
@@ -155,28 +155,41 @@ namespace YukaNavi.UI
             }
         }
 
+        /// <summary>ティッカーの1行分のテキストを作る (長い曲名は行内で切り詰め)。</summary>
+        Text CreateTickerLine(RectTransform parent, string name, float y)
+        {
+            var text = UiFactory.CreateText(parent, name, "", 28, UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
+            var rect = text.rectTransform;
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, y);
+            rect.offsetMin = new Vector2(24f, rect.offsetMin.y);
+            rect.offsetMax = new Vector2(-24f, rect.offsetMax.y);
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, 40f);
+            text.verticalOverflow = VerticalWrapMode.Truncate;
+            return text;
+        }
+
         void UpdateTicker(NowPlayingDto now, RequestListDto requests)
         {
-            string text;
             if (now.Playing)
             {
-                text = "♪ いま: " + now.PlayingTitle;
+                string nowLine = "♪ いま: " + now.PlayingTitle;
                 if (!string.IsNullOrEmpty(now.PlayingSinger))
                 {
-                    text += " (" + now.PlayingSinger + ")";
+                    nowLine += " (" + now.PlayingSinger + ")";
                 }
-                if (now.NextSong != null)
-                {
-                    text += "　／　次: " + now.NextSong.Title;
-                }
+                _tickerNowText.text = nowLine;
+                _tickerNextText.text = now.NextSong != null ? "♪ 次: " + now.NextSong.Title : "♪ 次: (予約なし)";
             }
             else
             {
-                text = requests.RemainingCount > 0
-                    ? "再生停止中 (予約 " + requests.RemainingCount + " 件待ち)"
-                    : "予約を待っています ♪";
+                _tickerNowText.text = "再生停止中";
+                _tickerNextText.text = requests.RemainingCount > 0
+                    ? "♪ 予約 " + requests.RemainingCount + " 件待ち"
+                    : "♪ 予約を待っています";
             }
-            _tickerText.text = text;
         }
 
         /// <summary>自分の予約 (名前一致) が未再生の先頭2件に入っていたらバナーを出す。</summary>
