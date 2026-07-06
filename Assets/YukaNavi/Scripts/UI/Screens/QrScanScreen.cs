@@ -35,13 +35,7 @@ namespace YukaNavi.UI
             var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.PanelBg);
             UiFactory.StretchFull(bg);
 
-            var topBar = UiFactory.CreatePanel(transform, "TopBar", UiFactory.Primary);
-            topBar.anchorMin = new Vector2(0f, 1f);
-            topBar.anchorMax = new Vector2(1f, 1f);
-            topBar.pivot = new Vector2(0.5f, 1f);
-            topBar.sizeDelta = new Vector2(0f, 110f);
-            var title = UiFactory.CreateText(topBar, "Title", "QRコードを読み取る", 42, Color.white);
-            UiFactory.StretchFull(title.rectTransform);
+            UiFactory.CreateTopBar(transform, "QRコードを読み取る");
 
             var caption = UiFactory.CreateText(transform, "Caption",
                 "ゆかりの部屋の QR コードを写してください", 30, UiFactory.TextDark);

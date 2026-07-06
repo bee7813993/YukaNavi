@@ -37,17 +37,11 @@ namespace YukaNavi.UI
 
         public override void BuildUi()
         {
-            var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.PanelBg);
+            var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.ScreenOverlayBg);
             UiFactory.StretchFull(bg);
 
             // 上部バー
-            var topBar = UiFactory.CreatePanel(transform, "TopBar", UiFactory.Primary);
-            topBar.anchorMin = new Vector2(0f, 1f);
-            topBar.anchorMax = new Vector2(1f, 1f);
-            topBar.pivot = new Vector2(0.5f, 1f);
-            topBar.sizeDelta = new Vector2(0f, 110f);
-            var title = UiFactory.CreateText(topBar, "Title", "予約一覧", 42, Color.white);
-            UiFactory.StretchFull(title.rectTransform);
+            UiFactory.CreateTopBar(transform, "予約一覧");
 
             // ヘッダー (残り件数・時間)
             _headerText = UiFactory.CreateText(transform, "Header", "", 30, UiFactory.PrimaryDark);
@@ -93,6 +87,8 @@ namespace YukaNavi.UI
             card.anchorMin = card.anchorMax = new Vector2(0.5f, 0.5f);
             card.pivot = new Vector2(0.5f, 0.5f);
             card.sizeDelta = new Vector2(880f, 900f);
+            UiFactory.Roundify(card.GetComponent<Image>());
+            UiFactory.AddShadow(card.gameObject, 6f);
             // カード内タップがオーバーレイの「閉じる」に抜けないようにする
             var cardButton = card.gameObject.AddComponent<Button>();
             cardButton.transition = Selectable.Transition.None;
@@ -105,16 +101,16 @@ namespace YukaNavi.UI
 
             var warikomi = AddOpsButton(card, "次に再生 (割り込み)", UiFactory.Primary, -240f);
             warikomi.onClick.AddListener(() => _ = MoveAsync("warikomi"));
-            var up = AddOpsButton(card, "上へ", UiFactory.Primary, -350f);
+            var up = AddOpsOutlineButton(card, "上へ", -350f);
             up.onClick.AddListener(() => _ = MoveAsync("up"));
-            var down = AddOpsButton(card, "下へ", UiFactory.Primary, -460f);
+            var down = AddOpsOutlineButton(card, "下へ", -460f);
             down.onClick.AddListener(() => _ = MoveAsync("down"));
 
             _deleteButton = AddOpsButton(card, "削除する", UiFactory.Danger, -570f);
             _deleteLabel = _deleteButton.GetComponentInChildren<Text>();
             _deleteButton.onClick.AddListener(() => _ = DeleteAsync());
 
-            var close = AddOpsButton(card, "閉じる", new Color(0.75f, 0.73f, 0.80f), -680f);
+            var close = AddOpsOutlineButton(card, "閉じる", -680f);
             close.onClick.AddListener(CloseModal);
 
             _modal.SetActive(false);
@@ -136,6 +132,13 @@ namespace YukaNavi.UI
             var button = UiFactory.CreateButton(card, label, label, color, Color.white, 34);
             var rect = button.GetComponent<RectTransform>();
             SetCardRow(rect, y, 96f);
+            return button;
+        }
+
+        Button AddOpsOutlineButton(RectTransform card, string label, float y)
+        {
+            var button = UiFactory.CreateOutlineButton(card, label, label, 34);
+            SetCardRow(button.GetComponent<RectTransform>(), y, 96f);
             return button;
         }
 
@@ -232,34 +235,58 @@ namespace YukaNavi.UI
             bool isPlaying = item.Nowplaying == "再生中";
             var rowGo = new GameObject("Row");
             rowGo.transform.SetParent(_listContent, false);
+            bool isPending = item.Nowplaying == "未再生" || item.Nowplaying == "1";
+            bool isDone = !isPlaying && !isPending;
             var img = rowGo.AddComponent<Image>();
-            img.color = isPlaying ? new Color(0.90f, 0.84f, 1.0f) : UiFactory.CardBg;
+            img.color = isPlaying ? UiFactory.PrimaryPale
+                : (isDone ? new Color(0.965f, 0.955f, 0.985f) : UiFactory.CardBg);
+            UiFactory.Roundify(img);
+            UiFactory.AddShadow(rowGo, 3f);
             var le = rowGo.AddComponent<LayoutElement>();
-            le.preferredHeight = 132f;
+            le.preferredHeight = 136f;
             var button = rowGo.AddComponent<Button>();
+            rowGo.AddComponent<PressEffect>();
             button.onClick.AddListener(() => OpenOps(item));
 
-            var nameText = UiFactory.CreateText(rowGo.transform, "Name", item.DisplayName, 30,
-                UiFactory.TextDark, TextAnchor.UpperLeft);
+            // 左: 順番の丸バッジ (再生中 ▶ / 再生済 ✓ / 未再生は再生順)
+            var circleGo = new GameObject("Order");
+            circleGo.transform.SetParent(rowGo.transform, false);
+            var circleImg = circleGo.AddComponent<Image>();
+            circleImg.sprite = UiFactory.RoundedSprite;
+            circleImg.type = Image.Type.Sliced;
+            circleImg.pixelsPerUnitMultiplier = 0.55f; // ほぼ円形に見せる
+            circleImg.color = isPlaying ? UiFactory.Primary
+                : (isDone ? new Color(0.85f, 0.83f, 0.90f) : UiFactory.PrimaryPale);
+            circleImg.raycastTarget = false;
+            var circleRect = circleGo.GetComponent<RectTransform>();
+            circleRect.anchorMin = circleRect.anchorMax = new Vector2(0f, 0.5f);
+            circleRect.pivot = new Vector2(0f, 0.5f);
+            circleRect.anchoredPosition = new Vector2(20f, 0f);
+            circleRect.sizeDelta = new Vector2(78f, 78f);
+            string mark = isPlaying ? "▶" : (isDone ? "✓" : item.Position.ToString());
+            var circleText = UiFactory.CreateText(circleGo.transform, "Mark", mark, 32,
+                isPlaying ? Color.white : UiFactory.PrimaryDark);
+            UiFactory.StretchFull(circleText.rectTransform);
+
+            // 中央: 曲名 (2行まで) + 歌う人
+            var nameText = UiFactory.CreateText(rowGo.transform, "Name", item.DisplayName, 29,
+                isDone ? UiFactory.TextMuted : UiFactory.TextDark, TextAnchor.UpperLeft);
             UiFactory.StretchFull(nameText.rectTransform);
-            nameText.rectTransform.offsetMin = new Vector2(24f, 52f);
-            nameText.rectTransform.offsetMax = new Vector2(-24f, -10f);
+            nameText.rectTransform.offsetMin = new Vector2(118f, 46f);
+            nameText.rectTransform.offsetMax = new Vector2(-24f, -12f);
             nameText.verticalOverflow = VerticalWrapMode.Truncate;
 
-            string subText = isPlaying
-                ? "▶ 再生中"
-                : (item.Nowplaying == "未再生" || item.Nowplaying == "1"
-                    ? $"{item.Position} 番目"
-                    : item.Nowplaying);
+            string subText = isPlaying ? "♪ うたっています"
+                : (isDone ? "うたい終わりました" : "");
             if (!string.IsNullOrEmpty(item.Singer))
             {
-                subText += "　うたう人: " + item.Singer;
+                subText = (subText != "" ? subText + "　" : "") + "うたう人: " + item.Singer;
             }
-            var sub = UiFactory.CreateText(rowGo.transform, "Sub", subText, 24,
-                isPlaying ? UiFactory.Primary : new Color(0.45f, 0.42f, 0.55f), TextAnchor.LowerLeft);
+            var sub = UiFactory.CreateText(rowGo.transform, "Sub", subText, 22,
+                isPlaying ? UiFactory.Primary : UiFactory.TextMuted, TextAnchor.LowerLeft);
             UiFactory.StretchFull(sub.rectTransform);
-            sub.rectTransform.offsetMin = new Vector2(24f, 10f);
-            sub.rectTransform.offsetMax = new Vector2(-24f, -84f);
+            sub.rectTransform.offsetMin = new Vector2(118f, 12f);
+            sub.rectTransform.offsetMax = new Vector2(-24f, -92f);
 
             _rows.Add(rowGo);
         }

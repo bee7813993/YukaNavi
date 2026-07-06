@@ -31,17 +31,11 @@ namespace YukaNavi.UI
 
         public override void BuildUi()
         {
-            var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.PanelBg);
+            var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.ScreenOverlayBg);
             UiFactory.StretchFull(bg);
 
             // 上部バー
-            var topBar = UiFactory.CreatePanel(transform, "TopBar", UiFactory.Primary);
-            topBar.anchorMin = new Vector2(0f, 1f);
-            topBar.anchorMax = new Vector2(1f, 1f);
-            topBar.pivot = new Vector2(0.5f, 1f);
-            topBar.sizeDelta = new Vector2(0f, 110f);
-            var title = UiFactory.CreateText(topBar, "Title", "リモコン", 42, Color.white);
-            UiFactory.StretchFull(title.rectTransform);
+            UiFactory.CreateTopBar(transform, "リモコン");
 
             // 再生中カード
             var card = UiFactory.CreatePanel(transform, "NowPlaying", UiFactory.CardBg);
@@ -52,6 +46,8 @@ namespace YukaNavi.UI
             card.offsetMin = new Vector2(20f, card.offsetMin.y);
             card.offsetMax = new Vector2(-20f, card.offsetMax.y);
             card.sizeDelta = new Vector2(card.sizeDelta.x, 285f);
+            UiFactory.Roundify(card.GetComponent<Image>());
+            UiFactory.AddShadow(card.gameObject);
 
             _titleText = UiFactory.CreateText(card, "Song", "", 33, UiFactory.TextDark);
             SetCardRow(_titleText.rectTransform, -14f, 96f);
@@ -71,32 +67,43 @@ namespace YukaNavi.UI
             statusRect.anchoredPosition = new Vector2(0f, -428f);
             statusRect.sizeDelta = new Vector2(-40f, 42f);
 
-            // 操作ボタングリッド (2列)
-            var gridPanel = UiFactory.CreatePanel(transform, "Grid");
-            gridPanel.anchorMin = new Vector2(0f, 0f);
-            gridPanel.anchorMax = new Vector2(1f, 1f);
-            gridPanel.offsetMin = new Vector2(20f, GlobalNav.BarHeight + 16f);
-            gridPanel.offsetMax = new Vector2(-20f, -486f);
-            var grid = gridPanel.gameObject.AddComponent<GridLayoutGroup>();
-            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-            grid.constraintCount = 2;
-            grid.cellSize = new Vector2(508f, 120f);
-            grid.spacing = new Vector2(16f, 16f);
-            grid.childAlignment = TextAnchor.UpperCenter;
-
-            var nextButton = AddActionButton(grid.transform, "次の曲へ", null, false);
+            // 操作ボタン: 主要操作 (1段目・大) / シーク・音量 (中段) / その他 (下段)
+            var mainGrid = CreateButtonGrid("MainGrid", -486f, new Vector2(508f, 150f), 150f);
+            AddActionButton(mainGrid.transform, "再生 / 一時停止", "playpause", false, 36);
+            var nextButton = AddActionButton(mainGrid.transform, "次の曲へ", null, false, 36);
             _nextButtonLabel = nextButton.GetComponentInChildren<Text>();
             nextButton.onClick.AddListener(OnNextPressed);
 
-            AddSimpleButton(grid.transform, "再生 / 一時停止", "playpause", false);
-            AddSimpleButton(grid.transform, "曲の頭から", "start_first", false);
-            AddSimpleButton(grid.transform, "停止", "stop", true);
-            AddSimpleButton(grid.transform, "少し戻る", "seek_back", true);
-            AddSimpleButton(grid.transform, "少し進む", "seek_forward", true);
-            AddSimpleButton(grid.transform, "音量 −", "volume_down", false);
-            AddSimpleButton(grid.transform, "音量 ＋", "volume_up", false);
-            AddSimpleButton(grid.transform, "ミュート", "mute", true);
-            AddSimpleButton(grid.transform, "フェードアウト", "fadeout", true);
+            var midGrid = CreateButtonGrid("SeekVolumeGrid", -668f, new Vector2(508f, 110f), 236f);
+            AddOutlineActionButton(midGrid.transform, "少し戻る", "seek_back", true);
+            AddOutlineActionButton(midGrid.transform, "少し進む", "seek_forward", true);
+            AddOutlineActionButton(midGrid.transform, "音量 −", "volume_down", false);
+            AddOutlineActionButton(midGrid.transform, "音量 ＋", "volume_up", false);
+
+            var subGrid = CreateButtonGrid("OtherGrid", -936f, new Vector2(508f, 110f), 236f);
+            AddOutlineActionButton(subGrid.transform, "曲の頭から", "start_first", false);
+            AddOutlineActionButton(subGrid.transform, "停止", "stop", true);
+            AddOutlineActionButton(subGrid.transform, "ミュート", "mute", true);
+            AddOutlineActionButton(subGrid.transform, "フェードアウト", "fadeout", true);
+        }
+
+        GridLayoutGroup CreateButtonGrid(string name, float y, Vector2 cell, float height)
+        {
+            var panel = UiFactory.CreatePanel(transform, name);
+            panel.anchorMin = new Vector2(0f, 1f);
+            panel.anchorMax = new Vector2(1f, 1f);
+            panel.pivot = new Vector2(0.5f, 1f);
+            panel.anchoredPosition = new Vector2(0f, y);
+            panel.offsetMin = new Vector2(20f, panel.offsetMin.y);
+            panel.offsetMax = new Vector2(-20f, panel.offsetMax.y);
+            panel.sizeDelta = new Vector2(panel.sizeDelta.x, height);
+            var grid = panel.gameObject.AddComponent<GridLayoutGroup>();
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = 2;
+            grid.cellSize = cell;
+            grid.spacing = new Vector2(16f, 16f);
+            grid.childAlignment = TextAnchor.UpperCenter;
+            return grid;
         }
 
         static void SetCardRow(RectTransform rect, float y, float height)
@@ -110,9 +117,22 @@ namespace YukaNavi.UI
             rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
         }
 
-        Button AddActionButton(Transform grid, string label, string action, bool mpcOnly)
+        Button AddActionButton(Transform grid, string label, string action, bool mpcOnly, int fontSize = 32)
         {
-            var button = UiFactory.CreateButton(grid, label, label, UiFactory.Primary, Color.white, 32);
+            var button = UiFactory.CreateButton(grid, label, label, UiFactory.Primary, Color.white, fontSize);
+            RegisterActionButton(button, action, mpcOnly);
+            return button;
+        }
+
+        Button AddOutlineActionButton(Transform grid, string label, string action, bool mpcOnly)
+        {
+            var button = UiFactory.CreateOutlineButton(grid, label, label, 30);
+            RegisterActionButton(button, action, mpcOnly);
+            return button;
+        }
+
+        void RegisterActionButton(Button button, string action, bool mpcOnly)
+        {
             if (action != null)
             {
                 button.onClick.AddListener(() => _ = RunActionAsync(action));
@@ -121,12 +141,6 @@ namespace YukaNavi.UI
             {
                 _mpcOnlyButtons.Add(button.gameObject);
             }
-            return button;
-        }
-
-        void AddSimpleButton(Transform grid, string label, string action, bool mpcOnly)
-        {
-            AddActionButton(grid, label, action, mpcOnly);
         }
 
         public override void OnShow()

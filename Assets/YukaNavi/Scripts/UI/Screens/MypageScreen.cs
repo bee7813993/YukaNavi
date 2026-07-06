@@ -26,20 +26,13 @@ namespace YukaNavi.UI
         Text _statusText;
         RectTransform _listContent;
         readonly List<GameObject> _rows = new List<GameObject>();
-        ReserveDialog _reserveDialog;
 
         public override void BuildUi()
         {
-            var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.PanelBg);
+            var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.ScreenOverlayBg);
             UiFactory.StretchFull(bg);
 
-            var topBar = UiFactory.CreatePanel(transform, "TopBar", UiFactory.Primary);
-            topBar.anchorMin = new Vector2(0f, 1f);
-            topBar.anchorMax = new Vector2(1f, 1f);
-            topBar.pivot = new Vector2(0.5f, 1f);
-            topBar.sizeDelta = new Vector2(0f, 110f);
-            var title = UiFactory.CreateText(topBar, "Title", "マイページ", 42, Color.white);
-            UiFactory.StretchFull(title.rectTransform);
+            UiFactory.CreateTopBar(transform, "マイページ");
 
             // タブ (うたった曲 / あとで歌う / お気に入り)
             var tabBar = UiFactory.CreatePanel(transform, "Tabs");
@@ -49,16 +42,14 @@ namespace YukaNavi.UI
             tabBar.anchoredPosition = new Vector2(0f, -118f);
             tabBar.offsetMin = new Vector2(20f, tabBar.offsetMin.y);
             tabBar.offsetMax = new Vector2(-20f, tabBar.offsetMax.y);
-            tabBar.sizeDelta = new Vector2(tabBar.sizeDelta.x, 72f);
-            var tabLayout = tabBar.gameObject.AddComponent<HorizontalLayoutGroup>();
-            tabLayout.childForceExpandWidth = true;
-            tabLayout.childForceExpandHeight = true;
-            tabLayout.spacing = 8f;
-            _historyTab = UiFactory.CreateButton(tabBar, "History", "うたった曲", UiFactory.Primary, Color.white, 28);
+            tabBar.sizeDelta = new Vector2(tabBar.sizeDelta.x, 80f);
+            var tabs = UiFactory.CreateSegmentTabs(tabBar,
+                new[] { "うたった曲", "あとで歌う", "お気に入り" }, 28);
+            _historyTab = tabs[0];
+            _laterTab = tabs[1];
+            _favoriteTab = tabs[2];
             _historyTab.onClick.AddListener(() => SetTab(Tab.History));
-            _laterTab = UiFactory.CreateButton(tabBar, "Later", "あとで歌う", UiFactory.Primary, Color.white, 28);
             _laterTab.onClick.AddListener(() => SetTab(Tab.Later));
-            _favoriteTab = UiFactory.CreateButton(tabBar, "Favorite", "お気に入り", UiFactory.Primary, Color.white, 28);
             _favoriteTab.onClick.AddListener(() => SetTab(Tab.Favorite));
 
             _statusText = UiFactory.CreateText(transform, "Status", "", 28, UiFactory.TextDark);
@@ -75,13 +66,11 @@ namespace YukaNavi.UI
             scrollRectT.offsetMin = new Vector2(20f, GlobalNav.BarHeight + 16f);
             scrollRectT.offsetMax = new Vector2(-20f, -248f);
 
-            _reserveDialog = ReserveDialog.Create(transform);
             UpdateTabColors();
         }
 
         public override void OnShow()
         {
-            _reserveDialog.HideAll();
             Reload();
         }
 
@@ -99,10 +88,7 @@ namespace YukaNavi.UI
 
         void UpdateTabColors()
         {
-            var offColor = new Color(0.78f, 0.76f, 0.84f);
-            _historyTab.image.color = _tab == Tab.History ? UiFactory.Primary : offColor;
-            _laterTab.image.color = _tab == Tab.Later ? UiFactory.Primary : offColor;
-            _favoriteTab.image.color = _tab == Tab.Favorite ? UiFactory.Primary : offColor;
+            UiFactory.SetSegmentSelected(new[] { _historyTab, _laterTab, _favoriteTab }, (int)_tab);
         }
 
         void Reload()
@@ -149,38 +135,68 @@ namespace YukaNavi.UI
         void AddRow(LocalMypage.Item item)
         {
             string line2 = _tab == Tab.History
-                ? item.Times + " 回うたった　最終: " + FormatDate(item.LastAt)
+                ? "最終: " + FormatDate(item.LastAt)
                 : "追加日: " + FormatDate(item.AddedAt);
 
             var rowGo = new GameObject("Row");
             rowGo.transform.SetParent(_listContent, false);
             var img = rowGo.AddComponent<Image>();
             img.color = UiFactory.CardBg;
+            UiFactory.Roundify(img);
+            UiFactory.AddShadow(rowGo, 3f);
             var le = rowGo.AddComponent<LayoutElement>();
-            le.preferredHeight = 132f;
+            le.preferredHeight = 136f;
             var button = rowGo.AddComponent<Button>();
-            var entry = new ReserveDialog.Entry
+            rowGo.AddComponent<PressEffect>();
+            var entry = new ReserveScreen.Entry
             {
                 Line1 = item.Songfile,
                 Line2 = "",
                 // TODO: ファイル移動に強くするなら /api/search.php で fullpath を再解決する
-                Filename = ReserveDialog.BaseName(item.FullPath),
+                Filename = ReserveScreen.BaseName(item.FullPath),
                 FullPath = item.FullPath,
             };
-            button.onClick.AddListener(() => _reserveDialog.Open(entry));
+            button.onClick.AddListener(() => ReserveScreen.Open(Manager, entry));
 
-            var nameText = UiFactory.CreateText(rowGo.transform, "Name", item.Songfile, 30,
+            // 左丸バッジ (履歴 = 歌った回数 / それ以外 = ♪)
+            var circleGo = new GameObject("Badge");
+            circleGo.transform.SetParent(rowGo.transform, false);
+            var circleImg = circleGo.AddComponent<Image>();
+            circleImg.sprite = UiFactory.RoundedSprite;
+            circleImg.type = Image.Type.Sliced;
+            circleImg.pixelsPerUnitMultiplier = 0.55f;
+            circleImg.color = UiFactory.PrimaryPale;
+            circleImg.raycastTarget = false;
+            var circleRect = circleGo.GetComponent<RectTransform>();
+            circleRect.anchorMin = circleRect.anchorMax = new Vector2(0f, 0.5f);
+            circleRect.pivot = new Vector2(0f, 0.5f);
+            circleRect.anchoredPosition = new Vector2(20f, 0f);
+            circleRect.sizeDelta = new Vector2(78f, 78f);
+            string mark = _tab == Tab.History ? item.Times.ToString() : "♪";
+            var circleText = UiFactory.CreateText(circleGo.transform, "Mark", mark, 32, UiFactory.PrimaryDark);
+            UiFactory.StretchFull(circleText.rectTransform);
+            if (_tab == Tab.History)
+            {
+                var unit = UiFactory.CreateText(circleGo.transform, "Unit", "回", 16, UiFactory.PrimaryDark);
+                var unitRect = unit.rectTransform;
+                unitRect.anchorMin = unitRect.anchorMax = new Vector2(0.5f, 0f);
+                unitRect.pivot = new Vector2(0.5f, 0f);
+                unitRect.anchoredPosition = new Vector2(0f, 2f);
+                unitRect.sizeDelta = new Vector2(60f, 20f);
+            }
+
+            var nameText = UiFactory.CreateText(rowGo.transform, "Name", item.Songfile, 29,
                 UiFactory.TextDark, TextAnchor.UpperLeft);
             UiFactory.StretchFull(nameText.rectTransform);
-            nameText.rectTransform.offsetMin = new Vector2(24f, 52f);
-            nameText.rectTransform.offsetMax = new Vector2(-160f, -6f);
+            nameText.rectTransform.offsetMin = new Vector2(118f, 46f);
+            nameText.rectTransform.offsetMax = new Vector2(-160f, -12f);
             nameText.verticalOverflow = VerticalWrapMode.Truncate;
 
-            var sub = UiFactory.CreateText(rowGo.transform, "Sub", line2, 24,
-                new Color(0.45f, 0.42f, 0.55f), TextAnchor.LowerLeft);
+            var sub = UiFactory.CreateText(rowGo.transform, "Sub", line2, 22,
+                UiFactory.TextMuted, TextAnchor.LowerLeft);
             UiFactory.StretchFull(sub.rectTransform);
-            sub.rectTransform.offsetMin = new Vector2(24f, 10f);
-            sub.rectTransform.offsetMax = new Vector2(-160f, -84f);
+            sub.rectTransform.offsetMin = new Vector2(118f, 12f);
+            sub.rectTransform.offsetMax = new Vector2(-160f, -92f);
             sub.verticalOverflow = VerticalWrapMode.Truncate;
 
             // 削除 (2度押し確認)

@@ -9,7 +9,7 @@ namespace YukaNavi.UI
 {
     /// <summary>
     /// 検索画面。「ファイル名 (Everything)」と「アニソンDB (ListerDB)」の2モードを持つ。
-    /// キーワード検索 → 結果リスト → 予約 (ReserveDialog)。
+    /// キーワード検索 → 結果リスト → 予約確認画面 (ReserveScreen) へ遷移。
     /// </summary>
     public class SearchScreen : ScreenBase
     {
@@ -24,21 +24,14 @@ namespace YukaNavi.UI
         Text _statusText;
         RectTransform _listContent;
         readonly List<GameObject> _rows = new List<GameObject>();
-        ReserveDialog _reserveDialog;
 
         public override void BuildUi()
         {
-            var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.PanelBg);
+            var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.ScreenOverlayBg);
             UiFactory.StretchFull(bg);
 
             // 上部バー
-            var topBar = UiFactory.CreatePanel(transform, "TopBar", UiFactory.Primary);
-            topBar.anchorMin = new Vector2(0f, 1f);
-            topBar.anchorMax = new Vector2(1f, 1f);
-            topBar.pivot = new Vector2(0.5f, 1f);
-            topBar.sizeDelta = new Vector2(0f, 110f);
-            var title = UiFactory.CreateText(topBar, "Title", "曲をさがす", 42, Color.white);
-            UiFactory.StretchFull(title.rectTransform);
+            UiFactory.CreateTopBar(transform, "曲をさがす");
 
             // 検索モードタブ (ファイル名 / アニソンDB)
             var tabBar = UiFactory.CreatePanel(transform, "Tabs");
@@ -48,14 +41,12 @@ namespace YukaNavi.UI
             tabBar.anchoredPosition = new Vector2(0f, -118f);
             tabBar.offsetMin = new Vector2(20f, tabBar.offsetMin.y);
             tabBar.offsetMax = new Vector2(-20f, tabBar.offsetMax.y);
-            tabBar.sizeDelta = new Vector2(tabBar.sizeDelta.x, 72f);
-            var tabLayout = tabBar.gameObject.AddComponent<HorizontalLayoutGroup>();
-            tabLayout.childForceExpandWidth = true;
-            tabLayout.childForceExpandHeight = true;
-            tabLayout.spacing = 8f;
-            _fileTab = UiFactory.CreateButton(tabBar, "FileTab", "ファイル名でさがす", UiFactory.Primary, Color.white, 30);
+            tabBar.sizeDelta = new Vector2(tabBar.sizeDelta.x, 80f);
+            var tabs = UiFactory.CreateSegmentTabs(tabBar,
+                new[] { "ファイル名でさがす", "アニソンDBでさがす" }, 28);
+            _fileTab = tabs[0];
+            _listerTab = tabs[1];
             _fileTab.onClick.AddListener(() => SetMode(false));
-            _listerTab = UiFactory.CreateButton(tabBar, "ListerTab", "アニソンDBでさがす", UiFactory.Primary, Color.white, 30);
             _listerTab.onClick.AddListener(() => SetMode(true));
 
             // 検索行 (入力 + ボタン)
@@ -93,7 +84,6 @@ namespace YukaNavi.UI
             scrollRectT.offsetMin = new Vector2(20f, GlobalNav.BarHeight + 16f);
             scrollRectT.offsetMax = new Vector2(-20f, -356f);
 
-            _reserveDialog = ReserveDialog.Create(transform);
             SetMode(false);
         }
 
@@ -101,18 +91,11 @@ namespace YukaNavi.UI
         void SetMode(bool listerMode)
         {
             _listerMode = listerMode;
-            var offColor = new Color(0.78f, 0.76f, 0.84f);
-            _fileTab.image.color = listerMode ? offColor : UiFactory.Primary;
-            _listerTab.image.color = listerMode ? UiFactory.Primary : offColor;
+            UiFactory.SetSegmentSelected(new[] { _fileTab, _listerTab }, listerMode ? 1 : 0);
             var placeholder = (Text)_searchInput.placeholder;
             placeholder.text = listerMode ? "曲名・歌手・作品名など" : "曲名・アーティスト名など";
             ClearRows();
             SetStatus("", false);
-        }
-
-        public override void OnShow()
-        {
-            _reserveDialog.HideAll();
         }
 
         void SetStatus(string message, bool isError)
@@ -144,7 +127,7 @@ namespace YukaNavi.UI
             ClearRows();
             try
             {
-                var entries = new List<ReserveDialog.Entry>();
+                var entries = new List<ReserveScreen.Entry>();
                 int total;
                 if (_listerMode)
                 {
@@ -167,13 +150,13 @@ namespace YukaNavi.UI
                                     line2 += " (" + item.OpEd + ")";
                                 }
                             }
-                            entries.Add(new ReserveDialog.Entry
+                            entries.Add(new ReserveScreen.Entry
                             {
                                 Line1 = string.IsNullOrEmpty(item.SongName)
-                                    ? ReserveDialog.BaseName(item.FoundPath)
+                                    ? ReserveScreen.BaseName(item.FoundPath)
                                     : item.SongName,
                                 Line2 = line2,
-                                Filename = ReserveDialog.BaseName(item.FoundPath),
+                                Filename = ReserveScreen.BaseName(item.FoundPath),
                                 FullPath = item.FoundPath,
                             });
                         }
@@ -187,7 +170,7 @@ namespace YukaNavi.UI
                     {
                         foreach (var item in result.Items)
                         {
-                            entries.Add(new ReserveDialog.Entry
+                            entries.Add(new ReserveScreen.Entry
                             {
                                 Line1 = item.Name,
                                 Line2 = "",
@@ -223,17 +206,18 @@ namespace YukaNavi.UI
             }
         }
 
-        void AddResultRow(ReserveDialog.Entry entry)
+        void AddResultRow(ReserveScreen.Entry entry)
         {
             bool twoLines = !string.IsNullOrEmpty(entry.Line2);
             var rowGo = new GameObject("Row");
             rowGo.transform.SetParent(_listContent, false);
             var img = rowGo.AddComponent<Image>();
             img.color = UiFactory.CardBg;
+            UiFactory.Roundify(img);
             var le = rowGo.AddComponent<LayoutElement>();
             le.preferredHeight = twoLines ? 132f : 112f;
             var button = rowGo.AddComponent<Button>();
-            button.onClick.AddListener(() => _reserveDialog.Open(entry));
+            button.onClick.AddListener(() => ReserveScreen.Open(Manager, entry));
 
             var nameText = UiFactory.CreateText(rowGo.transform, "Name", entry.Line1, 30,
                 UiFactory.TextDark, twoLines ? TextAnchor.UpperLeft : TextAnchor.MiddleLeft);
