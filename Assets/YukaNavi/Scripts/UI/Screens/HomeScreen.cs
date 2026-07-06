@@ -27,6 +27,7 @@ namespace YukaNavi.UI
         VideoPlayer _videoPlayer;
         RenderTexture _videoTexture;
         string _appliedSkinId;
+        int _appliedSkinRevision = -1;
         Coroutine _polling;
         bool _refreshing;
 
@@ -73,11 +74,12 @@ namespace YukaNavi.UI
         void ApplySkin()
         {
             var skin = SkinManager.Current();
-            if (_appliedSkinId == skin.Id)
+            if (_appliedSkinId == skin.Id && _appliedSkinRevision == SkinManager.Revision)
             {
                 return;
             }
             _appliedSkinId = skin.Id;
+            _appliedSkinRevision = SkinManager.Revision;
 
             // 既存の背景・マスコット・動画リソースを破棄
             if (_backgroundGo != null)
@@ -108,85 +110,98 @@ namespace YukaNavi.UI
 
         void BuildBackground(SkinDef skin)
         {
-            GameObject go = null;
+            var view = BackgroundView.Create(transform, "Background");
+            bool built = false;
             if (skin.Folder != null && skin.Background != null)
             {
-                if (skin.Background.Type == "video")
+                var bgDef = skin.Background;
+                if (bgDef.Type == "video")
                 {
-                    string path = SkinManager.GetFilePath(skin, skin.Background.File);
+                    string path = SkinManager.GetFilePath(skin, bgDef.File);
                     if (path != null)
                     {
-                        go = BuildVideoBackground(null, path);
+                        SetupVideo(view, null, path);
+                        built = true;
                     }
                 }
-                else if (skin.Background.Type == "image")
+                else if (bgDef.Type == "image")
                 {
-                    var tex = SkinManager.LoadTexture(skin, skin.Background.File);
+                    var tex = SkinManager.LoadTexture(skin, bgDef.File);
                     if (tex != null)
                     {
-                        go = BuildTextureBackground(tex);
+                        view.SetTexture(tex, (float)tex.width / tex.height);
+                        built = true;
                     }
                 }
+                if (built)
+                {
+                    view.SetAdjust(bgDef.Rotation, bgDef.Zoom, new Vector2(bgDef.OffsetX, bgDef.OffsetY));
+                }
             }
-            if (go == null)
+            if (!built)
             {
                 // 組み込みデフォルト: rich 動画 → 静止画の順で試す
                 var clip = Resources.Load<VideoClip>("Videos/yukanavi_home_background_loop_rich_portrait_1080x1920");
-                go = clip != null ? BuildVideoBackground(clip, null) : null;
-                if (go == null)
+                if (clip != null)
                 {
-                    var bg = UiFactory.CreateImage(transform, "Background",
-                        "Art/Backgrounds/yukanavi_home_background_no_character_1080x1920");
-                    UiFactory.StretchFull(bg.rectTransform);
-                    bg.raycastTarget = false;
-                    go = bg.gameObject;
+                    SetupVideo(view, clip, null);
+                }
+                else
+                {
+                    var tex = Resources.Load<Texture2D>("Art/Backgrounds/yukanavi_home_background_no_character_1080x1920");
+                    if (tex != null)
+                    {
+                        view.SetTexture(tex, (float)tex.width / tex.height);
+                    }
                 }
             }
-            go.transform.SetSiblingIndex(0);
-            _backgroundGo = go;
-        }
-
-        GameObject BuildTextureBackground(Texture2D tex)
-        {
-            var go = new GameObject("Background");
-            go.transform.SetParent(transform, false);
-            var raw = go.AddComponent<RawImage>();
-            raw.texture = tex;
-            raw.raycastTarget = false;
-            UiFactory.StretchFull(raw.rectTransform);
-            return go;
+            view.transform.SetSiblingIndex(0);
+            _backgroundGo = view.gameObject;
         }
 
         /// <summary>動画背景。clip (組み込み) または filePath (スキン) のどちらかを指定する。</summary>
-        GameObject BuildVideoBackground(VideoClip clip, string filePath)
+        void SetupVideo(BackgroundView view, VideoClip clip, string filePath)
         {
-            int width = clip != null ? (int)clip.width : 1080;
-            int height = clip != null ? (int)clip.height : 1920;
-            _videoTexture = new RenderTexture(width, height, 0);
-
-            var go = new GameObject("Background");
-            go.transform.SetParent(transform, false);
-            var raw = go.AddComponent<RawImage>();
-            raw.texture = _videoTexture;
-            raw.raycastTarget = false;
-            UiFactory.StretchFull(raw.rectTransform);
-
             _videoPlayer = gameObject.AddComponent<VideoPlayer>();
+            _videoPlayer.renderMode = VideoRenderMode.RenderTexture;
+            _videoPlayer.isLooping = true;
+            _videoPlayer.playOnAwake = false;
+            _videoPlayer.audioOutputMode = VideoAudioOutputMode.None;
             if (clip != null)
             {
                 _videoPlayer.clip = clip;
+                CreateVideoTexture(view, (int)clip.width, (int)clip.height);
             }
             else
             {
                 _videoPlayer.source = VideoSource.Url;
                 _videoPlayer.url = filePath;
+                // 動画の実サイズは prepare 後に判明するため、それから RenderTexture を作る
+                // (固定サイズの RenderTexture に描くとアスペクト比が崩れるため)
+                _videoPlayer.prepareCompleted += vp =>
+                {
+                    CreateVideoTexture(view, (int)vp.width, (int)vp.height);
+                    vp.Play();
+                };
+                _videoPlayer.Prepare();
             }
-            _videoPlayer.renderMode = VideoRenderMode.RenderTexture;
+        }
+
+        void CreateVideoTexture(BackgroundView view, int width, int height)
+        {
+            if (width <= 0 || height <= 0)
+            {
+                width = 1080;
+                height = 1920;
+            }
+            if (_videoTexture != null)
+            {
+                _videoTexture.Release();
+                Destroy(_videoTexture);
+            }
+            _videoTexture = new RenderTexture(width, height, 0);
             _videoPlayer.targetTexture = _videoTexture;
-            _videoPlayer.isLooping = true;
-            _videoPlayer.playOnAwake = false;
-            _videoPlayer.audioOutputMode = VideoAudioOutputMode.None;
-            return go;
+            view.SetTexture(_videoTexture, (float)width / height);
         }
 
         void BuildMascot(SkinDef skin)

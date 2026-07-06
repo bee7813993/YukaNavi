@@ -25,6 +25,14 @@ namespace YukaNavi.Core
         [JsonProperty("type")] public string Type;
         [JsonProperty("file")] public string File;
         [JsonProperty("scale")] public float Scale = 1f;
+        /// <summary>背景の回転 (度、90単位)</summary>
+        [JsonProperty("rotation")] public float Rotation = 0f;
+        /// <summary>背景のズーム (1 = 画面を覆うちょうどの大きさ)</summary>
+        [JsonProperty("zoom")] public float Zoom = 1f;
+        /// <summary>背景の位置調整 (画面幅に対する比率)</summary>
+        [JsonProperty("offset_x")] public float OffsetX = 0f;
+        /// <summary>背景の位置調整 (画面高さに対する比率)</summary>
+        [JsonProperty("offset_y")] public float OffsetY = 0f;
     }
 
     /// <summary>
@@ -36,6 +44,17 @@ namespace YukaNavi.Core
         public static string SkinsRoot
         {
             get { return Path.Combine(Application.persistentDataPath, "skins"); }
+        }
+
+        /// <summary>
+        /// スキン内容の世代カウンタ。同じスキン ID のまま内容が変わったこと (編集) を
+        /// 表示側が検知するために使う。
+        /// </summary>
+        public static int Revision { get; private set; }
+
+        public static void BumpRevision()
+        {
+            Revision++;
         }
 
         /// <summary>組み込みデフォルト (ゆかりちゃん + rich 動画背景)。</summary>
@@ -155,6 +174,17 @@ namespace YukaNavi.Core
         /// </summary>
         public static string CreateSkin(string name, string bgSourcePath, string charSourcePath)
         {
+            return CreateSkin(name, bgSourcePath, charSourcePath, 0f, 1f, Vector2.zero);
+        }
+
+        /// <summary>
+        /// 背景の調整値 (回転/ズーム/オフセット) 付きでスキンを作成する。
+        /// charNone=true でキャラを表示しないスキンになる (charSourcePath より優先)。
+        /// </summary>
+        public static string CreateSkin(string name, string bgSourcePath, string charSourcePath,
+                                        float bgRotation, float bgZoom, Vector2 bgOffset,
+                                        bool charNone = false)
+        {
             try
             {
                 EnsureRoot();
@@ -180,11 +210,23 @@ namespace YukaNavi.Core
                     bool isVideo = ext == ".mp4" || ext == ".webm" || ext == ".mov";
                     string destName = "bg" + ext;
                     File.Copy(bgSourcePath, Path.Combine(folder, destName), true);
-                    background = new SkinLayer { Type = isVideo ? "video" : "image", File = destName };
+                    background = new SkinLayer
+                    {
+                        Type = isVideo ? "video" : "image",
+                        File = destName,
+                        Rotation = bgRotation,
+                        Zoom = bgZoom,
+                        OffsetX = bgOffset.x,
+                        OffsetY = bgOffset.y,
+                    };
                 }
 
                 SkinLayer character = null;
-                if (!string.IsNullOrEmpty(charSourcePath) && File.Exists(charSourcePath))
+                if (charNone)
+                {
+                    character = new SkinLayer { Type = "none" };
+                }
+                else if (!string.IsNullOrEmpty(charSourcePath) && File.Exists(charSourcePath))
                 {
                     string ext = Path.GetExtension(charSourcePath).ToLowerInvariant();
                     string destName = "chara" + ext;
@@ -201,6 +243,87 @@ namespace YukaNavi.Core
             catch
             {
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// 既存スキンを更新する。newBgSource / newCharSource が null なら既存ファイルを維持する。
+        /// charMode: 0=デフォルト (ゆかりちゃん) / 1=画像 / 2=キャラなし
+        /// </summary>
+        public static bool UpdateSkin(SkinDef skin, string name, string newBgSource, string newCharSource,
+                                      float bgRotation, float bgZoom, Vector2 bgOffset, int charMode)
+        {
+            if (skin.Folder == null)
+            {
+                return false;
+            }
+            try
+            {
+                var background = skin.Background;
+                if (!string.IsNullOrEmpty(newBgSource) && File.Exists(newBgSource))
+                {
+                    if (background != null && !string.IsNullOrEmpty(background.File))
+                    {
+                        string old = Path.Combine(skin.Folder, background.File);
+                        if (File.Exists(old))
+                        {
+                            File.Delete(old);
+                        }
+                    }
+                    string ext = Path.GetExtension(newBgSource).ToLowerInvariant();
+                    bool isVideo = ext == ".mp4" || ext == ".webm" || ext == ".mov";
+                    string destName = "bg" + ext;
+                    File.Copy(newBgSource, Path.Combine(skin.Folder, destName), true);
+                    background = new SkinLayer { Type = isVideo ? "video" : "image", File = destName };
+                }
+                if (background != null)
+                {
+                    background.Rotation = bgRotation;
+                    background.Zoom = bgZoom;
+                    background.OffsetX = bgOffset.x;
+                    background.OffsetY = bgOffset.y;
+                }
+
+                var character = skin.Character;
+                if (charMode == 2)
+                {
+                    character = new SkinLayer { Type = "none" };
+                }
+                else if (charMode == 0)
+                {
+                    character = null; // デフォルト (ゆかりちゃん)
+                }
+                else if (!string.IsNullOrEmpty(newCharSource) && File.Exists(newCharSource))
+                {
+                    if (character != null && character.Type == "image" && !string.IsNullOrEmpty(character.File))
+                    {
+                        string old = Path.Combine(skin.Folder, character.File);
+                        if (File.Exists(old))
+                        {
+                            File.Delete(old);
+                        }
+                    }
+                    string ext = Path.GetExtension(newCharSource).ToLowerInvariant();
+                    string destName = "chara" + ext;
+                    File.Copy(newCharSource, Path.Combine(skin.Folder, destName), true);
+                    character = new SkinLayer { Type = "image", File = destName, Scale = 1f };
+                }
+                // charMode==1 で newCharSource なし → 既存のキャラ画像を維持
+
+                var def = new SkinDef
+                {
+                    Name = string.IsNullOrEmpty(name) ? skin.Name : name,
+                    Background = background,
+                    Character = character,
+                };
+                string json = JsonConvert.SerializeObject(def, Formatting.Indented,
+                    new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+                File.WriteAllText(Path.Combine(skin.Folder, "skin.json"), json, new UTF8Encoding(false));
+                return true;
+            }
+            catch
+            {
+                return false;
             }
         }
 
