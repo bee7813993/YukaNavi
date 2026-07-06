@@ -40,6 +40,35 @@ namespace YukaNavi.Api
             => GetApiAsync<SearchResultDto>(
                 "api/search.php?keyword=" + UnityWebRequest.EscapeURL(keyword));
 
+        /// <summary>
+        /// ListerDB (アニソンDB) のなんでも検索。曲名・歌手・作品名・シリーズ等を横断する
+        /// あいまい検索で、結果は曲単位。サーバーに ListerDB が未設定の場合は ApiException。
+        /// </summary>
+        public async Task<ListerSearchResultDto> SearchListerAsync(string keyword, int limit = 100)
+        {
+            string path = "search_listerdb_songlist_json.php?anyword=" + UnityWebRequest.EscapeURL(keyword)
+                + "&length=" + limit + "&orderby=song_name&scending=ASC";
+            string json = await GetTextAsync(path, true);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                // ListerDB 未設定・DB 破損時は空応答が返る
+                throw new ApiException("サーバーにアニソンDB (ListerDB) が設定されていないようです");
+            }
+            try
+            {
+                var result = JsonConvert.DeserializeObject<ListerSearchResultDto>(json);
+                if (result == null)
+                {
+                    throw new ApiException("アニソンDB応答の解釈に失敗");
+                }
+                return result;
+            }
+            catch (JsonException)
+            {
+                throw new ApiException("アニソンDB応答の解釈に失敗");
+            }
+        }
+
         /// <summary>予約一覧。limit=0 で全件。</summary>
         public Task<RequestListDto> GetRequestsAsync(int limit = 0, int offset = 0)
         {
