@@ -27,9 +27,32 @@ namespace YukaNavi.UI
         /// <summary>次に開くエントリ (Open() 経由で渡す)。</summary>
         static Entry _pending;
 
+        /// <summary>変更対象の既存予約 (OpenForEdit() 経由で渡す)。null なら新規予約。</summary>
+        static RequestItemDto _pendingEdit;
+
+        /// <summary>
+        /// 「曲をえらびなおす」で検索画面へ行っている間の変更対象。
+        /// 検索から曲を選ぶ (Open) と消費され、変更モードとして続行する。
+        /// </summary>
+        public static RequestItemDto EditSession { get; private set; }
+
+        /// <summary>曲えらびなおしを中断する (ホームに戻ったときなど)。</summary>
+        public static void ClearEditSession()
+        {
+            EditSession = null;
+        }
+
         static readonly Color ToggleOffColor = new Color(0.75f, 0.73f, 0.80f);
 
         Entry _entry;
+        /// <summary>変更対象の予約 id (負なら新規予約)。</summary>
+        int _editId = -1;
+        /// <summary>変更対象の予約 (曲えらびなおしに渡すため保持)。</summary>
+        RequestItemDto _editSource;
+        GameObject _changeSongRow;
+        Text _topBarTitle;
+        Text _submitLabel;
+        Text _completeMessage;
         Text _songText;
         InputField _nameInput;
         InputField _commentInput;
@@ -107,10 +130,36 @@ namespace YukaNavi.UI
             }
         }
 
-        /// <summary>予約確認画面を開く。</summary>
+        /// <summary>予約確認画面を開く。曲えらびなおし中なら変更モードとして続行する。</summary>
         public static void Open(ScreenManager manager, Entry entry)
         {
             _pending = entry;
+            _pendingEdit = EditSession; // 変更対象があれば新しい曲でオプションを引き継ぐ
+            EditSession = null;
+            manager.Show<ReserveScreen>();
+        }
+
+        /// <summary>既存予約の「変更」として開く (現在の値をフォームに読み込む)。</summary>
+        public static void OpenForEdit(ScreenManager manager, RequestItemDto item)
+        {
+            string line2 = item.ListerArtist ?? "";
+            if (!string.IsNullOrEmpty(item.ListerWork))
+            {
+                line2 += (line2 != "" ? "　／　" : "") + item.ListerWork;
+                if (!string.IsNullOrEmpty(item.ListerOpEd))
+                {
+                    line2 += " [" + item.ListerOpEd + "]";
+                }
+            }
+            _pending = new Entry
+            {
+                Line1 = item.Songfile,
+                Line2 = line2,
+                Filename = item.Songfile,
+                FullPath = item.FullPath,
+            };
+            _pendingEdit = item;
+            EditSession = null;
             manager.Show<ReserveScreen>();
         }
 
@@ -119,7 +168,8 @@ namespace YukaNavi.UI
             var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.ScreenOverlayBg);
             UiFactory.StretchFull(bg);
 
-            UiFactory.CreateTopBar(transform, "予約の確認");
+            var topBar = UiFactory.CreateTopBar(transform, "予約の確認");
+            _topBarTitle = topBar.GetComponentInChildren<Text>();
 
             // フォーム (スクロール)
             var scrollRectT = UiFactory.CreateScrollList(transform, "Form", out var form);
@@ -133,6 +183,7 @@ namespace YukaNavi.UI
             // 予約ボタン (下部固定、ナビバーの上)
             _submitButton = UiFactory.CreateButton(transform, "Submit", "この内容で予約する",
                 UiFactory.Primary, Color.white, 38);
+            _submitLabel = _submitButton.GetComponentInChildren<Text>();
             var submitRect = _submitButton.GetComponent<RectTransform>();
             submitRect.anchorMin = new Vector2(0f, 0f);
             submitRect.anchorMax = new Vector2(1f, 0f);
@@ -163,6 +214,24 @@ namespace YukaNavi.UI
             _songText.rectTransform.offsetMin = new Vector2(24f, 8f);
             _songText.rectTransform.offsetMax = new Vector2(-24f, -52f);
             _songText.verticalOverflow = VerticalWrapMode.Truncate;
+
+            // 予約の変更中のみ: 曲そのものを差し替える (検索画面へ)
+            var changeSongPanel = AddPanel(form, 84f, transparent: true);
+            _changeSongRow = changeSongPanel.gameObject;
+            var changeSongButton = UiFactory.CreateOutlineButton(changeSongPanel,
+                "ChangeSong", "曲をえらびなおす (検索へ)", 28);
+            UiFactory.StretchFull(changeSongButton.GetComponent<RectTransform>());
+            changeSongButton.onClick.AddListener(() =>
+            {
+                if (_editSource == null)
+                {
+                    return;
+                }
+                EditSession = _editSource; // 検索から曲を選ぶと変更モードとして戻ってくる
+                Se.Play(Se.Transition);
+                Manager.Show<SearchScreen>();
+            });
+            _changeSongRow.SetActive(false);
 
             AddSectionHeader(form, "きほん");
 
@@ -491,6 +560,8 @@ namespace YukaNavi.UI
 
         public override void OnShow()
         {
+            var edit = _pendingEdit;
+            _pendingEdit = null;
             _entry = _pending ?? _entry;
             _pending = null;
             if (_entry == null)
@@ -499,25 +570,48 @@ namespace YukaNavi.UI
                 return;
             }
 
+            _editId = edit != null ? edit.Id : -1;
+            _editSource = edit;
+            _topBarTitle.text = _editId >= 0 ? "予約の変更" : "予約の確認";
+            _submitLabel.text = _editId >= 0 ? "この内容で変更する" : "この内容で予約する";
+            _changeSongRow.SetActive(_editId >= 0);
+
             _songText.text = string.IsNullOrEmpty(_entry.Line2)
                 ? _entry.Line1
                 : _entry.Line1 + "\n" + _entry.Line2;
-            _nameInput.text = AppConfig.Username;
-            _commentInput.text = "";
             _errorText.text = "";
             _submitButton.interactable = true;
             _completeOverlay.SetActive(false);
 
-            // オプションのリセット
-            _keychange = 0;
-            _secret = false;
-            _bgv = false;
-            _otherplayer = false;
-            _pause = false;
-            _volume = 0;
-            _audioDelay = 0;
-            _track = 0;
-            _trackMax = 1;
+            if (edit != null)
+            {
+                // 既存予約の現在値をフォームに読み込む
+                _nameInput.text = edit.Singer ?? "";
+                _commentInput.text = edit.Comment ?? "";
+                _keychange = Mathf.Clamp(edit.Keychange, -6, 6);
+                _secret = edit.Secret == 1;
+                _bgv = edit.Loop == 1;
+                _pause = edit.Pause == 1;
+                _otherplayer = edit.Kind == "動画_別プ";
+                _volume = edit.Volume > 0 ? Mathf.Clamp(edit.Volume, -100, 100) : 0;
+                _audioDelay = Mathf.Clamp(edit.Audiodelay, -9900, 9900);
+                _track = Mathf.Max(edit.Track, 0);
+            }
+            else
+            {
+                // 新規予約: オプションのリセット
+                _nameInput.text = AppConfig.Username;
+                _commentInput.text = "";
+                _keychange = 0;
+                _secret = false;
+                _bgv = false;
+                _otherplayer = false;
+                _pause = false;
+                _volume = 0;
+                _audioDelay = 0;
+                _track = 0;
+            }
+            _trackMax = Mathf.Max(_track + 1, 1);
             _trackLabels.Clear();
             _trackRow.SetActive(false);
             UpdateMypageButtons();
@@ -585,7 +679,7 @@ namespace YukaNavi.UI
             }
             _trackLabels = labels;
             _trackMax = labels.Count == 0 ? 3 : labels.Count; // 判別不能時は3トラック仮 (Web と同じ)
-            _track = 0;
+            _track = Mathf.Clamp(_track, 0, _trackMax - 1); // 変更時は現在のトラックを保つ
             UpdateOptionTexts();
             _trackRow.SetActive(true);
         }
@@ -614,13 +708,17 @@ namespace YukaNavi.UI
                 Volume = _volume,
                 AudioDelay = _audioDelay,
                 Track = _track,
+                SelectId = _editId, // 負なら新規、既存 id なら差し替え (変更)
             };
             try
             {
                 await AppConfig.CreateClient().PostRequestAsync(
                     _entry.Filename, _entry.FullPath, name,
                     (_commentInput.text ?? "").Trim(), "動画", options);
-                LocalMypage.AddHistory(_entry.FullPath, _entry.Line1, "動画");
+                if (_editId < 0)
+                {
+                    LocalMypage.AddHistory(_entry.FullPath, _entry.Line1, "動画");
+                }
                 ShowComplete();
             }
             catch (System.Exception e)
@@ -633,6 +731,7 @@ namespace YukaNavi.UI
 
         void ShowComplete()
         {
+            _completeMessage.text = _editId >= 0 ? "変更したよ♪" : "予約したよ♪";
             Se.Play(Se.ReservationComplete);
             _completeOverlay.SetActive(true);
             StartCoroutine(CompletePopRoutine());
@@ -652,10 +751,18 @@ namespace YukaNavi.UI
             {
                 Se.Play(Se.Tap);
                 _completeOverlay.SetActive(false);
-                Manager.Back(); // 検索/マイページへ戻る
+                if (_editId >= 0)
+                {
+                    Manager.BackTo<QueueScreen>(); // 変更は予約一覧へ戻る (検索経由でも)
+                }
+                else
+                {
+                    Manager.Back(); // 新規予約は検索/マイページへ戻る
+                }
             });
 
             var message = UiFactory.CreateText(_completeOverlay.transform, "Message", "予約したよ♪", 64, UiFactory.Primary);
+            _completeMessage = message;
             var msgRect = message.rectTransform;
             msgRect.anchorMin = msgRect.anchorMax = new Vector2(0.5f, 1f);
             msgRect.pivot = new Vector2(0.5f, 1f);

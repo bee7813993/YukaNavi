@@ -407,7 +407,7 @@ namespace YukaNavi.UI
             }
             var query = _queryStack[_queryStack.Count - 1];
             int serial = ++_searchSerial;
-            _titleText.text = query.Label;
+            _titleText.text = (ReserveScreen.EditSession != null ? "差しかえ｜" : "") + query.Label;
             _searchInput.text = query.Keyword ?? ""; // 完全一致検索中は空 (プレースホルダー表示)
             UpdateSaveButton(query);
             SetStatus("検索中...", false);
@@ -635,7 +635,8 @@ namespace YukaNavi.UI
         {
             int lines = WrapLines(label, fontSize, CardTextWidth);
             float height = lines * (fontSize + 12f) + 4f;
-            var text = UiFactory.CreateText(card, "Text", label, fontSize, color, TextAnchor.UpperLeft);
+            var text = UiFactory.CreateText(card, "Text", UiFactory.NoWordWrap(label),
+                fontSize, color, TextAnchor.UpperLeft);
             var rect = text.rectTransform;
             rect.anchorMin = new Vector2(0f, 1f);
             rect.anchorMax = new Vector2(1f, 1f);
@@ -653,7 +654,7 @@ namespace YukaNavi.UI
         {
             int lines = WrapLines(label, fontSize, CardTextWidth);
             float height = lines * (fontSize + 12f) + 4f;
-            var text = UiFactory.CreateText(card, "Link", label, fontSize,
+            var text = UiFactory.CreateText(card, "Link", UiFactory.NoWordWrap(label), fontSize,
                 UiFactory.Primary, TextAnchor.UpperLeft);
             var rect = text.rectTransform;
             rect.anchorMin = new Vector2(0f, 1f);
@@ -751,12 +752,13 @@ namespace YukaNavi.UI
                 cy += 40f;
             }
 
-            // ファイル名 (折り返して全文表示)
+            // ファイル名 (折り返して全文表示。単語折り返しはしない)
             string fileName = ReserveScreen.BaseName(file.FoundPath);
             float nameHeight = WrapLines(fileName, FileNameFontSize, BlockTextWidth)
                 * FileNameLineHeight + 4f;
             var fileText = UiFactory.CreateText(blockGo.transform, "Name",
-                fileName, FileNameFontSize, UiFactory.TextMuted, TextAnchor.UpperLeft);
+                UiFactory.NoWordWrap(fileName), FileNameFontSize, UiFactory.TextMuted,
+                TextAnchor.UpperLeft);
             SetBlockRow(fileText.rectTransform, -cy, nameHeight);
             fileText.verticalOverflow = VerticalWrapMode.Overflow;
             cy += nameHeight + 4f;

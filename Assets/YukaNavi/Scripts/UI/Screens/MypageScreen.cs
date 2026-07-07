@@ -206,7 +206,8 @@ namespace YukaNavi.UI
                 unitRect.sizeDelta = new Vector2(60f, 20f);
             }
 
-            var nameText = UiFactory.CreateText(rowGo.transform, "Name", item.Songfile, 29,
+            var nameText = UiFactory.CreateText(rowGo.transform, "Name",
+                UiFactory.NoWordWrap(item.Songfile), 29,
                 UiFactory.TextDark, TextAnchor.UpperLeft);
             var nameRect = nameText.rectTransform;
             nameRect.anchorMin = new Vector2(0f, 1f);

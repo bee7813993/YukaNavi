@@ -17,6 +17,7 @@ namespace YukaNavi.UI
         bool _listerMode = true;
         Button _listerTab;
         Button _fileTab;
+        Text _topTitle;
         InputField _searchInput;
         RectTransform _chipContent;
         Text _chipHint;
@@ -28,7 +29,8 @@ namespace YukaNavi.UI
             var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.ScreenOverlayBg);
             UiFactory.StretchFull(bg);
 
-            UiFactory.CreateTopBar(transform, "曲をさがす");
+            var topBar = UiFactory.CreateTopBar(transform, "曲をさがす");
+            _topTitle = topBar.GetComponentInChildren<Text>();
 
             // キーワード検索 (入力 + ボタン)
             _searchInput = UiFactory.CreateInputField(transform, "SearchInput", "曲名・歌手・作品名など");
@@ -109,6 +111,8 @@ namespace YukaNavi.UI
 
         public override void OnShow()
         {
+            // 予約の変更 (曲えらびなおし) 中はタイトルで状態を示す
+            _topTitle.text = ReserveScreen.EditSession != null ? "差しかえる曲をえらぶ" : "曲をさがす";
             RebuildSavedChips(); // 保存/解除の変更を反映する
         }
 

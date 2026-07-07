@@ -749,6 +749,7 @@ namespace YukaNavi.UI
 
         public override void OnShow()
         {
+            ReserveScreen.ClearEditSession(); // 曲えらびなおし途中の離脱はホームで無かったことにする
             ApplySkin();
             ApplyHomeLayout(); // スキンに保存された時計などの配置を反映
             if (_videoPlayer != null)

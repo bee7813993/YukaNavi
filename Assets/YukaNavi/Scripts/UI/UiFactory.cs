@@ -242,11 +242,26 @@ namespace YukaNavi.UI
             return units * fontSize;
         }
 
-        /// <summary>概算の折り返し行数 (足りないと最終行が欠けるため少し多めに見積もる)。</summary>
+        /// <summary>概算の折り返し行数 (足りないと最終行が欠けるため少し多めに見積もる)。改行にも対応。</summary>
         public static int EstimateWrapLines(string text, int fontSize, float width)
         {
-            float estimated = EstimateTextWidth(text, fontSize) * 1.08f;
-            return Mathf.Max(1, Mathf.CeilToInt(estimated / width));
+            int total = 0;
+            foreach (var line in (text ?? "").Split('\n'))
+            {
+                float estimated = EstimateTextWidth(line, fontSize) * 1.08f;
+                total += Mathf.Max(1, Mathf.CeilToInt(estimated / width));
+            }
+            return Mathf.Max(1, total);
+        }
+
+        /// <summary>
+        /// 半角スペースを改行しないスペース (NBSP) に置き換える。
+        /// ファイル名や曲名は文章ではないため、単語折り返しではなく文字単位で折り返させる
+        /// (単語折り返しだと行数の見積もりとずれて最終行がはみ出す)。
+        /// </summary>
+        public static string NoWordWrap(string text)
+        {
+            return (text ?? "").Replace(' ', ' ');
         }
 
         /// <summary>

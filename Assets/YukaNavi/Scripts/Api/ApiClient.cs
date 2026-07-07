@@ -384,6 +384,69 @@ namespace YukaNavi.Api
             await GetApiAsync<DeleteResult>("api/request_delete.php?id=" + id);
         }
 
+        /// <summary>
+        /// 予約へのコメント追記 (commentedit.php)。Web 版と同じく既存コメントの末尾に
+        /// 「>> コメント by 名前」の形式で追記される (再生中の曲ならニコ風コメントにも流れる)。
+        /// </summary>
+        public async Task AddRequestCommentAsync(int id, string comment, string name)
+        {
+            string path = "commentedit.php?id=" + id
+                + "&addcomment=" + UnityWebRequest.EscapeURL(comment)
+                + "&name=" + UnityWebRequest.EscapeURL(name ?? "");
+            string html = await GetTextAsync(path, true);
+            if (html != null && (html.Contains("wrong id") || html.Contains("nodata")))
+            {
+                throw new ApiException("コメントを追加できませんでした (予約が見つかりません)");
+            }
+        }
+
+        /// <summary>
+        /// 予約の並べ替え (requestlist_reorder.php)。表示順 (上から) の id 配列を送る。
+        /// サーバー側で未再生のみが並べ替えられ、再生中・再生済みの順序は保持される。
+        /// </summary>
+        public async Task ReorderRequestsAsync(System.Collections.Generic.List<int> ids)
+        {
+            string url = BaseUrl.TrimEnd('/') + "/requestlist_reorder.php";
+            if (!string.IsNullOrEmpty(EasyPass))
+            {
+                url += "?easypass=" + UnityWebRequest.EscapeURL(EasyPass);
+            }
+            string json = JsonConvert.SerializeObject(new ReorderBody { Ids = ids });
+            using (var req = new UnityWebRequest(url, "POST"))
+            {
+                req.uploadHandler = new UploadHandlerRaw(System.Text.Encoding.UTF8.GetBytes(json));
+                req.downloadHandler = new DownloadHandlerBuffer();
+                req.SetRequestHeader("Content-Type", "application/json");
+                req.timeout = TimeoutSeconds;
+                ApplyCookies(req);
+                var op = req.SendWebRequest();
+                while (!op.isDone)
+                {
+                    await Task.Yield();
+                }
+                if (req.result != UnityWebRequest.Result.Success)
+                {
+                    throw new ApiException($"{req.error} ({url})", (int)req.responseCode);
+                }
+                var result = JsonConvert.DeserializeObject<ReorderResult>(req.downloadHandler.text ?? "");
+                if (result == null || result.Status != "ok")
+                {
+                    throw new ApiException("並べ替えに失敗: " + (result?.Message ?? "不明なエラー"));
+                }
+            }
+        }
+
+        class ReorderBody
+        {
+            [JsonProperty("ids")] public System.Collections.Generic.List<int> Ids;
+        }
+
+        class ReorderResult
+        {
+            [JsonProperty("status")] public string Status;
+            [JsonProperty("message")] public string Message;
+        }
+
         class MoveResult
         {
             [JsonProperty("message")] public string Message;

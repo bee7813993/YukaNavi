@@ -32,6 +32,7 @@ namespace YukaNavi.UI
             go.transform.SetParent(_screenLayer, false);
             var rect = go.AddComponent<RectTransform>();
             UiFactory.StretchFull(rect);
+            go.AddComponent<CanvasGroup>(); // 遷移アニメ (フェード) 用
             var screen = go.AddComponent<T>();
             screen.Manager = this;
             screen.BuildUi();
@@ -60,8 +61,27 @@ namespace YukaNavi.UI
             {
                 return false;
             }
-            ShowInternal(_history.Pop(), false);
+            ShowInternal(_history.Pop(), false, true);
             return true;
+        }
+
+        /// <summary>
+        /// 履歴を遡って T まで戻る (途中の画面はスキップ)。
+        /// 履歴に無ければ履歴を捨てて T を表示する。予約の変更完了後に一覧へ戻る用。
+        /// </summary>
+        public void BackTo<T>() where T : ScreenBase
+        {
+            var target = _screens[typeof(T)];
+            while (_history.Count > 0)
+            {
+                var screen = _history.Pop();
+                if (screen == target)
+                {
+                    ShowInternal(screen, false, true);
+                    return;
+                }
+            }
+            ShowInternal(target, false, true);
         }
 
         /// <summary>
@@ -100,7 +120,7 @@ namespace YukaNavi.UI
             }
         }
 
-        void ShowInternal(ScreenBase next, bool pushHistory)
+        void ShowInternal(ScreenBase next, bool pushHistory, bool reverse = false)
         {
             if (_current == next)
             {
@@ -120,8 +140,13 @@ namespace YukaNavi.UI
                 }
             }
             _current = next;
+            bool wasVisible = next.gameObject.activeSelf; // 背後に見えていたホームはアニメしない
             next.gameObject.SetActive(true);
             next.transform.SetAsLastSibling(); // 背景に残っている画面より前面に出す
+            if (!wasVisible)
+            {
+                next.PlayEnterTransition(reverse);
+            }
             next.OnShow();
         }
     }
@@ -151,6 +176,42 @@ namespace YukaNavi.UI
 
         /// <summary>RebuildAll で子が破棄される直前に呼ばれる。子と一緒に消えない自前リソースを片付ける。</summary>
         public virtual void OnRebuild() { }
+
+        Coroutine _enterTransition;
+
+        /// <summary>
+        /// 画面が出てくるときの短いスライド+フェード。reverse は「戻る」方向 (左から)。
+        /// </summary>
+        public void PlayEnterTransition(bool reverse)
+        {
+            var canvasGroup = GetComponent<CanvasGroup>();
+            if (canvasGroup == null)
+            {
+                return;
+            }
+            if (_enterTransition != null)
+            {
+                StopCoroutine(_enterTransition);
+            }
+            _enterTransition = StartCoroutine(EnterRoutine(canvasGroup, reverse ? -40f : 40f));
+        }
+
+        System.Collections.IEnumerator EnterRoutine(CanvasGroup canvasGroup, float fromX)
+        {
+            var rect = (RectTransform)transform;
+            const float duration = 0.16f;
+            for (float elapsed = 0f; elapsed < duration; elapsed += Time.deltaTime)
+            {
+                float k = elapsed / duration;
+                float ease = 1f - (1f - k) * (1f - k); // easeOut
+                canvasGroup.alpha = ease;
+                rect.anchoredPosition = new Vector2(fromX * (1f - ease), 0f);
+                yield return null;
+            }
+            canvasGroup.alpha = 1f;
+            rect.anchoredPosition = Vector2.zero;
+            _enterTransition = null;
+        }
 
         /// <summary>表示された直後に呼ばれる。</summary>
         public virtual void OnShow() { }
