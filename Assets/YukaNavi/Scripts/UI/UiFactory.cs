@@ -231,6 +231,47 @@ namespace YukaNavi.UI
             return button;
         }
 
+        /// <summary>
+        /// インデックス系リストの行 (タイトル + サブテキスト + › 印)。
+        /// 期別リストやシリーズの作品一覧で使う。onTap は効果音込みで渡す。
+        /// </summary>
+        public static GameObject CreateIndexRow(Transform listContent, string title, string sub,
+                                                System.Action onTap)
+        {
+            var rowGo = new GameObject("Row");
+            rowGo.transform.SetParent(listContent, false);
+            var img = rowGo.AddComponent<Image>();
+            img.color = CardBg;
+            Roundify(img);
+            AddShadow(rowGo, 3f);
+            var le = rowGo.AddComponent<LayoutElement>();
+            le.preferredHeight = 124f;
+            var button = rowGo.AddComponent<Button>();
+            rowGo.AddComponent<PressEffect>();
+            button.onClick.AddListener(() => onTap());
+
+            var titleText = CreateText(rowGo.transform, "Title", title, 30, TextDark, TextAnchor.UpperLeft);
+            StretchFull(titleText.rectTransform);
+            titleText.rectTransform.offsetMin = new Vector2(24f, 48f);
+            titleText.rectTransform.offsetMax = new Vector2(-70f, -10f);
+            titleText.verticalOverflow = VerticalWrapMode.Truncate;
+
+            var subText = CreateText(rowGo.transform, "Sub", sub, 22, TextMuted, TextAnchor.LowerLeft);
+            StretchFull(subText.rectTransform);
+            subText.rectTransform.offsetMin = new Vector2(24f, 12f);
+            subText.rectTransform.offsetMax = new Vector2(-70f, -78f);
+            subText.verticalOverflow = VerticalWrapMode.Truncate;
+
+            var arrow = CreateText(rowGo.transform, "Arrow", "›", 44, PrimaryPale);
+            var arrowRect = arrow.rectTransform;
+            arrowRect.anchorMin = arrowRect.anchorMax = new Vector2(1f, 0.5f);
+            arrowRect.pivot = new Vector2(1f, 0.5f);
+            arrowRect.anchoredPosition = new Vector2(-20f, 0f);
+            arrowRect.sizeDelta = new Vector2(44f, 60f);
+
+            return rowGo;
+        }
+
         /// <summary>角丸の小さなバッジ (状態表示用)。</summary>
         public static Text CreateBadge(Transform parent, string name, string label, Color bg, Color fg)
         {

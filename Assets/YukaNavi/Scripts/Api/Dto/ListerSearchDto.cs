@@ -21,6 +21,8 @@ namespace YukaNavi.Api
         /// <summary>OP / ED などの区分</summary>
         [JsonProperty("song_op_ed")] public string OpEd;
         [JsonProperty("tie_up_group_name")] public string TieUpGroup;
+        /// <summary>動画制作者</summary>
+        [JsonProperty("found_worker")] public string Worker;
         /// <summary>代表ファイルのフルパス (そのまま予約に使える)</summary>
         [JsonProperty("found_path")] public string FoundPath;
     }

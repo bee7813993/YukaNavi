@@ -19,6 +19,15 @@ namespace YukaNavi.UI
             Favorite,
         }
 
+        static int _pendingTab = -1;
+
+        /// <summary>タブを指定して開く (0=うたった曲 1=あとで歌う 2=お気に入り)。検索トップの動線用。</summary>
+        public static void Open(ScreenManager manager, int tab)
+        {
+            _pendingTab = tab;
+            manager.Show<MypageScreen>();
+        }
+
         Tab _tab = Tab.History;
         Button _historyTab;
         Button _laterTab;
@@ -71,6 +80,12 @@ namespace YukaNavi.UI
 
         public override void OnShow()
         {
+            if (_pendingTab >= 0 && _pendingTab <= 2)
+            {
+                _tab = (Tab)_pendingTab;
+                _pendingTab = -1;
+                UpdateTabColors();
+            }
             Reload();
         }
 

@@ -14,6 +14,12 @@ namespace YukaNavi.UI
         readonly Stack<ScreenBase> _history = new Stack<ScreenBase>();
         ScreenBase _current;
 
+        /// <summary>表示中の画面 (ナビの「戻る」が画面内履歴を問い合わせるのに使う)。</summary>
+        public ScreenBase Current
+        {
+            get { return _current; }
+        }
+
         public ScreenManager(Transform screenLayer)
         {
             _screenLayer = screenLayer;
@@ -129,6 +135,15 @@ namespace YukaNavi.UI
         public virtual bool KeepVisibleInBackground
         {
             get { return false; }
+        }
+
+        /// <summary>
+        /// ナビの「戻る」が押されたとき、画面遷移より先に呼ばれる。
+        /// 画面内の階層・検索履歴を1つ戻したら true を返す (true の間は画面遷移しない)。
+        /// </summary>
+        public virtual bool OnBackRequested()
+        {
+            return false;
         }
 
         /// <summary>UI を組み立てる (Register 時と RebuildAll 時に呼ばれる)。</summary>

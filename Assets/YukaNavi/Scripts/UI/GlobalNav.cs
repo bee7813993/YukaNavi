@@ -265,6 +265,13 @@ namespace YukaNavi.UI
                 Se.Play(Se.Tap);
                 return;
             }
+            // 画面内の階層・検索履歴が先 (期別リストの階層戻りや再検索の遡りに使う)
+            var current = _screens.Current;
+            if (current != null && current.OnBackRequested())
+            {
+                Se.Play(Se.Tap);
+                return;
+            }
             if (_screens.Back())
             {
                 Se.Play(Se.Transition);

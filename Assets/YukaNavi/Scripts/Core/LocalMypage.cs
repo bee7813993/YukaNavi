@@ -26,11 +26,34 @@ namespace YukaNavi.Core
             [JsonProperty("added_at")] public long AddedAt;
         }
 
+        /// <summary>保存した検索 (キーワード or 完全一致条件)。検索トップのチップに並ぶ。</summary>
+        public class SavedSearch
+        {
+            /// <summary>lister (あいまい) / everything (ファイル名) / exact (完全一致)</summary>
+            [JsonProperty("kind")] public string Kind;
+            /// <summary>キーワード (exact では空)</summary>
+            [JsonProperty("keyword")] public string Keyword;
+            /// <summary>exact のフィールド (program / artist / group / worker)</summary>
+            [JsonProperty("field")] public string Field;
+            /// <summary>exact の値</summary>
+            [JsonProperty("value")] public string Value;
+            /// <summary>チップ表示用ラベル</summary>
+            [JsonProperty("label")] public string Label;
+            [JsonProperty("added_at")] public long AddedAt;
+
+            public bool SameCondition(SavedSearch other)
+            {
+                return Kind == other.Kind && Keyword == other.Keyword
+                    && Field == other.Field && Value == other.Value;
+            }
+        }
+
         class Store
         {
             [JsonProperty("history")] public List<Item> History = new List<Item>();
             [JsonProperty("later")] public List<Item> Later = new List<Item>();
             [JsonProperty("favorite")] public List<Item> Favorite = new List<Item>();
+            [JsonProperty("searches")] public List<SavedSearch> Searches = new List<SavedSearch>();
         }
 
         const int HistoryLimit = 500;
@@ -179,6 +202,36 @@ namespace YukaNavi.Core
         {
             GetStore().Favorite.RemoveAll(i => i.FullPath == fullpath);
             Save();
+        }
+
+        // ---- 保存した検索 ----
+
+        /// <summary>保存した検索 (追加の新しい順)。</summary>
+        public static List<SavedSearch> GetSavedSearches()
+        {
+            var list = new List<SavedSearch>(GetStore().Searches);
+            list.Sort((a, b) => b.AddedAt.CompareTo(a.AddedAt));
+            return list;
+        }
+
+        public static bool IsSavedSearch(SavedSearch search)
+        {
+            return GetStore().Searches.Exists(s => s.SameCondition(search));
+        }
+
+        /// <summary>保存/解除をトグルする。保存されたら true。</summary>
+        public static bool ToggleSavedSearch(SavedSearch search)
+        {
+            var store = GetStore();
+            int removed = store.Searches.RemoveAll(s => s.SameCondition(search));
+            bool added = removed == 0;
+            if (added)
+            {
+                search.AddedAt = Now();
+                store.Searches.Add(search);
+            }
+            Save();
+            return added;
         }
 
         static bool Toggle(List<Item> list, string fullpath, string songfile, string kind)

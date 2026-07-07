@@ -75,6 +75,65 @@ namespace YukaNavi.Api
             }
         }
 
+        /// <summary>期別インデックス: 年ごとの曲数。</summary>
+        public Task<ListerYearsDto> GetListerYearsAsync()
+            => GetApiAsync<ListerYearsDto>("api/lister_index.php?mode=years");
+
+        /// <summary>期別インデックス: 指定年の期ごとの曲数・作品数。</summary>
+        public Task<ListerQuartersDto> GetListerQuartersAsync(int year)
+            => GetApiAsync<ListerQuartersDto>("api/lister_index.php?mode=quarters&year=" + year);
+
+        /// <summary>期別インデックス: 期内の作品一覧。quarter: 1=冬 2=春 3=夏 4=秋。</summary>
+        public Task<ListerProgramsDto> GetListerProgramsAsync(int year, int quarter)
+            => GetApiAsync<ListerProgramsDto>(
+                "api/lister_index.php?mode=programs&year=" + year + "&quarter=" + quarter);
+
+        /// <summary>シリーズ内の作品一覧 (シリーズでの再検索用)。</summary>
+        public Task<ListerProgramsDto> GetListerGroupProgramsAsync(string group)
+            => GetApiAsync<ListerProgramsDto>(
+                "api/lister_index.php?mode=programs&group=" + UnityWebRequest.EscapeURL(group));
+
+        /// <summary>
+        /// ListerDB の曲検索 (曲単位グルーピング、同じ曲の複数動画は Files に並ぶ)。
+        /// program / artist / group / worker は完全一致 (AND)、anyword はあいまい検索。
+        /// order: date_desc (既定。ファイル更新日の新しい順) / date_asc / name (曲名順)。
+        /// </summary>
+        public Task<ListerIndexSongsDto> GetListerIndexSongsAsync(
+            string program = null, string artist = null, string group = null, string worker = null,
+            string anyword = null, string order = null, bool flat = false)
+        {
+            string path = "api/lister_index.php?mode=songs";
+            if (!string.IsNullOrEmpty(order))
+            {
+                path += "&order=" + order;
+            }
+            if (flat)
+            {
+                path += "&flat=1"; // グルーピングせずファイル単位で返す
+            }
+            if (!string.IsNullOrEmpty(program))
+            {
+                path += "&program=" + UnityWebRequest.EscapeURL(program);
+            }
+            if (!string.IsNullOrEmpty(artist))
+            {
+                path += "&artist=" + UnityWebRequest.EscapeURL(artist);
+            }
+            if (!string.IsNullOrEmpty(group))
+            {
+                path += "&group=" + UnityWebRequest.EscapeURL(group);
+            }
+            if (!string.IsNullOrEmpty(worker))
+            {
+                path += "&worker=" + UnityWebRequest.EscapeURL(worker);
+            }
+            if (!string.IsNullOrEmpty(anyword))
+            {
+                path += "&anyword=" + UnityWebRequest.EscapeURL(anyword);
+            }
+            return GetApiAsync<ListerIndexSongsDto>(path);
+        }
+
         /// <summary>
         /// ユーザー識別 Cookie (YkariUserID / YkariUsername) を付与する。
         /// これにより予約が Web 版と同じ仕組みでユーザーの履歴に紐づく。
