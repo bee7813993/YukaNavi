@@ -32,6 +32,11 @@ namespace YukaNavi.UI
         Text _bgPickText;
         Text _charPickText;
         Text _bgmPickText;
+        Text _recordPickText;
+        Button _recordDefaultButton;
+        string _pickedRecord;
+        /// <summary>0=そのまま (新規時はアプリ標準) / 1=画像を選択 / 2=アプリ標準の盤に戻す</summary>
+        int _recordMode;
         Text _createErrorText;
         Button _charNoneButton;
         Button _bgmNoneButton;
@@ -244,7 +249,7 @@ namespace YukaNavi.UI
             var card = UiFactory.CreatePanel(_createModal.transform, "Card", Color.white);
             card.anchorMin = card.anchorMax = new Vector2(0.5f, 0.5f);
             card.pivot = new Vector2(0.5f, 0.5f);
-            card.sizeDelta = new Vector2(940f, 1620f);
+            card.sizeDelta = new Vector2(940f, 1750f);
             UiFactory.Roundify(card.GetComponent<Image>());
             UiFactory.AddShadow(card.gameObject, 8f);
             // カード内タップがオーバーレイに抜けないようにする
@@ -315,18 +320,41 @@ namespace YukaNavi.UI
                 new Color(0.5f, 0.47f, 0.6f), TextAnchor.MiddleLeft);
             SetCardRow(_bgmPickText.rectTransform, -1112f, 30f);
 
+            // リモコンのレコード盤 (任意)。円形の透過 PNG を想定
+            var recordButton = UiFactory.CreateButton(card, "PickRecord", "レコード盤を選ぶ (任意)",
+                UiFactory.Primary, Color.white, 28);
+            var recordRect = recordButton.GetComponent<RectTransform>();
+            recordRect.anchorMin = recordRect.anchorMax = new Vector2(0f, 1f);
+            recordRect.pivot = new Vector2(0f, 1f);
+            recordRect.anchoredPosition = new Vector2(50f, -1160f);
+            recordRect.sizeDelta = new Vector2(490f, 80f);
+            recordButton.onClick.AddListener(PickRecordFile);
+
+            _recordDefaultButton = UiFactory.CreateButton(card, "RecordDefault", "標準の盤",
+                new Color(0.75f, 0.73f, 0.80f), Color.white, 28);
+            var recordDefaultRect = _recordDefaultButton.GetComponent<RectTransform>();
+            recordDefaultRect.anchorMin = recordDefaultRect.anchorMax = new Vector2(1f, 1f);
+            recordDefaultRect.pivot = new Vector2(1f, 1f);
+            recordDefaultRect.anchoredPosition = new Vector2(-50f, -1160f);
+            recordDefaultRect.sizeDelta = new Vector2(320f, 80f);
+            _recordDefaultButton.onClick.AddListener(ToggleRecordDefault);
+
+            _recordPickText = UiFactory.CreateText(card, "RecordPicked", "未選択 (アプリ標準の盤)", 22,
+                new Color(0.5f, 0.47f, 0.6f), TextAnchor.MiddleLeft);
+            SetCardRow(_recordPickText.rectTransform, -1242f, 30f);
+
             // テーマ色 (ボタンや文字の色)。基準色から派生色を自動生成する
             var themeLabel = UiFactory.CreateText(card, "ThemeLabel", "テーマ色 (ボタンや文字の色)", 26,
                 UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
-            SetCardRow(themeLabel.rectTransform, -1152f, 34f);
+            SetCardRow(themeLabel.rectTransform, -1282f, 34f);
             BuildThemeChips(card);
 
             var hint = UiFactory.CreateText(card, "Hint",
                 "※ 選んだファイルはアプリ内にコピーされます", 20, new Color(0.5f, 0.47f, 0.6f));
-            SetCardRow(hint.rectTransform, -1276f, 28f);
+            SetCardRow(hint.rectTransform, -1406f, 28f);
 
             _createErrorText = UiFactory.CreateText(card, "Error", "", 24, UiFactory.Danger);
-            SetCardRow(_createErrorText.rectTransform, -1310f, 36f);
+            SetCardRow(_createErrorText.rectTransform, -1440f, 36f);
 
             var saveButton = UiFactory.CreateButton(card, "Save", "作成する", UiFactory.Primary, Color.white, 34);
             _saveButtonLabel = saveButton.GetComponentInChildren<Text>();
@@ -357,7 +385,7 @@ namespace YukaNavi.UI
         {
             _themeChecks.Clear();
             var row = UiFactory.CreatePanel(card, "ThemeChips");
-            SetCardRow(row, -1192f, 72f);
+            SetCardRow(row, -1322f, 72f);
             var layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
             layout.childForceExpandWidth = false;
             layout.childForceExpandHeight = false;
@@ -888,6 +916,73 @@ namespace YukaNavi.UI
             }
         }
 
+        /// <summary>端末のファイルピッカーでレコード盤の画像を選ぶ。</summary>
+        void PickRecordFile()
+        {
+            Se.Play(Se.Tap);
+#if UNITY_EDITOR
+            string picked = UnityEditor.EditorUtility.OpenFilePanel("レコード盤の画像を選ぶ", "", "png,jpg,jpeg");
+            OnRecordPicked(string.IsNullOrEmpty(picked) ? null : picked);
+#else
+            NativeFilePicker.PickFile(OnRecordPicked, new string[] { "image/*" });
+#endif
+        }
+
+        void OnRecordPicked(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return; // キャンセル
+            }
+            string ext = Path.GetExtension(path).ToLowerInvariant();
+            if (ext != ".png" && ext != ".jpg" && ext != ".jpeg")
+            {
+                _createErrorText.text = "画像ファイル (png / jpg) を選んでください";
+                Se.Play(Se.Error);
+                return;
+            }
+            _createErrorText.text = "";
+            _pickedRecord = path;
+            _recordMode = 1;
+            UpdateRecordUi();
+        }
+
+        /// <summary>「標準の盤」のトグル (スキンのレコード盤を外してアプリ標準に戻す)。もう一度押すと解除。</summary>
+        void ToggleRecordDefault()
+        {
+            Se.Play(Se.Tap);
+            if (_recordMode == 2)
+            {
+                _recordMode = _pickedRecord != null ? 1 : 0;
+            }
+            else
+            {
+                _recordMode = 2;
+            }
+            UpdateRecordUi();
+        }
+
+        void UpdateRecordUi()
+        {
+            _recordDefaultButton.image.color = _recordMode == 2 ? UiFactory.Primary : new Color(0.75f, 0.73f, 0.80f);
+            switch (_recordMode)
+            {
+                case 2:
+                    _recordPickText.text = "アプリ標準のレコード盤を使います";
+                    break;
+                case 1:
+                    _recordPickText.text = "選択済み: " + Path.GetFileName(_pickedRecord);
+                    break;
+                default:
+                    bool hasExisting = _editingSkin != null && _editingSkin.Record != null
+                        && !string.IsNullOrEmpty(_editingSkin.Record.File);
+                    _recordPickText.text = hasExisting
+                        ? "現在のレコード盤: " + _editingSkin.Record.File
+                        : "未選択 (アプリ標準の盤)";
+                    break;
+            }
+        }
+
         /// <summary>「キャラなし」のトグル。もう一度押すと「ゆかりちゃんのまま」に戻る。</summary>
         void ToggleCharNone()
         {
@@ -936,6 +1031,9 @@ namespace YukaNavi.UI
             _pickedBgm = null;
             _bgmMode = 0;
             UpdateBgmUi();
+            _pickedRecord = null;
+            _recordMode = 0;
+            UpdateRecordUi();
             _pickedThemeHex = null;
             UpdateThemeChips();
             _bgPickText.text = "未選択";
@@ -962,6 +1060,8 @@ namespace YukaNavi.UI
             _pickedChar = null;
             _pickedBgm = null;
             _bgmMode = 0; // 既存 BGM は維持
+            _pickedRecord = null;
+            _recordMode = 0; // 既存のレコード盤は維持
             _pickedThemeHex = skin.Theme != null ? skin.Theme.Primary : null;
             UpdateThemeChips();
             _createErrorText.text = "";
@@ -981,6 +1081,7 @@ namespace YukaNavi.UI
             }
             UpdateCharUi();
             UpdateBgmUi();
+            UpdateRecordUi();
 
             // 背景の復元 (画像はプレビュー + 調整値も復元)
             _adjRotation = 0f;
@@ -1094,7 +1195,8 @@ namespace YukaNavi.UI
                         _charMode == 1 ? _pickedChar : null,
                         _adjRotation, _adjZoom, _adjOffset, _charMode,
                         _bgmMode == 1 ? _pickedBgm : null, _bgmMode == 2,
-                        _pickedThemeHex))
+                        _pickedThemeHex,
+                        _recordMode == 1 ? _pickedRecord : null, _recordMode == 2))
                 {
                     _createErrorText.text = "スキンの保存に失敗しました";
                     Se.Play(Se.Error);
@@ -1105,9 +1207,9 @@ namespace YukaNavi.UI
             else
             {
                 // 新規作成
-                if (_pickedBg == null && _charMode == 0 && _bgmMode != 1)
+                if (_pickedBg == null && _charMode == 0 && _bgmMode != 1 && _recordMode != 1)
                 {
-                    _createErrorText.text = "背景を選ぶか、キャラ・BGM の設定を変えてください";
+                    _createErrorText.text = "背景を選ぶか、キャラ・BGM・レコード盤の設定を変えてください";
                     Se.Play(Se.Error);
                     return;
                 }
@@ -1116,7 +1218,8 @@ namespace YukaNavi.UI
                     _adjRotation, _adjZoom, _adjOffset,
                     _charMode == 2,
                     _bgmMode == 1 ? _pickedBgm : null,
-                    _pickedThemeHex);
+                    _pickedThemeHex,
+                    _recordMode == 1 ? _pickedRecord : null);
                 if (id == null)
                 {
                     _createErrorText.text = "スキンの作成に失敗しました";

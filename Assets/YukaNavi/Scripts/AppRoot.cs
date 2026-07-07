@@ -30,6 +30,11 @@ namespace YukaNavi
 
         void Start()
         {
+            // フォーカスを失っても再生状態のポーリングを止めない
+            // (エディタや PC でウィンドウが非アクティブだと既定ではポーズし、
+            //  曲の切り替わり表示がタッチするまで止まって見える。モバイルでは無視される設定)
+            Application.runInBackground = true;
+
             // EventSystem (プロジェクトは新 Input System のみのため InputSystemUIInputModule を使う)
             if (FindFirstObjectByType<EventSystem>() == null)
             {

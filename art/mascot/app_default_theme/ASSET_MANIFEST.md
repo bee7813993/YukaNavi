@@ -60,6 +60,7 @@ KaraokeRequestorWeb 操作アプリ向けの「ゆかり」ちゃんデフォル
 | 部屋/ドアアイコン | `ui/icons/yukanavi_icon_room_door_256.png` | 256x256, RGBA 透過, 白単色。部屋名ピル用 |
 | メニュー大バナー: 曲をさがす | `ui/banners/yukanavi_banner_search_song_1000x220.png` | 1000x220, RGBA 透過。リンクラ風の横長画像バナー |
 | メニュー大バナー: 予約一覧 | `ui/banners/yukanavi_banner_queue_1000x220.png` | 1000x220, RGBA 透過。リンクラ風の横長画像バナー |
+| プレイヤー画面 レコード画像 | `player/yukanavi_record_disc_1024.png` | 1024x1024, RGBA 透過。円形レコード盤、中心ラベルにゆかりちゃん+ロゴ |
 | 接続設定画面イラスト | `screen_art/yukanavi_connect_setup_illustration_1080x1920.png` | 1080x1920, RGB。URL入力やQR読取UIを重ねるための余白あり |
 | 検索画面 空状態/ヘッダーバナー | `screen_art/yukanavi_search_empty_banner_1080x540.png` | 1080x540, RGB。文字なし・人物なし |
 | 予約一覧 空状態/ヘッダーバナー | `screen_art/yukanavi_queue_empty_banner_1080x540.png` | 1080x540, RGB。文字なし・人物なし |
@@ -79,6 +80,7 @@ KaraokeRequestorWeb 操作アプリ向けの「ゆかり」ちゃんデフォル
 - 追加素材確認用プレビュー: `yukanavi_extra_assets_preview.png`
 - UIアイコン確認用プレビュー: `ui/yukanavi_ui_icons_preview.png`
 - メニュー大バナー確認用プレビュー: `ui/yukanavi_menu_banners_preview.png`
+- レコード画像確認用プレビュー: `player/yukanavi_record_disc_preview.png`
 - ゆかりなし背景確認用プレビュー: `yukanavi_backgrounds_no_character_preview.png`
 - 季節背景確認用プレビュー: `yukanavi_seasonal_backgrounds_preview.png`
 - ホーム背景ループ動画確認用プレビュー: `yukanavi_home_background_loop_rich_preview.png`

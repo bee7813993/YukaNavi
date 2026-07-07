@@ -14,6 +14,8 @@ namespace YukaNavi.Core
         [JsonProperty("character")] public SkinLayer Character;
         /// <summary>スキン専用 BGM (type="audio")。null = アプリのデフォルト BGM</summary>
         [JsonProperty("bgm")] public SkinLayer Bgm;
+        /// <summary>リモコンのレコード盤画像 (type="image")。null = アプリ標準の盤</summary>
+        [JsonProperty("record")] public SkinLayer Record;
         /// <summary>テーマ色。null = 既定 (紫)</summary>
         [JsonProperty("theme")] public SkinTheme Theme;
         /// <summary>ホーム画面パーツの配置 (時計など)。null = 未設定 (初期配置)</summary>
@@ -124,19 +126,22 @@ namespace YukaNavi.Core
                 "└─ myskin/          ← 好きなフォルダ名\r\n" +
                 "    ├─ skin.json    ← 設定ファイル (下記)\r\n" +
                 "    ├─ bg.png       ← 背景 (画像 または mp4 動画)\r\n" +
-                "    └─ chara.png    ← キャラ画像 (透過PNG推奨)\r\n" +
+                "    ├─ chara.png    ← キャラ画像 (透過PNG推奨)\r\n" +
+                "    └─ record.png   ← リモコンのレコード盤 (円形の透過PNG)\r\n" +
                 "\r\n" +
                 "skin.json の例:\r\n" +
                 "{\r\n" +
                 "  \"name\": \"マイスキン\",\r\n" +
                 "  \"background\": { \"type\": \"image\", \"file\": \"bg.png\" },\r\n" +
                 "  \"character\": { \"type\": \"image\", \"file\": \"chara.png\", \"scale\": 1.0 },\r\n" +
-                "  \"bgm\": { \"type\": \"audio\", \"file\": \"bgm.mp3\" }\r\n" +
+                "  \"bgm\": { \"type\": \"audio\", \"file\": \"bgm.mp3\" },\r\n" +
+                "  \"record\": { \"type\": \"image\", \"file\": \"record.png\" }\r\n" +
                 "}\r\n" +
                 "\r\n" +
                 "- background の type: \"image\" または \"video\" (mp4)\r\n" +
                 "- character の type: \"image\" または \"none\" (キャラなし)\r\n" +
                 "- bgm は任意 (mp3 / ogg / wav)。無ければアプリのデフォルト BGM\r\n" +
+                "- record は任意。リモコン画面のレコード盤が差し替わります\r\n" +
                 "- ファイルが見つからない場合はデフォルトに戻ります\r\n";
         }
 
@@ -215,7 +220,7 @@ namespace YukaNavi.Core
         public static string CreateSkin(string name, string bgSourcePath, string charSourcePath,
                                         float bgRotation, float bgZoom, Vector2 bgOffset,
                                         bool charNone = false, string bgmSourcePath = null,
-                                        string themePrimary = null)
+                                        string themePrimary = null, string recordSourcePath = null)
         {
             try
             {
@@ -275,12 +280,22 @@ namespace YukaNavi.Core
                     bgm = new SkinLayer { Type = "audio", File = destName };
                 }
 
+                SkinLayer record = null;
+                if (!string.IsNullOrEmpty(recordSourcePath) && File.Exists(recordSourcePath))
+                {
+                    string ext = Path.GetExtension(recordSourcePath).ToLowerInvariant();
+                    string destName = "record" + ext;
+                    File.Copy(recordSourcePath, Path.Combine(folder, destName), true);
+                    record = new SkinLayer { Type = "image", File = destName };
+                }
+
                 var def = new SkinDef
                 {
                     Name = name,
                     Background = background,
                     Character = character,
                     Bgm = bgm,
+                    Record = record,
                     Theme = string.IsNullOrEmpty(themePrimary) ? null : new SkinTheme { Primary = themePrimary },
                 };
                 string json = JsonConvert.SerializeObject(def, Formatting.Indented,
@@ -302,7 +317,8 @@ namespace YukaNavi.Core
         public static bool UpdateSkin(SkinDef skin, string name, string newBgSource, string newCharSource,
                                       float bgRotation, float bgZoom, Vector2 bgOffset, int charMode,
                                       string newBgmSource = null, bool removeBgm = false,
-                                      string themePrimary = null)
+                                      string themePrimary = null,
+                                      string newRecordSource = null, bool removeRecord = false)
         {
             if (skin.Folder == null)
             {
@@ -390,12 +406,42 @@ namespace YukaNavi.Core
                     bgm = new SkinLayer { Type = "audio", File = destName };
                 }
 
+                var record = skin.Record;
+                if (removeRecord)
+                {
+                    if (record != null && !string.IsNullOrEmpty(record.File))
+                    {
+                        string old = Path.Combine(skin.Folder, record.File);
+                        if (File.Exists(old))
+                        {
+                            File.Delete(old);
+                        }
+                    }
+                    record = null;
+                }
+                else if (!string.IsNullOrEmpty(newRecordSource) && File.Exists(newRecordSource))
+                {
+                    if (record != null && !string.IsNullOrEmpty(record.File))
+                    {
+                        string old = Path.Combine(skin.Folder, record.File);
+                        if (File.Exists(old))
+                        {
+                            File.Delete(old);
+                        }
+                    }
+                    string ext = Path.GetExtension(newRecordSource).ToLowerInvariant();
+                    string destName = "record" + ext;
+                    File.Copy(newRecordSource, Path.Combine(skin.Folder, destName), true);
+                    record = new SkinLayer { Type = "image", File = destName };
+                }
+
                 var def = new SkinDef
                 {
                     Name = string.IsNullOrEmpty(name) ? skin.Name : name,
                     Background = background,
                     Character = character,
                     Bgm = bgm,
+                    Record = record,
                     Theme = string.IsNullOrEmpty(themePrimary) ? null : new SkinTheme { Primary = themePrimary },
                     Layout = skin.Layout, // ホーム配置は編集操作では変えない (引き継ぐ)
                 };

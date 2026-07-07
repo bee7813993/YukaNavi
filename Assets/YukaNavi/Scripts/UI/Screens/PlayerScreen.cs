@@ -32,6 +32,10 @@ namespace YukaNavi.UI
         NoteParticles _noteParticles;
         Image _ringFill;
         RectTransform _recordRect;
+        Image _recordImage;
+        GameObject _recordLabel;
+        string _recordSkinKey;
+        Texture2D _skinRecordTex;
         Text _stateBadgeText;
         Image _stateBadgeBg;
         Text _playerBadgeText;
@@ -78,6 +82,7 @@ namespace YukaNavi.UI
         float _endArmedAt = -100f;
         Coroutine _polling;
         bool _refreshing;
+        bool _lastPollFailed;
 
         public override void BuildUi()
         {
@@ -124,6 +129,7 @@ namespace YukaNavi.UI
             SetStatus("", false);
             _endArmedAt = -100f;
             _shownSec = -1;
+            ApplyRecordSkin(); // スキンが切り替わっていたら盤を差し替える
             _ = InitControlsAsync();
             _polling = StartCoroutine(PollRoutine());
         }
@@ -191,8 +197,34 @@ namespace YukaNavi.UI
             while (true)
             {
                 _ = RefreshNowPlayingAsync();
-                yield return new WaitForSeconds(PollIntervalSeconds);
+                yield return new WaitForSeconds(NextPollDelay());
             }
+        }
+
+        /// <summary>
+        /// 次のポーリングまでの待ち時間。Web 版は SSE で曲の切り替わりを即座に拾うため、
+        /// アプリ側も曲の終わり際と曲間だけ間隔を詰めて、曲名の切り替わり遅れを目立たなくする。
+        /// </summary>
+        float NextPollDelay()
+        {
+            if (_lastPollFailed)
+            {
+                return 3f;  // サーバーに繋がらない時は無駄打ちしない
+            }
+            if (!_hasProgress)
+            {
+                return 0.8f;  // 曲間・停止中: 次の曲の開始をすぐ拾う
+            }
+            float pos = _basePosMs;
+            if (_stateNum == 2)
+            {
+                pos += (Time.realtimeSinceStartup - _baseAt) * 1000f;
+            }
+            if (_totalMs - pos < 8000f)
+            {
+                return 0.5f;  // 曲の終わり際: 曲替わりを素早く検知
+            }
+            return PollIntervalSeconds;
         }
 
         /// <summary>プレイヤー種別と機能フラグに合わせて操作カードを構築する。</summary>
@@ -262,22 +294,20 @@ namespace YukaNavi.UI
             _ringFill.fillAmount = 0f;
             PlaceCircle(_ringFill.rectTransform, 0f, ringCenterY, ringSize);
 
-            // レコード盤 (専用素材があれば差し替え、無ければ実行時生成のプレースホルダ)
+            // レコード盤 (スキン → 同梱素材 → 実行時生成プレースホルダ の順で解決)
             var recordGo = new GameObject("Record");
             recordGo.transform.SetParent(section, false);
-            var recordImg = recordGo.AddComponent<Image>();
-            var recordTex = Resources.Load<Texture2D>("Art/UI/yukanavi_record_disc");
-            recordImg.sprite = recordTex != null
-                ? Sprite.Create(recordTex, new Rect(0f, 0f, recordTex.width, recordTex.height), new Vector2(0.5f, 0.5f), 100f)
-                : UiFactory.VinylSprite;
-            recordImg.raycastTarget = false;
-            _recordRect = recordImg.rectTransform;
+            _recordImage = recordGo.AddComponent<Image>();
+            _recordImage.sprite = UiFactory.VinylSprite;
+            _recordImage.raycastTarget = false;
+            _recordRect = _recordImage.rectTransform;
             PlaceCircle(_recordRect, 0f, ringCenterY, 566f);
 
-            // 盤の中心ラベル (テーマ色 + ♪)。盤の子にして一緒に回す
-            var labelGo = new GameObject("Label");
-            labelGo.transform.SetParent(recordGo.transform, false);
-            var recordLabel = labelGo.AddComponent<Image>();
+            // プレースホルダ盤用の中心ラベル (テーマ色 + ♪)。
+            // 画像素材にはラベルがデザイン済みなので ApplyRecordSkin が隠す
+            _recordLabel = new GameObject("Label");
+            _recordLabel.transform.SetParent(recordGo.transform, false);
+            var recordLabel = _recordLabel.AddComponent<Image>();
             recordLabel.sprite = UiFactory.CircleSprite;
             recordLabel.color = UiFactory.Primary;
             recordLabel.raycastTarget = false;
@@ -286,8 +316,11 @@ namespace YukaNavi.UI
             labelRect.pivot = new Vector2(0.5f, 0.5f);
             labelRect.anchoredPosition = Vector2.zero;
             labelRect.sizeDelta = new Vector2(176f, 176f);
-            var labelNote = UiFactory.CreateText(labelGo.transform, "Note", "♪", 72, Color.white);
+            var labelNote = UiFactory.CreateText(_recordLabel.transform, "Note", "♪", 72, Color.white);
             UiFactory.StretchFull(labelNote.rectTransform);
+
+            _recordSkinKey = null;
+            ApplyRecordSkin();
 
             // 盤タップでも再生/一時停止できる (見えている下半分だけを判定領域にする)
             var tapGo = new GameObject("RecordTap");
@@ -333,6 +366,59 @@ namespace YukaNavi.UI
             _singerText = UiFactory.CreateText(section, "Singer", "", 25, UiFactory.TextMuted, TextAnchor.UpperCenter);
             _timeText = UiFactory.CreateText(section, "Time", "", 24, UiFactory.TextMuted, TextAnchor.UpperCenter);
             LayoutVisualTexts("", "", false);
+        }
+
+        /// <summary>
+        /// レコード盤の画像を反映する。スキンの盤 → 同梱素材 → 生成プレースホルダの順。
+        /// スキンの切り替え・編集 (Revision) を検知した時だけ読み直す。
+        /// </summary>
+        void ApplyRecordSkin()
+        {
+            if (_recordImage == null)
+            {
+                return;
+            }
+            var skin = SkinManager.Current();
+            string key = skin.Id + "#" + SkinManager.Revision;
+            if (key == _recordSkinKey)
+            {
+                return;
+            }
+            _recordSkinKey = key;
+
+            Texture2D tex = null;
+            if (skin.Record != null && !string.IsNullOrEmpty(skin.Record.File))
+            {
+                tex = SkinManager.LoadTexture(skin, skin.Record.File);
+            }
+            bool fromSkin = tex != null;
+            if (tex == null)
+            {
+                tex = Resources.Load<Texture2D>("Art/UI/yukanavi_record_disc");
+            }
+
+            var oldSprite = _recordImage.sprite;
+            if (tex != null)
+            {
+                _recordImage.sprite = Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height),
+                    new Vector2(0.5f, 0.5f), 100f);
+                _recordLabel.SetActive(false);
+            }
+            else
+            {
+                _recordImage.sprite = UiFactory.VinylSprite;
+                _recordLabel.SetActive(true);
+            }
+            if (oldSprite != null && oldSprite != UiFactory.VinylSprite && oldSprite != _recordImage.sprite)
+            {
+                Destroy(oldSprite);
+            }
+            // スキン由来のテクスチャは差し替え時に破棄する (Resources 由来は破棄しない)
+            if (_skinRecordTex != null && _skinRecordTex != tex)
+            {
+                Destroy(_skinRecordTex);
+            }
+            _skinRecordTex = fromSkin ? tex : null;
         }
 
         /// <summary>曲名の行数に合わせてテキスト位置とセクション高さを更新する。</summary>
@@ -477,9 +563,11 @@ namespace YukaNavi.UI
                 {
                     _keyText.text = KeyLabel(now.Keychange);
                 }
+                _lastPollFailed = false;
             }
             catch (System.Exception e)
             {
+                _lastPollFailed = true;
                 SetStatus("状態の取得に失敗: " + e.Message, true);
             }
             finally
