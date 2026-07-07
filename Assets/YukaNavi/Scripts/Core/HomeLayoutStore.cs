@@ -19,14 +19,15 @@ namespace YukaNavi.Core
         /// <summary>パーツの初期位置 (HomeScreen の座標系)。</summary>
         public static Vector2 DefaultPos(string key)
         {
+            // 上部の白帯 (110) + 設定/音ボタン (〜-218) と被らないように配置する
             switch (key)
             {
                 case Clock:
-                    return new Vector2(-44f, -340f);
+                    return new Vector2(-44f, -430f);
                 case Mascot:
                     return new Vector2(0f, 160f); // GlobalNav.BarHeight + 20
                 default:
-                    return new Vector2(0f, -136f); // ticker
+                    return new Vector2(0f, -240f); // ticker
             }
         }
 

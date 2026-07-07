@@ -59,6 +59,10 @@ namespace YukaNavi.UI
         SkinDef _currentSkin;
         int _editingSiblingIndex; // 移動モード中に最前面へ出す前の描画順
         int _lastClockMinute = -1;
+        Text _statusClockText;
+        Image _batteryFill;
+        GameObject _batteryGo;
+        Text _nameText;
         GameObject _banner;
         Text _bannerText;
         GameObject _backgroundGo;
@@ -77,15 +81,93 @@ namespace YukaNavi.UI
 
             NoteParticles.Create(transform);
 
-            // 部屋名 (接続先サーバー名)。リンクラの NAME 枠に相当。最上部中央のピル。
-            // タップで部屋移動モーダル (Web 版の部屋ドロップダウンと同じ動作) を開く
-            var roomPill = UiFactory.CreatePanel(transform, "RoomName", new Color(1f, 1f, 1f, 0.78f));
-            roomPill.anchorMin = roomPill.anchorMax = new Vector2(0.5f, 1f);
-            roomPill.pivot = new Vector2(0.5f, 1f);
-            roomPill.anchoredPosition = new Vector2(0f, -40f);
-            roomPill.sizeDelta = new Vector2(600f, 72f);
-            UiFactory.Roundify(roomPill.GetComponent<Image>());
-            UiFactory.AddShadow(roomPill.gameObject, 3f);
+            // 最上部の白帯 (リンクラ風のステータスバー)。壁紙の対象外として不透明の白にする。
+            // 左から 時刻・バッテリー / NAME (自分の名前) / 部屋名 (タップで部屋移動)
+            var statusBar = UiFactory.CreatePanel(transform, "StatusBar", Color.white);
+            statusBar.anchorMin = new Vector2(0f, 1f);
+            statusBar.anchorMax = new Vector2(1f, 1f);
+            statusBar.pivot = new Vector2(0.5f, 1f);
+            statusBar.sizeDelta = new Vector2(0f, 110f);
+            UiFactory.AddShadow(statusBar.gameObject, 4f);
+
+            // 時刻 (上) + バッテリー (下) の縦2段
+            _statusClockText = UiFactory.CreateText(statusBar, "Clock", "", 30,
+                UiFactory.TextDark, TextAnchor.MiddleLeft);
+            _statusClockText.fontStyle = FontStyle.Bold;
+            var scRect = _statusClockText.rectTransform;
+            scRect.anchorMin = new Vector2(0f, 1f);
+            scRect.anchorMax = new Vector2(0f, 1f);
+            scRect.pivot = new Vector2(0f, 1f);
+            scRect.anchoredPosition = new Vector2(28f, -14f);
+            scRect.sizeDelta = new Vector2(140f, 40f);
+
+            // バッテリー (枠 + 塗り + 先端の凸)。残量が取れない環境 (エディタ等) では非表示
+            var batteryGo = new GameObject("Battery");
+            batteryGo.transform.SetParent(statusBar, false);
+            var batteryFrame = batteryGo.AddComponent<Image>();
+            batteryFrame.color = new Color(0.55f, 0.52f, 0.65f);
+            UiFactory.Roundify(batteryFrame);
+            batteryFrame.raycastTarget = false;
+            var batteryRect = (RectTransform)batteryGo.transform;
+            batteryRect.anchorMin = batteryRect.anchorMax = new Vector2(0f, 1f);
+            batteryRect.pivot = new Vector2(0f, 1f);
+            batteryRect.anchoredPosition = new Vector2(28f, -62f);
+            batteryRect.sizeDelta = new Vector2(64f, 30f);
+            var batteryInner = new GameObject("Inner");
+            batteryInner.transform.SetParent(batteryGo.transform, false);
+            var batteryInnerImg = batteryInner.AddComponent<Image>();
+            batteryInnerImg.color = Color.white;
+            UiFactory.Roundify(batteryInnerImg);
+            batteryInnerImg.raycastTarget = false;
+            UiFactory.StretchFull(batteryInnerImg.rectTransform);
+            batteryInnerImg.rectTransform.offsetMin = new Vector2(3f, 3f);
+            batteryInnerImg.rectTransform.offsetMax = new Vector2(-3f, -3f);
+            var batteryFillGo = new GameObject("Fill");
+            batteryFillGo.transform.SetParent(batteryGo.transform, false);
+            _batteryFill = batteryFillGo.AddComponent<Image>();
+            _batteryFill.color = new Color(0.55f, 0.52f, 0.65f);
+            UiFactory.Roundify(_batteryFill);
+            _batteryFill.raycastTarget = false;
+            var bfRect = _batteryFill.rectTransform;
+            bfRect.anchorMin = new Vector2(0f, 0f);
+            bfRect.anchorMax = new Vector2(1f, 1f);
+            bfRect.offsetMin = new Vector2(6f, 6f);
+            bfRect.offsetMax = new Vector2(-6f, -6f);
+            var batteryTipGo = new GameObject("Tip");
+            batteryTipGo.transform.SetParent(batteryGo.transform, false);
+            var batteryTip = batteryTipGo.AddComponent<Image>();
+            batteryTip.color = new Color(0.55f, 0.52f, 0.65f);
+            UiFactory.Roundify(batteryTip);
+            batteryTip.raycastTarget = false;
+            var tipRect = batteryTip.rectTransform;
+            tipRect.anchorMin = tipRect.anchorMax = new Vector2(1f, 0.5f);
+            tipRect.pivot = new Vector2(0f, 0.5f);
+            tipRect.anchoredPosition = new Vector2(3f, 0f);
+            tipRect.sizeDelta = new Vector2(7f, 14f);
+            _batteryGo = batteryGo;
+            _batteryGo.SetActive(false);
+
+            // NAME プレート (自分の名前。予約時の名前が入る)。
+            // リンクラ風の「灰色の縁 + 白地、上にキャプション・下に黒文字」ボックス
+            var namePlate = CreateOutlinedBox(statusBar, "NamePlate", new Vector2(190f, 0f),
+                new Vector2(400f, 84f), false);
+            var nameCaption = UiFactory.CreateText(namePlate, "Caption", "NAME", 18,
+                UiFactory.Primary, TextAnchor.UpperLeft);
+            nameCaption.fontStyle = FontStyle.Bold;
+            UiFactory.StretchFull(nameCaption.rectTransform);
+            nameCaption.rectTransform.offsetMin = new Vector2(22f, 40f);
+            nameCaption.rectTransform.offsetMax = new Vector2(-16f, -8f);
+            _nameText = UiFactory.CreateText(namePlate, "Name", "", 28,
+                UiFactory.TextDark, TextAnchor.LowerLeft);
+            UiFactory.StretchFull(_nameText.rectTransform);
+            _nameText.rectTransform.offsetMin = new Vector2(22f, 8f);
+            _nameText.rectTransform.offsetMax = new Vector2(-16f, -34f);
+            _nameText.verticalOverflow = VerticalWrapMode.Truncate;
+
+            // 部屋名 (タップで部屋移動モーダル。Web 版の部屋ドロップダウンと同じ動作)。
+            // 左にドアアイコン、右に「ROOM」キャプション + 黒文字の部屋名
+            var roomPill = CreateOutlinedBox(statusBar, "RoomName", new Vector2(-20f, 0f),
+                new Vector2(440f, 84f), true);
             var roomPillButton = roomPill.gameObject.AddComponent<Button>();
             roomPill.gameObject.AddComponent<PressEffect>();
             roomPillButton.onClick.AddListener(OpenRoomModal);
@@ -97,12 +179,19 @@ namespace YukaNavi.UI
             var roomIconRect = roomIcon.rectTransform;
             roomIconRect.anchorMin = roomIconRect.anchorMax = new Vector2(0f, 0.5f);
             roomIconRect.pivot = new Vector2(0f, 0.5f);
-            roomIconRect.anchoredPosition = new Vector2(20f, 0f);
-            roomIconRect.sizeDelta = new Vector2(42f, 42f);
-            _roomNameText = UiFactory.CreateText(roomPill, "Text", "", 26, UiFactory.PrimaryDark);
+            roomIconRect.anchoredPosition = new Vector2(16f, 0f);
+            roomIconRect.sizeDelta = new Vector2(40f, 40f);
+            var roomCaption = UiFactory.CreateText(roomPill, "Caption", "ROOM", 18,
+                UiFactory.Primary, TextAnchor.UpperLeft);
+            roomCaption.fontStyle = FontStyle.Bold;
+            UiFactory.StretchFull(roomCaption.rectTransform);
+            roomCaption.rectTransform.offsetMin = new Vector2(70f, 40f);
+            roomCaption.rectTransform.offsetMax = new Vector2(-16f, -8f);
+            _roomNameText = UiFactory.CreateText(roomPill, "Text", "", 26,
+                UiFactory.TextDark, TextAnchor.LowerLeft);
             UiFactory.StretchFull(_roomNameText.rectTransform);
-            _roomNameText.rectTransform.offsetMin = new Vector2(74f, 0f);
-            _roomNameText.rectTransform.offsetMax = new Vector2(-74f, 0f);
+            _roomNameText.rectTransform.offsetMin = new Vector2(70f, 8f);
+            _roomNameText.rectTransform.offsetMax = new Vector2(-16f, -34f);
             _roomNameText.verticalOverflow = VerticalWrapMode.Truncate;
             _roomNameGo = roomPill.gameObject;
             _roomNameGo.SetActive(false); // 部屋名 (または URL) が取れたら表示
@@ -187,7 +276,7 @@ namespace YukaNavi.UI
             var settingsRect = settingsButton.GetComponent<RectTransform>();
             settingsRect.anchorMin = settingsRect.anchorMax = new Vector2(0f, 1f);
             settingsRect.pivot = new Vector2(0f, 1f);
-            settingsRect.anchoredPosition = new Vector2(24f, -40f);
+            settingsRect.anchoredPosition = new Vector2(24f, -130f);
             settingsRect.sizeDelta = new Vector2(88f, 88f);
             var settingsIcon = UiFactory.CreateImage(settingsButton.transform, "Icon",
                 "Art/UI/Icons/yukanavi_icon_settings_256");
@@ -215,7 +304,7 @@ namespace YukaNavi.UI
             var bgmRect = _bgmButton.GetComponent<RectTransform>();
             bgmRect.anchorMin = bgmRect.anchorMax = new Vector2(1f, 1f);
             bgmRect.pivot = new Vector2(1f, 1f);
-            bgmRect.anchoredPosition = new Vector2(-24f, -40f);
+            bgmRect.anchoredPosition = new Vector2(-24f, -130f);
             bgmRect.sizeDelta = new Vector2(88f, 88f);
             _bgmButton.onClick.AddListener(() =>
             {
@@ -237,6 +326,30 @@ namespace YukaNavi.UI
             hintRect.sizeDelta = new Vector2(-40f, 44f);
             _editHint = hint.gameObject;
             _editHint.SetActive(false);
+        }
+
+        /// <summary>白帯用の「灰色の縁 + 白地」の角丸ボックス。anchorRight=true で右寄せ配置。</summary>
+        static RectTransform CreateOutlinedBox(RectTransform parent, string name,
+                                               Vector2 position, Vector2 size, bool anchorRight)
+        {
+            var frame = UiFactory.CreatePanel(parent, name, new Color(0.78f, 0.77f, 0.82f));
+            float ax = anchorRight ? 1f : 0f;
+            frame.anchorMin = frame.anchorMax = new Vector2(ax, 0.5f);
+            frame.pivot = new Vector2(ax, 0.5f);
+            frame.anchoredPosition = position;
+            frame.sizeDelta = size;
+            UiFactory.Roundify(frame.GetComponent<Image>());
+
+            var innerGo = new GameObject("Inner");
+            innerGo.transform.SetParent(frame, false);
+            var inner = innerGo.AddComponent<Image>();
+            inner.color = Color.white;
+            UiFactory.Roundify(inner);
+            inner.raycastTarget = false;
+            UiFactory.StretchFull(inner.rectTransform);
+            inner.rectTransform.offsetMin = new Vector2(2f, 2f);
+            inner.rectTransform.offsetMax = new Vector2(-2f, -2f);
+            return frame;
         }
 
         static void SetModalRow(RectTransform rect, float y, float height)
@@ -724,6 +837,9 @@ namespace YukaNavi.UI
             group.pivot = new Vector2(0.5f, 0f);
             group.sizeDelta = size;
             _mascot = MascotView.Create(group, size, 0f, custom);
+            // スキンにセリフが設定されていればタップ時にランダムで表示する
+            _mascot.CustomLines = (skin.Talk != null && skin.Talk.Count > 0)
+                ? skin.Talk.ToArray() : null;
             _mascotItem = SetupMovable(group, HomeLayoutStore.Mascot, HomeItem.Mascot, _mascot.gameObject);
             // 移動モード中はタップ演出 (表情切替・セリフ) を止める
             _mascot.SuppressTap = () => _editing == HomeItem.Mascot;
@@ -756,6 +872,9 @@ namespace YukaNavi.UI
             {
                 _videoPlayer.Play();
             }
+            // 予約で入力した名前を NAME 枠に反映する
+            string username = AppConfig.Username;
+            _nameText.text = string.IsNullOrEmpty(username) ? "(よやくすると入ります)" : username;
             _ = LoadRoomNameAsync();
             if (_polling != null)
             {
@@ -965,7 +1084,26 @@ namespace YukaNavi.UI
                 _lastClockMinute = now.Minute;
                 _clockText.text = now.ToString("HH:mm");
                 _dateText.text = now.ToString("MM/dd ddd").ToUpperInvariant();
+                _statusClockText.text = now.ToString("HH:mm");
+                UpdateBattery();
             }
+        }
+
+        /// <summary>上部白帯のバッテリー表示。残量が取れない環境 (エディタ等) では出さない。</summary>
+        void UpdateBattery()
+        {
+            float level = SystemInfo.batteryLevel;
+            if (level < 0f)
+            {
+                _batteryGo.SetActive(false);
+                return;
+            }
+            _batteryGo.SetActive(true);
+            // 塗りの幅を残量に合わせる (枠の内側 6px を基準に anchorMax.x で削る)
+            _batteryFill.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(level), 1f);
+            _batteryFill.color = level <= 0.2f
+                ? UiFactory.Danger
+                : new Color(0.55f, 0.52f, 0.65f);
         }
 
         IEnumerator PollRoutine()
@@ -1014,7 +1152,19 @@ namespace YukaNavi.UI
                     nowLine += " (" + now.PlayingSinger + ")";
                 }
                 _tickerNowText.text = nowLine;
-                _tickerNextText.text = now.NextSong != null ? "♪ 次: " + now.NextSong.Title : "♪ 次: (予約なし)";
+                if (now.NextSong != null)
+                {
+                    string nextLine = "♪ 次: " + now.NextSong.Title;
+                    if (!string.IsNullOrEmpty(now.NextSong.Singer))
+                    {
+                        nextLine += " (" + now.NextSong.Singer + ")";
+                    }
+                    _tickerNextText.text = nextLine;
+                }
+                else
+                {
+                    _tickerNextText.text = "♪ 次: (予約なし)";
+                }
             }
             else
             {

@@ -124,7 +124,7 @@ namespace YukaNavi.UI
 
             // この検索を保存 (☆ トグル)。保存すると検索トップのチップに並ぶ
             _saveButton = UiFactory.CreateButton(topBar, "SaveSearch", "☆",
-                new Color(1f, 1f, 1f, 0.25f), Color.white, 44);
+                UiFactory.PrimaryPale, UiFactory.Primary, 44);
             _saveButton.image.pixelsPerUnitMultiplier = 0.55f; // ほぼ円形に
             _saveButtonLabel = _saveButton.GetComponentInChildren<Text>();
             var saveRect = _saveButton.GetComponent<RectTransform>();
@@ -226,9 +226,10 @@ namespace YukaNavi.UI
         void UpdateSaveButton(SearchQuery query)
         {
             bool saved = LocalMypage.IsSavedSearch(ToSavedSearch(query));
-            _saveButton.image.color = saved ? Color.white : new Color(1f, 1f, 1f, 0.25f);
+            // 白帯の上に置くため、未保存は淡色 + ☆ / 保存済みはテーマ色 + ★
+            _saveButton.image.color = saved ? UiFactory.Primary : UiFactory.PrimaryPale;
             _saveButtonLabel.text = saved ? "★" : "☆";
-            _saveButtonLabel.color = saved ? UiFactory.Primary : Color.white;
+            _saveButtonLabel.color = saved ? Color.white : UiFactory.Primary;
         }
 
         static LocalMypage.SavedSearch ToSavedSearch(SearchQuery query)

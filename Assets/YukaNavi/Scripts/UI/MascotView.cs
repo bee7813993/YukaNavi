@@ -36,6 +36,12 @@ namespace YukaNavi.UI
         /// <summary>true を返す間はタップ演出 (表情切替・セリフ) を止める (ホームの移動モード用)。</summary>
         public System.Func<bool> SuppressTap;
 
+        /// <summary>
+        /// スキンで設定されたセリフ (1要素=1つ)。設定されていればデフォルトの代わりに使う。
+        /// カスタムキャラはこれが無い場合セリフを出さない。
+        /// </summary>
+        public string[] CustomLines;
+
         Image _image;
         RectTransform _rect;
         Sprite[] _expressions;
@@ -194,10 +200,13 @@ namespace YukaNavi.UI
                 StopCoroutine(_squash);
             }
             _squash = StartCoroutine(SquashRoutine());
-            if (!_isCustom)
+            // スキンにセリフがあればそれを、無ければデフォルト (カスタムキャラはセリフなし)
+            string[] lines = (CustomLines != null && CustomLines.Length > 0)
+                ? CustomLines
+                : (_isCustom ? null : SpeechLines);
+            if (lines != null)
             {
-                // セリフはゆかりちゃん専用 (カスタムキャラには合わないため)
-                Say(SpeechLines[Random.Range(0, SpeechLines.Length)]);
+                Say(lines[Random.Range(0, lines.Length)]);
             }
             OnTapped?.Invoke();
         }

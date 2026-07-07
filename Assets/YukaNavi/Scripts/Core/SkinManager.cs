@@ -16,6 +16,8 @@ namespace YukaNavi.Core
         [JsonProperty("bgm")] public SkinLayer Bgm;
         /// <summary>リモコンのレコード盤画像 (type="image")。null = アプリ標準の盤</summary>
         [JsonProperty("record")] public SkinLayer Record;
+        /// <summary>マスコットをタップしたときのセリフ (1要素=1つ、ランダム表示)。null = 標準</summary>
+        [JsonProperty("talk")] public List<string> Talk;
         /// <summary>テーマ色。null = 既定 (紫)</summary>
         [JsonProperty("theme")] public SkinTheme Theme;
         /// <summary>ホーム画面パーツの配置 (時計など)。null = 未設定 (初期配置)</summary>
@@ -135,13 +137,15 @@ namespace YukaNavi.Core
                 "  \"background\": { \"type\": \"image\", \"file\": \"bg.png\" },\r\n" +
                 "  \"character\": { \"type\": \"image\", \"file\": \"chara.png\", \"scale\": 1.0 },\r\n" +
                 "  \"bgm\": { \"type\": \"audio\", \"file\": \"bgm.mp3\" },\r\n" +
-                "  \"record\": { \"type\": \"image\", \"file\": \"record.png\" }\r\n" +
+                "  \"record\": { \"type\": \"image\", \"file\": \"record.png\" },\r\n" +
+                "  \"talk\": [\"うたっていこ〜♪\", \"つぎはどの曲にする？\"]\r\n" +
                 "}\r\n" +
                 "\r\n" +
                 "- background の type: \"image\" または \"video\" (mp4)\r\n" +
                 "- character の type: \"image\" または \"none\" (キャラなし)\r\n" +
                 "- bgm は任意 (mp3 / ogg / wav)。無ければアプリのデフォルト BGM\r\n" +
                 "- record は任意。リモコン画面のレコード盤が差し替わります\r\n" +
+                "- talk は任意。キャラをタップしたときのセリフ (ランダムで1つ表示)\r\n" +
                 "- ファイルが見つからない場合はデフォルトに戻ります\r\n";
         }
 
@@ -220,7 +224,8 @@ namespace YukaNavi.Core
         public static string CreateSkin(string name, string bgSourcePath, string charSourcePath,
                                         float bgRotation, float bgZoom, Vector2 bgOffset,
                                         bool charNone = false, string bgmSourcePath = null,
-                                        string themePrimary = null, string recordSourcePath = null)
+                                        string themePrimary = null, string recordSourcePath = null,
+                                        List<string> talkLines = null)
         {
             try
             {
@@ -296,6 +301,7 @@ namespace YukaNavi.Core
                     Character = character,
                     Bgm = bgm,
                     Record = record,
+                    Talk = (talkLines != null && talkLines.Count > 0) ? talkLines : null,
                     Theme = string.IsNullOrEmpty(themePrimary) ? null : new SkinTheme { Primary = themePrimary },
                 };
                 string json = JsonConvert.SerializeObject(def, Formatting.Indented,
@@ -318,7 +324,8 @@ namespace YukaNavi.Core
                                       float bgRotation, float bgZoom, Vector2 bgOffset, int charMode,
                                       string newBgmSource = null, bool removeBgm = false,
                                       string themePrimary = null,
-                                      string newRecordSource = null, bool removeRecord = false)
+                                      string newRecordSource = null, bool removeRecord = false,
+                                      List<string> talkLines = null)
         {
             if (skin.Folder == null)
             {
@@ -442,6 +449,7 @@ namespace YukaNavi.Core
                     Character = character,
                     Bgm = bgm,
                     Record = record,
+                    Talk = (talkLines != null && talkLines.Count > 0) ? talkLines : null,
                     Theme = string.IsNullOrEmpty(themePrimary) ? null : new SkinTheme { Primary = themePrimary },
                     Layout = skin.Layout, // ホーム配置は編集操作では変えない (引き継ぐ)
                 };

@@ -464,19 +464,20 @@ namespace YukaNavi.UI
             shadow.effectDistance = new Vector2(0f, -distance);
         }
 
-        /// <summary>画面上部の共通ヘッダーバー (グラデーション + 影 + タイトル)。</summary>
+        /// <summary>
+        /// 画面上部の共通ヘッダーバー (白帯 + タイトル)。
+        /// リンクラ風に、壁紙 (ホーム透過) の対象外となる不透明の白にしている。
+        /// </summary>
         public static RectTransform CreateTopBar(Transform parent, string title)
         {
-            var bar = CreatePanel(parent, "TopBar", Primary);
+            var bar = CreatePanel(parent, "TopBar", Color.white);
             bar.anchorMin = new Vector2(0f, 1f);
             bar.anchorMax = new Vector2(1f, 1f);
             bar.pivot = new Vector2(0.5f, 1f);
             bar.sizeDelta = new Vector2(0f, 110f);
-            var img = bar.GetComponent<Image>();
-            img.sprite = GradientSprite;
-            img.type = Image.Type.Simple;
-            AddShadow(bar.gameObject, 5f);
-            var text = CreateText(bar, "Title", title, 42, Color.white);
+            AddShadow(bar.gameObject, 4f);
+            var text = CreateText(bar, "Title", title, 40, PrimaryDark);
+            text.fontStyle = FontStyle.Bold;
             StretchFull(text.rectTransform);
             return bar;
         }

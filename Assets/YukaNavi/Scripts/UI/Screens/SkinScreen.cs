@@ -37,6 +37,7 @@ namespace YukaNavi.UI
         string _pickedRecord;
         /// <summary>0=そのまま (新規時はアプリ標準) / 1=画像を選択 / 2=アプリ標準の盤に戻す</summary>
         int _recordMode;
+        InputField _talkInput;
         Text _createErrorText;
         Button _charNoneButton;
         Button _bgmNoneButton;
@@ -249,7 +250,7 @@ namespace YukaNavi.UI
             var card = UiFactory.CreatePanel(_createModal.transform, "Card", Color.white);
             card.anchorMin = card.anchorMax = new Vector2(0.5f, 0.5f);
             card.pivot = new Vector2(0.5f, 0.5f);
-            card.sizeDelta = new Vector2(940f, 1750f);
+            card.sizeDelta = new Vector2(940f, 1860f);
             UiFactory.Roundify(card.GetComponent<Image>());
             UiFactory.AddShadow(card.gameObject, 8f);
             // カード内タップがオーバーレイに抜けないようにする
@@ -349,12 +350,24 @@ namespace YukaNavi.UI
             SetCardRow(themeLabel.rectTransform, -1282f, 34f);
             BuildThemeChips(card);
 
+            // キャラのセリフ (1行に1つ。タップでランダム表示)
+            var talkLabel = UiFactory.CreateText(card, "TalkLabel",
+                "キャラのセリフ (1行に1つ、タップでランダム表示)", 26,
+                UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
+            SetCardRow(talkLabel.rectTransform, -1406f, 34f);
+            _talkInput = UiFactory.CreateInputField(card, "TalkInput",
+                "例: うたっていこ〜♪ (空ならアプリ標準のセリフ)", 26);
+            _talkInput.lineType = InputField.LineType.MultiLineNewline;
+            ((Text)_talkInput.textComponent).alignment = TextAnchor.UpperLeft;
+            ((Text)_talkInput.placeholder).alignment = TextAnchor.UpperLeft;
+            SetCardRow(_talkInput.GetComponent<RectTransform>(), -1446f, 130f);
+
             var hint = UiFactory.CreateText(card, "Hint",
                 "※ 選んだファイルはアプリ内にコピーされます", 20, new Color(0.5f, 0.47f, 0.6f));
-            SetCardRow(hint.rectTransform, -1406f, 28f);
+            SetCardRow(hint.rectTransform, -1590f, 28f);
 
             _createErrorText = UiFactory.CreateText(card, "Error", "", 24, UiFactory.Danger);
-            SetCardRow(_createErrorText.rectTransform, -1440f, 36f);
+            SetCardRow(_createErrorText.rectTransform, -1624f, 36f);
 
             var saveButton = UiFactory.CreateButton(card, "Save", "作成する", UiFactory.Primary, Color.white, 34);
             _saveButtonLabel = saveButton.GetComponentInChildren<Text>();
@@ -1034,6 +1047,7 @@ namespace YukaNavi.UI
             _pickedRecord = null;
             _recordMode = 0;
             UpdateRecordUi();
+            _talkInput.text = "";
             _pickedThemeHex = null;
             UpdateThemeChips();
             _bgPickText.text = "未選択";
@@ -1062,6 +1076,7 @@ namespace YukaNavi.UI
             _bgmMode = 0; // 既存 BGM は維持
             _pickedRecord = null;
             _recordMode = 0; // 既存のレコード盤は維持
+            _talkInput.text = skin.Talk != null ? string.Join("\n", skin.Talk) : "";
             _pickedThemeHex = skin.Theme != null ? skin.Theme.Primary : null;
             UpdateThemeChips();
             _createErrorText.text = "";
@@ -1178,6 +1193,21 @@ namespace YukaNavi.UI
             }
         }
 
+        /// <summary>セリフ入力欄を1行=1セリフのリストにする (空行は除く)。</summary>
+        List<string> ParseTalkLines()
+        {
+            var lines = new List<string>();
+            foreach (var line in (_talkInput.text ?? "").Split('\n'))
+            {
+                string trimmed = line.Trim();
+                if (trimmed != "")
+                {
+                    lines.Add(trimmed);
+                }
+            }
+            return lines;
+        }
+
         void CreateSkin()
         {
             string name = (_skinNameInput.text ?? "").Trim();
@@ -1187,6 +1217,7 @@ namespace YukaNavi.UI
                 Se.Play(Se.Error);
                 return;
             }
+            var talkLines = ParseTalkLines();
 
             if (_editingSkin != null)
             {
@@ -1196,7 +1227,8 @@ namespace YukaNavi.UI
                         _adjRotation, _adjZoom, _adjOffset, _charMode,
                         _bgmMode == 1 ? _pickedBgm : null, _bgmMode == 2,
                         _pickedThemeHex,
-                        _recordMode == 1 ? _pickedRecord : null, _recordMode == 2))
+                        _recordMode == 1 ? _pickedRecord : null, _recordMode == 2,
+                        talkLines))
                 {
                     _createErrorText.text = "スキンの保存に失敗しました";
                     Se.Play(Se.Error);
@@ -1207,9 +1239,10 @@ namespace YukaNavi.UI
             else
             {
                 // 新規作成
-                if (_pickedBg == null && _charMode == 0 && _bgmMode != 1 && _recordMode != 1)
+                if (_pickedBg == null && _charMode == 0 && _bgmMode != 1 && _recordMode != 1
+                    && talkLines.Count == 0)
                 {
-                    _createErrorText.text = "背景を選ぶか、キャラ・BGM・レコード盤の設定を変えてください";
+                    _createErrorText.text = "背景を選ぶか、キャラ・BGM・レコード盤などの設定を変えてください";
                     Se.Play(Se.Error);
                     return;
                 }
@@ -1219,7 +1252,8 @@ namespace YukaNavi.UI
                     _charMode == 2,
                     _bgmMode == 1 ? _pickedBgm : null,
                     _pickedThemeHex,
-                    _recordMode == 1 ? _pickedRecord : null);
+                    _recordMode == 1 ? _pickedRecord : null,
+                    talkLines);
                 if (id == null)
                 {
                     _createErrorText.text = "スキンの作成に失敗しました";

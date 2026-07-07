@@ -105,6 +105,10 @@ namespace YukaNavi.UI
 
         GameObject _completeOverlay;
         RectTransform _completePose;
+        Image _completePoseImage;
+        Sprite _defaultPoseSprite;
+        string _poseSkinKey;
+        Texture2D _poseSkinTex;
 
         // 予約中の歌う人チップ (タップで名前欄に入力)
         GameObject _singerRow;
@@ -1022,10 +1026,50 @@ namespace YukaNavi.UI
 
         void ShowComplete()
         {
+            ApplyCompletePose();
             _completeMessage.text = _editId >= 0 ? "変更したよ♪" : "予約したよ♪";
             Se.Play(Se.ReservationComplete);
             _completeOverlay.SetActive(true);
             StartCoroutine(CompletePopRoutine());
+        }
+
+        /// <summary>完了画面のマスコット: スキンにキャラ画像があればそれ、無ければゆかりちゃん。</summary>
+        void ApplyCompletePose()
+        {
+            var skin = SkinManager.Current();
+            string key = skin.Id + "#" + SkinManager.Revision;
+            if (key == _poseSkinKey)
+            {
+                return;
+            }
+            _poseSkinKey = key;
+
+            Texture2D tex = null;
+            if (skin.Character != null && skin.Character.Type == "image"
+                && !string.IsNullOrEmpty(skin.Character.File))
+            {
+                tex = SkinManager.LoadTexture(skin, skin.Character.File);
+            }
+            var oldSprite = _completePoseImage.sprite;
+            if (tex != null)
+            {
+                _completePoseImage.sprite = Sprite.Create(tex,
+                    new Rect(0f, 0f, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+            }
+            else
+            {
+                _completePoseImage.sprite = _defaultPoseSprite;
+            }
+            // スキン由来の旧スプライト・テクスチャは差し替え時に破棄する
+            if (oldSprite != null && oldSprite != _defaultPoseSprite && oldSprite != _completePoseImage.sprite)
+            {
+                Destroy(oldSprite);
+            }
+            if (_poseSkinTex != null && _poseSkinTex != tex)
+            {
+                Destroy(_poseSkinTex);
+            }
+            _poseSkinTex = tex;
         }
 
         void BuildCompleteOverlay()
@@ -1062,6 +1106,9 @@ namespace YukaNavi.UI
 
             var pose = UiFactory.CreateImage(_completeOverlay.transform, "Pose", "Art/Mascot/yukari_pose_request_complete");
             pose.preserveAspect = true;
+            _completePoseImage = pose;
+            _defaultPoseSprite = pose.sprite;
+            _poseSkinKey = null;
             _completePose = pose.rectTransform;
             _completePose.anchorMin = _completePose.anchorMax = new Vector2(0.5f, 0.45f);
             _completePose.pivot = new Vector2(0.5f, 0.5f);
