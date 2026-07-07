@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -218,7 +218,7 @@ namespace YukaNavi.UI
             // 予約の変更中のみ: 曲そのものを差し替える (検索画面へ)
             var changeSongPanel = AddPanel(form, 84f, transparent: true);
             _changeSongRow = changeSongPanel.gameObject;
-            var changeSongButton = UiFactory.CreateOutlineButton(changeSongPanel,
+            var changeSongButton = UiFactory.CreateSoftButton(changeSongPanel,
                 "ChangeSong", "曲をえらびなおす (検索へ)", 28);
             UiFactory.StretchFull(changeSongButton.GetComponent<RectTransform>());
             changeSongButton.onClick.AddListener(() =>

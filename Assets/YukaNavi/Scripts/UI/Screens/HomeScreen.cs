@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
@@ -900,14 +900,14 @@ namespace YukaNavi.UI
                 }
                 else
                 {
-                    button = UiFactory.CreateOutlineButton(card, "Room" + i, label, 30);
+                    button = UiFactory.CreateSoftButton(card, "Room" + i, label, 30);
                     string url = room.Url;
                     button.onClick.AddListener(() => SwitchRoom(url));
                 }
                 SetModalRow(button.GetComponent<RectTransform>(), -(120f + i * rowHeight), 96f);
             }
 
-            var closeButton = UiFactory.CreateOutlineButton(card, "Close", "閉じる", 30);
+            var closeButton = UiFactory.CreateSoftButton(card, "Close", "閉じる", 30);
             SetModalRow(closeButton.GetComponent<RectTransform>(),
                 -(120f + _rooms.Count * rowHeight + 16f), 96f);
             closeButton.onClick.AddListener(() => _roomModal.SetActive(false));

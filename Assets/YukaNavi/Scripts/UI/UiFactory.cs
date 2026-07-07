@@ -150,6 +150,174 @@ namespace YukaNavi.UI
             image.type = Image.Type.Sliced;
         }
 
+        static Sprite _circleSprite;
+        /// <summary>アンチエイリアス付きの白い円 (丸ボタン等)。色は Image.color で付ける。</summary>
+        public static Sprite CircleSprite
+        {
+            get
+            {
+                if (_circleSprite == null)
+                {
+                    _circleSprite = CreateCircleSprite(128, 62f, 0f);
+                }
+                return _circleSprite;
+            }
+        }
+
+        static Sprite _ringSprite;
+        /// <summary>白い円環 (プログレスリング用)。Image.Type.Filled + Radial360 で弧にできる。</summary>
+        public static Sprite RingSprite
+        {
+            get
+            {
+                if (_ringSprite == null)
+                {
+                    _ringSprite = CreateCircleSprite(256, 124f, 106f);
+                }
+                return _ringSprite;
+            }
+        }
+
+        static Sprite _circleGlossSprite;
+        /// <summary>円形の上部ツヤ (白、上ほど濃い)。丸ボタンに重ねて立体感を出す。</summary>
+        public static Sprite CircleGlossSprite
+        {
+            get
+            {
+                if (_circleGlossSprite == null)
+                {
+                    const int size = 128;
+                    float c = (size - 1) / 2f;
+                    const float outer = 62f;
+                    var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+                    var pixels = new Color[size * size];
+                    for (int y = 0; y < size; y++)
+                    {
+                        for (int x = 0; x < size; x++)
+                        {
+                            float d = Mathf.Sqrt((x - c) * (x - c) + (y - c) * (y - c));
+                            float a = Mathf.Clamp01(outer - d);
+                            // 上半分だけ白くフェード (テクスチャは y=0 が下)
+                            float t = Mathf.Clamp01((y - c) / outer);
+                            pixels[y * size + x] = new Color(1f, 1f, 1f, a * t * 0.34f);
+                        }
+                    }
+                    tex.SetPixels(pixels);
+                    tex.Apply();
+                    tex.hideFlags = HideFlags.HideAndDontSave;
+                    _circleGlossSprite = Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
+                }
+                return _circleGlossSprite;
+            }
+        }
+
+        /// <summary>
+        /// やわらかい質感のピルボタン (ごく細い縁 + 白ベース + 下側の薄いシェード + ソフト影)。
+        /// 縁があるので白いカードの上に置いても全周の輪郭が分かる。
+        /// 全画面の副操作ボタン共通の見た目 (旧 CreateOutlineButton はこれに一本化)。
+        /// </summary>
+        public static Button CreateSoftButton(Transform parent, string name, string label, int fontSize = 36)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            var frame = go.AddComponent<Image>();
+            frame.color = new Color(0.70f, 0.63f, 0.86f, 0.45f);
+            Roundify(frame);
+            AddShadow(go, 4f);
+
+            var innerGo = new GameObject("Inner");
+            innerGo.transform.SetParent(go.transform, false);
+            var inner = innerGo.AddComponent<Image>();
+            inner.color = new Color(0.995f, 0.99f, 1f);
+            Roundify(inner);
+            inner.raycastTarget = false;
+            StretchFull(inner.rectTransform);
+            inner.rectTransform.offsetMin = new Vector2(2f, 2f);
+            inner.rectTransform.offsetMax = new Vector2(-2f, -2f);
+
+            // 下側の薄いシェードでぷっくり感を出す
+            var shadeGo = new GameObject("Shade");
+            shadeGo.transform.SetParent(go.transform, false);
+            var shade = shadeGo.AddComponent<Image>();
+            shade.color = new Color(0.40f, 0.32f, 0.58f, 0.08f);
+            Roundify(shade);
+            shade.raycastTarget = false;
+            var shadeRect = shade.rectTransform;
+            shadeRect.anchorMin = new Vector2(0f, 0f);
+            shadeRect.anchorMax = new Vector2(1f, 0.5f);
+            shadeRect.offsetMin = new Vector2(2f, 2f);
+            shadeRect.offsetMax = new Vector2(-2f, 0f);
+
+            var button = go.AddComponent<Button>();
+            go.AddComponent<PressEffect>();
+            var text = CreateText(go.transform, "Label", label, fontSize, Primary);
+            StretchFull(text.rectTransform);
+            return button;
+        }
+
+        static Sprite CreateCircleSprite(int size, float outerR, float innerR)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            float c = (size - 1) / 2f;
+            var pixels = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float d = Mathf.Sqrt((x - c) * (x - c) + (y - c) * (y - c));
+                    float a = Mathf.Clamp01(outerR - d);
+                    if (innerR > 0f)
+                    {
+                        a *= Mathf.Clamp01(d - innerR);
+                    }
+                    pixels[y * size + x] = new Color(1f, 1f, 1f, a);
+                }
+            }
+            tex.SetPixels(pixels);
+            tex.Apply();
+            tex.hideFlags = HideFlags.HideAndDontSave;
+            return Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
+        }
+
+        static Sprite _vinylSprite;
+        /// <summary>
+        /// レコード盤 (実行時生成のプレースホルダ)。
+        /// Resources/Art/UI に専用素材 (yukanavi_record_disc) があればそちらを優先すること。
+        /// </summary>
+        public static Sprite VinylSprite
+        {
+            get
+            {
+                if (_vinylSprite == null)
+                {
+                    const int size = 512;
+                    float c = (size - 1) / 2f;
+                    const float outer = 253f;
+                    var dark = new Color(0.14f, 0.12f, 0.18f);
+                    var groove = new Color(0.23f, 0.20f, 0.29f);
+                    var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+                    var pixels = new Color[size * size];
+                    for (int y = 0; y < size; y++)
+                    {
+                        for (int x = 0; x < size; x++)
+                        {
+                            float d = Mathf.Sqrt((x - c) * (x - c) + (y - c) * (y - c));
+                            float a = Mathf.Clamp01(outer - d);
+                            // 同心円の溝でレコードらしさを出す
+                            bool isGroove = d > 110f && d < 242f && (d % 16f) < 2.4f;
+                            var col = isGroove ? groove : dark;
+                            pixels[y * size + x] = new Color(col.r, col.g, col.b, a);
+                        }
+                    }
+                    tex.SetPixels(pixels);
+                    tex.Apply();
+                    tex.hideFlags = HideFlags.HideAndDontSave;
+                    _vinylSprite = Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
+                }
+                return _vinylSprite;
+            }
+        }
+
         /// <summary>
         /// セグメント切替タブ。渡されたパネルを白角丸コンテナにし、中にタブボタンを並べる。
         /// 選択状態は SetSegmentSelected で切り替える。
@@ -198,37 +366,6 @@ namespace YukaNavi.UI
                 tabs[i].image.color = selected ? Primary : new Color(1f, 1f, 1f, 0f);
                 tabs[i].GetComponentInChildren<Text>().color = selected ? Color.white : Primary;
             }
-        }
-
-        /// <summary>
-        /// アウトラインボタン (白背景 + Primary 文字 + 細枠)。
-        /// キャンセルや副操作に使い、主アクション (塗りボタン) と区別する。
-        /// </summary>
-        public static Button CreateOutlineButton(Transform parent, string name, string label, int fontSize = 36)
-        {
-            var go = new GameObject(name);
-            go.transform.SetParent(parent, false);
-            var frame = go.AddComponent<Image>();
-            frame.color = new Color(0.72f, 0.64f, 0.90f);
-            Roundify(frame);
-            AddShadow(go, 3f);
-
-            var innerGo = new GameObject("Inner");
-            innerGo.transform.SetParent(go.transform, false);
-            var inner = innerGo.AddComponent<Image>();
-            inner.color = Color.white;
-            Roundify(inner);
-            inner.raycastTarget = false;
-            var innerRect = inner.rectTransform;
-            StretchFull(innerRect);
-            innerRect.offsetMin = new Vector2(3f, 3f);
-            innerRect.offsetMax = new Vector2(-3f, -3f);
-
-            var button = go.AddComponent<Button>();
-            go.AddComponent<PressEffect>();
-            var text = CreateText(go.transform, "Label", label, fontSize, Primary);
-            StretchFull(text.rectTransform);
-            return button;
         }
 
         /// <summary>全角基準の概算テキスト幅 (Text.preferredWidth はレイアウト前に信用できないため)。</summary>
@@ -517,6 +654,68 @@ namespace YukaNavi.UI
             input.textComponent = text;
             input.placeholder = ph;
             return input;
+        }
+
+        /// <summary>横スライダー (音量調整等)。位置とサイズは戻り値の RectTransform で調整する。</summary>
+        public static Slider CreateSlider(Transform parent, string name, float min, float max, bool wholeNumbers = true)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.AddComponent<RectTransform>();
+
+            // トラック (背景)
+            var trackGo = new GameObject("Background");
+            trackGo.transform.SetParent(go.transform, false);
+            var trackImg = trackGo.AddComponent<Image>();
+            trackImg.color = new Color(0.85f, 0.83f, 0.90f);
+            Roundify(trackImg);
+            trackImg.raycastTarget = false;
+            var trackRect = trackGo.GetComponent<RectTransform>();
+            trackRect.anchorMin = new Vector2(0f, 0.5f);
+            trackRect.anchorMax = new Vector2(1f, 0.5f);
+            trackRect.sizeDelta = new Vector2(0f, 14f);
+
+            // 塗り (現在値まで)
+            var fillAreaGo = new GameObject("Fill Area");
+            fillAreaGo.transform.SetParent(go.transform, false);
+            var fillArea = fillAreaGo.AddComponent<RectTransform>();
+            fillArea.anchorMin = new Vector2(0f, 0.5f);
+            fillArea.anchorMax = new Vector2(1f, 0.5f);
+            fillArea.sizeDelta = new Vector2(-20f, 14f);
+            var fillGo = new GameObject("Fill");
+            fillGo.transform.SetParent(fillAreaGo.transform, false);
+            var fillImg = fillGo.AddComponent<Image>();
+            fillImg.color = Primary;
+            Roundify(fillImg);
+            fillImg.raycastTarget = false;
+            var fillRect = fillGo.GetComponent<RectTransform>();
+            fillRect.sizeDelta = new Vector2(10f, 0f);
+
+            // つまみ
+            var handleAreaGo = new GameObject("Handle Slide Area");
+            handleAreaGo.transform.SetParent(go.transform, false);
+            var handleArea = handleAreaGo.AddComponent<RectTransform>();
+            StretchFull(handleArea);
+            handleArea.offsetMin = new Vector2(22f, 0f);
+            handleArea.offsetMax = new Vector2(-22f, 0f);
+            var handleGo = new GameObject("Handle");
+            handleGo.transform.SetParent(handleAreaGo.transform, false);
+            var handleImg = handleGo.AddComponent<Image>();
+            handleImg.color = Color.white;
+            Roundify(handleImg);
+            AddShadow(handleGo, 3f);
+            var handleRect = handleGo.GetComponent<RectTransform>();
+            handleRect.sizeDelta = new Vector2(44f, 44f);
+
+            var slider = go.AddComponent<Slider>();
+            slider.fillRect = fillRect;
+            slider.handleRect = handleRect;
+            slider.targetGraphic = handleImg;
+            slider.direction = Slider.Direction.LeftToRight;
+            slider.minValue = min;
+            slider.maxValue = max;
+            slider.wholeNumbers = wholeNumbers;
+            return slider;
         }
     }
 }

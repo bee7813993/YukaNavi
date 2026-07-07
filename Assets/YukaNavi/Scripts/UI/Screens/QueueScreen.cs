@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
@@ -53,7 +53,7 @@ namespace YukaNavi.UI
             headerRect.sizeDelta = new Vector2(headerRect.sizeDelta.x, 46f);
 
             // 再生中の位置へ飛ぶボタン
-            var jumpButton = UiFactory.CreateOutlineButton(transform, "JumpPlaying", "▶ 再生中へ", 24);
+            var jumpButton = UiFactory.CreateSoftButton(transform, "JumpPlaying", "▶ 再生中へ", 24);
             var jumpRect = jumpButton.GetComponent<RectTransform>();
             jumpRect.anchorMin = jumpRect.anchorMax = new Vector2(1f, 1f);
             jumpRect.pivot = new Vector2(1f, 1f);

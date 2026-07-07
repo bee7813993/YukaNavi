@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.UI;
@@ -73,7 +73,7 @@ namespace YukaNavi.UI
             nav.offsetMax = new Vector2(-20f, nav.offsetMax.y);
             nav.sizeDelta = new Vector2(nav.sizeDelta.x, 76f);
 
-            _prevButton = UiFactory.CreateOutlineButton(nav, "Prev", "◀ 前の期", 26);
+            _prevButton = UiFactory.CreateSoftButton(nav, "Prev", "◀ 前の期", 26);
             var prevRect = _prevButton.GetComponent<RectTransform>();
             prevRect.anchorMin = new Vector2(0f, 0.5f);
             prevRect.anchorMax = new Vector2(0f, 0.5f);
@@ -87,7 +87,7 @@ namespace YukaNavi.UI
             _quarterNavLabel.rectTransform.offsetMin = new Vector2(250f, 0f);
             _quarterNavLabel.rectTransform.offsetMax = new Vector2(-250f, 0f);
 
-            _nextButton = UiFactory.CreateOutlineButton(nav, "Next", "次の期 ▶", 26);
+            _nextButton = UiFactory.CreateSoftButton(nav, "Next", "次の期 ▶", 26);
             var nextRect = _nextButton.GetComponent<RectTransform>();
             nextRect.anchorMin = new Vector2(1f, 0.5f);
             nextRect.anchorMax = new Vector2(1f, 0.5f);

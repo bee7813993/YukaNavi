@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -337,7 +337,7 @@ namespace YukaNavi.UI
             saveRect.sizeDelta = new Vector2(340f, 92f);
             saveButton.onClick.AddListener(CreateSkin);
 
-            var cancelButton = UiFactory.CreateOutlineButton(card, "Cancel", "やめる", 34);
+            var cancelButton = UiFactory.CreateSoftButton(card, "Cancel", "やめる", 34);
             var cancelRect = cancelButton.GetComponent<RectTransform>();
             cancelRect.anchorMin = cancelRect.anchorMax = new Vector2(0.5f, 0f);
             cancelRect.pivot = new Vector2(0.5f, 0f);
@@ -493,7 +493,7 @@ namespace YukaNavi.UI
                 _colorModal.SetActive(false);
             });
 
-            var cancelButton = UiFactory.CreateOutlineButton(card, "Cancel", "やめる", 30);
+            var cancelButton = UiFactory.CreateSoftButton(card, "Cancel", "やめる", 30);
             var colorCancelRect = cancelButton.GetComponent<RectTransform>();
             colorCancelRect.anchorMin = colorCancelRect.anchorMax = new Vector2(0.5f, 0f);
             colorCancelRect.pivot = new Vector2(0.5f, 0f);

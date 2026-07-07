@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.UI;
@@ -75,16 +75,16 @@ namespace YukaNavi.UI
             });
 
             // 移動系 (あまり使われないので小さく1行)。先頭は再生中なら「曲を終了」に変わる
-            _warikomiButton = UiFactory.CreateOutlineButton(transform, "Primary", "次に再生", 26);
+            _warikomiButton = UiFactory.CreateSoftButton(transform, "Primary", "次に再生", 26);
             SetBottomRect(_warikomiButton.GetComponent<RectTransform>(), 104f, 76f, 0f, 1f / 3f);
             _warikomiLabel = _warikomiButton.GetComponentInChildren<Text>();
             _warikomiButton.onClick.AddListener(() => _ = PrimaryActionAsync());
 
-            _upButton = UiFactory.CreateOutlineButton(transform, "Up", "上へ", 26);
+            _upButton = UiFactory.CreateSoftButton(transform, "Up", "上へ", 26);
             SetBottomRect(_upButton.GetComponent<RectTransform>(), 104f, 76f, 1f / 3f, 2f / 3f);
             _upButton.onClick.AddListener(() => _ = MoveAsync("up"));
 
-            _downButton = UiFactory.CreateOutlineButton(transform, "Down", "下へ", 26);
+            _downButton = UiFactory.CreateSoftButton(transform, "Down", "下へ", 26);
             SetBottomRect(_downButton.GetComponent<RectTransform>(), 104f, 76f, 2f / 3f, 1f);
             _downButton.onClick.AddListener(() => _ = MoveAsync("down"));
 
