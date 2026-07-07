@@ -153,6 +153,12 @@ namespace YukaNavi.UI
                 ? "最終: " + FormatDate(item.LastAt)
                 : "追加日: " + FormatDate(item.AddedAt);
 
+            // 曲名 (表示名) は折り返して全文表示する。行の高さは行数に合わせて伸ばす
+            // テキスト幅 ≈ リスト幅 1040 - バッジ 118 - 削除ボタン 160
+            int nameLines = UiFactory.EstimateWrapLines(item.Songfile, 29, 740f);
+            float nameHeight = nameLines * 40f;
+            float rowHeight = Mathf.Max(20f + nameHeight + 36f + 14f, 136f);
+
             var rowGo = new GameObject("Row");
             rowGo.transform.SetParent(_listContent, false);
             var img = rowGo.AddComponent<Image>();
@@ -160,7 +166,7 @@ namespace YukaNavi.UI
             UiFactory.Roundify(img);
             UiFactory.AddShadow(rowGo, 3f);
             var le = rowGo.AddComponent<LayoutElement>();
-            le.preferredHeight = 136f;
+            le.preferredHeight = rowHeight;
             var button = rowGo.AddComponent<Button>();
             rowGo.AddComponent<PressEffect>();
             var entry = new ReserveScreen.Entry
@@ -202,16 +208,26 @@ namespace YukaNavi.UI
 
             var nameText = UiFactory.CreateText(rowGo.transform, "Name", item.Songfile, 29,
                 UiFactory.TextDark, TextAnchor.UpperLeft);
-            UiFactory.StretchFull(nameText.rectTransform);
-            nameText.rectTransform.offsetMin = new Vector2(118f, 46f);
-            nameText.rectTransform.offsetMax = new Vector2(-160f, -12f);
-            nameText.verticalOverflow = VerticalWrapMode.Truncate;
+            var nameRect = nameText.rectTransform;
+            nameRect.anchorMin = new Vector2(0f, 1f);
+            nameRect.anchorMax = new Vector2(1f, 1f);
+            nameRect.pivot = new Vector2(0.5f, 1f);
+            nameRect.anchoredPosition = new Vector2(0f, -16f);
+            nameRect.offsetMin = new Vector2(118f, nameRect.offsetMin.y);
+            nameRect.offsetMax = new Vector2(-160f, nameRect.offsetMax.y);
+            nameRect.sizeDelta = new Vector2(nameRect.sizeDelta.x, nameHeight);
+            nameText.verticalOverflow = VerticalWrapMode.Overflow;
 
             var sub = UiFactory.CreateText(rowGo.transform, "Sub", line2, 22,
                 UiFactory.TextMuted, TextAnchor.LowerLeft);
-            UiFactory.StretchFull(sub.rectTransform);
-            sub.rectTransform.offsetMin = new Vector2(118f, 12f);
-            sub.rectTransform.offsetMax = new Vector2(-160f, -92f);
+            var subRect = sub.rectTransform;
+            subRect.anchorMin = new Vector2(0f, 0f);
+            subRect.anchorMax = new Vector2(1f, 0f);
+            subRect.pivot = new Vector2(0.5f, 0f);
+            subRect.anchoredPosition = new Vector2(0f, 12f);
+            subRect.offsetMin = new Vector2(118f, subRect.offsetMin.y);
+            subRect.offsetMax = new Vector2(-160f, subRect.offsetMax.y);
+            subRect.sizeDelta = new Vector2(subRect.sizeDelta.x, 30f);
             sub.verticalOverflow = VerticalWrapMode.Truncate;
 
             // 削除 (2度押し確認)

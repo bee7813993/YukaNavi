@@ -231,6 +231,24 @@ namespace YukaNavi.UI
             return button;
         }
 
+        /// <summary>全角基準の概算テキスト幅 (Text.preferredWidth はレイアウト前に信用できないため)。</summary>
+        public static float EstimateTextWidth(string text, int fontSize)
+        {
+            float units = 0f;
+            foreach (char c in text ?? "")
+            {
+                units += c <= 0x7F ? 0.56f : 1.04f;
+            }
+            return units * fontSize;
+        }
+
+        /// <summary>概算の折り返し行数 (足りないと最終行が欠けるため少し多めに見積もる)。</summary>
+        public static int EstimateWrapLines(string text, int fontSize, float width)
+        {
+            float estimated = EstimateTextWidth(text, fontSize) * 1.08f;
+            return Mathf.Max(1, Mathf.CeilToInt(estimated / width));
+        }
+
         /// <summary>
         /// インデックス系リストの行 (タイトル + サブテキスト + › 印)。
         /// 期別リストやシリーズの作品一覧で使う。onTap は効果音込みで渡す。

@@ -106,15 +106,9 @@ namespace YukaNavi.UI
             }
         }
 
-        /// <summary>全角基準の概算テキスト幅 (Text.preferredWidth はレイアウト前に信用できないため)。</summary>
         static float EstimateWidth(string text, int fontSize)
         {
-            float units = 0f;
-            foreach (char c in text ?? "")
-            {
-                units += c <= 0x7F ? 0.56f : 1.04f;
-            }
-            return units * fontSize;
+            return UiFactory.EstimateTextWidth(text, fontSize);
         }
 
         public override void BuildUi()
@@ -569,9 +563,7 @@ namespace YukaNavi.UI
 
         static int WrapLines(string text, int fontSize, float width)
         {
-            // 概算幅なので少し多めに見積もる (足りないと最終行が欠ける)
-            float estimated = EstimateWidth(text, fontSize) * 1.08f;
-            return Mathf.Max(1, Mathf.CeilToInt(estimated / width));
+            return UiFactory.EstimateWrapLines(text, fontSize, width);
         }
 
         /// <summary>
