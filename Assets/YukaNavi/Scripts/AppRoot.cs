@@ -85,6 +85,7 @@ namespace YukaNavi
             _screens.Register<ReserveScreen>();
             _screens.Register<SearchResultScreen>();
             _screens.Register<NameIndexScreen>();
+            _screens.Register<UrlRequestScreen>();
             _screens.Register<PeriodScreen>();
             _screens.Register<RequestDetailScreen>();
 
@@ -99,6 +100,28 @@ namespace YukaNavi
             {
                 _screens.ShowAsRoot<ConnectScreen>();
             }
+
+            // 共有メニュー経由で起動された場合は URL リクエスト画面を開く
+            HandleSharedUrl();
+        }
+
+        /// <summary>起動中に共有された場合も、アプリ復帰のタイミングで受け取る。</summary>
+        void OnApplicationFocus(bool focused)
+        {
+            if (focused && _screens != null)
+            {
+                HandleSharedUrl();
+            }
+        }
+
+        void HandleSharedUrl()
+        {
+            string url = ShareIntent.ConsumePendingUrl();
+            if (string.IsNullOrEmpty(url) || !AppConfig.IsConfigured)
+            {
+                return;
+            }
+            UrlRequestScreen.OpenWithUrl(_screens, url);
         }
     }
 }

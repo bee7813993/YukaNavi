@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  カスタムメインマニフェスト。
+  共有メニュー (ACTION_SEND, text/plain) から URL を受け取るための intent-filter を
+  標準のランチャー設定に追加している (ShareIntent.cs とセットで動く)。
+  エントリポイントは GameActivity (ProjectSettings の androidApplicationEntry: 2)。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity android:name="com.unity3d.player.UnityPlayerGameActivity"
+                  android:theme="@style/BaseUnityGameActivityTheme"
+                  android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- スマホの共有ボタンから URL (テキスト) を受け取る -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <meta-data android:name="unityplayer.UnityActivity" android:value="true" />
+        </activity>
+    </application>
+</manifest>

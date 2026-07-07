@@ -19,6 +19,7 @@ namespace YukaNavi.UI
         Button _fileTab;
         Text _topTitle;
         InputField _searchInput;
+        GameObject _urlCard;
         RectTransform _chipContent;
         Text _chipHint;
         readonly System.Collections.Generic.List<GameObject> _chips =
@@ -90,7 +91,7 @@ namespace YukaNavi.UI
             grid.anchoredPosition = new Vector2(0f, -474f);
             grid.offsetMin = new Vector2(20f, grid.offsetMin.y);
             grid.offsetMax = new Vector2(-20f, grid.offsetMax.y);
-            grid.sizeDelta = new Vector2(grid.sizeDelta.x, 482f);
+            grid.sizeDelta = new Vector2(grid.sizeDelta.x, 648f);
             var gridLayout = grid.gameObject.AddComponent<GridLayoutGroup>();
             gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
             gridLayout.constraintCount = 2;
@@ -111,6 +112,8 @@ namespace YukaNavi.UI
                 () => PeriodScreen.OpenYearly(Manager));
             AddWayCard(grid, "お気に入り検索", "☆保存した歌手・\n作品・ワードから",
                 () => MypageScreen.Open(Manager, 3));
+            _urlCard = AddWayCard(grid, "URLでリクエスト", "YouTube等のURLを\n直接再生する",
+                () => UrlRequestScreen.Open(Manager)).gameObject;
 
             _listerMode = PlayerPrefs.GetInt(ModePrefKey, 1) == 1;
             ApplyMode();
@@ -132,6 +135,7 @@ namespace YukaNavi.UI
         {
             bool lister = true;
             bool everything = true;
+            bool internet = true;
             try
             {
                 var caps = await AppConfig.CreateClient().GetCapabilitiesAsync();
@@ -139,6 +143,7 @@ namespace YukaNavi.UI
                 {
                     lister = caps.Features.ListerSearch;
                     everything = caps.Features.EverythingSearch;
+                    internet = caps.Features.Internet;
                 }
             }
             catch (System.Exception)
@@ -147,6 +152,7 @@ namespace YukaNavi.UI
             }
             _listerTab.gameObject.SetActive(lister);
             _fileTab.gameObject.SetActive(everything);
+            _urlCard.SetActive(internet);
             // 使えない方が選択中だったら残っている方へ寄せる
             if (!lister && _listerMode && everything)
             {
@@ -242,7 +248,7 @@ namespace YukaNavi.UI
         }
 
         /// <summary>「他の方法でさがす」のカード (メニューの機能カードと同じ雰囲気)。</summary>
-        void AddWayCard(RectTransform grid, string label, string caption, System.Action onTap)
+        Button AddWayCard(RectTransform grid, string label, string caption, System.Action onTap)
         {
             var button = UiFactory.CreateButton(grid, label, "",
                 new Color(1f, 1f, 1f, 0.92f), Color.white);
@@ -261,6 +267,7 @@ namespace YukaNavi.UI
                 Se.Play(Se.Transition);
                 onTap();
             });
+            return button;
         }
 
         void SetMode(bool listerMode)

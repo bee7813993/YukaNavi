@@ -22,6 +22,8 @@ namespace YukaNavi.UI
             public string Line2;     // 歌手 / 作品などの補足 (無ければ空)
             public string Filename;  // 予約に使う表示ファイル名
             public string FullPath;  // 予約に使うフルパス
+            /// <summary>予約の種別 (null = 動画)。URL指定 / 小休止 で使う</summary>
+            public string Kind;
         }
 
         /// <summary>次に開くエントリ (Open() 経由で渡す)。</summary>
@@ -157,6 +159,8 @@ namespace YukaNavi.UI
                 Line2 = line2,
                 Filename = item.Songfile,
                 FullPath = item.FullPath,
+                // 動画_別プ / カラオケ配信 はトグルで表現するため、それ以外の特殊種別だけ引き継ぐ
+                Kind = (item.Kind == "URL指定" || item.Kind == "小休止") ? item.Kind : null,
             };
             _pendingEdit = item;
             EditSession = null;
@@ -383,14 +387,12 @@ namespace YukaNavi.UI
                 Destroy(chip);
             }
             _singerChips.Clear();
-            foreach (var singer in singers)
+
+            void AddChip(string name, Color bg)
             {
-                string name = singer;
-                var chip = UiFactory.CreateButton(_singerChipContent, name, name,
-                    UiFactory.PrimaryDark, Color.white, 26);
-                var text = chip.GetComponentInChildren<Text>();
+                var chip = UiFactory.CreateButton(_singerChipContent, name, name, bg, Color.white, 26);
                 var le = chip.gameObject.AddComponent<LayoutElement>();
-                le.preferredWidth = Mathf.Max(text.preferredWidth + 44f, 120f);
+                le.preferredWidth = Mathf.Max(UiFactory.EstimateTextWidth(name, 26) + 44f, 120f);
                 chip.onClick.AddListener(() =>
                 {
                     Se.Play(Se.Tap);
@@ -398,7 +400,18 @@ namespace YukaNavi.UI
                 });
                 _singerChips.Add(chip.gameObject);
             }
-            _singerRow.SetActive(singers.Count > 0);
+
+            // 小休止の予約は歌う人を「小休止」にできる (確認画面を通らず挿入されるため変更時用)
+            bool isPause = _entry != null && _entry.Kind == "小休止";
+            if (isPause)
+            {
+                AddChip("小休止", UiFactory.TextMuted);
+            }
+            foreach (var singer in singers)
+            {
+                AddChip(singer, UiFactory.PrimaryDark);
+            }
+            _singerRow.SetActive(singers.Count > 0 || isPause);
         }
 
         RectTransform AddPanel(RectTransform form, float height, bool transparent = false, Color? color = null)
@@ -695,7 +708,11 @@ namespace YukaNavi.UI
                 Se.Play(Se.Error);
                 return;
             }
-            AppConfig.Username = name;
+            // 「小休止」名義は自分の名前として覚えない (次回の予約者名を汚さない)
+            if (name != "小休止")
+            {
+                AppConfig.Username = name;
+            }
             _submitButton.interactable = false;
             _errorText.text = "";
             var options = new ApiClient.RequestOptions
@@ -710,14 +727,15 @@ namespace YukaNavi.UI
                 Track = _track,
                 SelectId = _editId, // 負なら新規、既存 id なら差し替え (変更)
             };
+            string kind = string.IsNullOrEmpty(_entry.Kind) ? "動画" : _entry.Kind;
             try
             {
                 await AppConfig.CreateClient().PostRequestAsync(
                     _entry.Filename, _entry.FullPath, name,
-                    (_commentInput.text ?? "").Trim(), "動画", options);
+                    (_commentInput.text ?? "").Trim(), kind, options);
                 if (_editId < 0)
                 {
-                    LocalMypage.AddHistory(_entry.FullPath, _entry.Line1, "動画");
+                    LocalMypage.AddHistory(_entry.FullPath, _entry.Line1, kind);
                 }
                 ShowComplete();
             }

@@ -31,6 +31,9 @@ namespace YukaNavi.UI
         bool _refreshing;
         bool _reordering;
         Coroutine _polling;
+        GameObject _pauseButtonGo;
+        Text _pauseLabel;
+        float _pauseArmedAt = -100f;
 
         public override void BuildUi()
         {
@@ -49,7 +52,7 @@ namespace YukaNavi.UI
             headerRect.pivot = new Vector2(0.5f, 1f);
             headerRect.anchoredPosition = new Vector2(0f, -122f);
             headerRect.offsetMin = new Vector2(28f, headerRect.offsetMin.y);
-            headerRect.offsetMax = new Vector2(-260f, headerRect.offsetMax.y);
+            headerRect.offsetMax = new Vector2(-450f, headerRect.offsetMax.y);
             headerRect.sizeDelta = new Vector2(headerRect.sizeDelta.x, 46f);
 
             // 再生中の位置へ飛ぶボタン
@@ -64,6 +67,18 @@ namespace YukaNavi.UI
                 Se.Play(Se.Tap);
                 ScrollToPlaying();
             });
+
+            // 小休止の挿入 (サーバーで「ユーザーによる小休止」が有効なときだけ表示)
+            var pauseButton = UiFactory.CreateSoftButton(transform, "InsertPause", "＋小休止", 24);
+            _pauseButtonGo = pauseButton.gameObject;
+            _pauseLabel = pauseButton.GetComponentInChildren<Text>();
+            var pauseRect = pauseButton.GetComponent<RectTransform>();
+            pauseRect.anchorMin = pauseRect.anchorMax = new Vector2(1f, 1f);
+            pauseRect.pivot = new Vector2(1f, 1f);
+            pauseRect.anchoredPosition = new Vector2(-262f, -118f);
+            pauseRect.sizeDelta = new Vector2(180f, 56f);
+            pauseButton.onClick.AddListener(OnInsertPausePressed);
+            _pauseButtonGo.SetActive(false);
 
             // ステータス行 (エラー・操作ヒント)
             _statusText = UiFactory.CreateText(transform, "Status", "", 24, UiFactory.TextMuted);
@@ -91,8 +106,57 @@ namespace YukaNavi.UI
         {
             _lastSignature = "";
             _reordering = false;
+            _pauseArmedAt = -100f;
+            _pauseLabel.text = "＋小休止";
             SetStatus("", false);
+            _ = ApplyCapabilitiesAsync();
             _polling = StartCoroutine(PollRoutine());
+        }
+
+        /// <summary>「ユーザーによる小休止」が有効なサーバーでだけ挿入ボタンを出す。</summary>
+        async System.Threading.Tasks.Task ApplyCapabilitiesAsync()
+        {
+            try
+            {
+                var caps = await AppConfig.CreateClient().GetCapabilitiesAsync();
+                _pauseButtonGo.SetActive(caps.Features != null && caps.Features.Userpause);
+            }
+            catch (System.Exception)
+            {
+                // 取得失敗時は非表示のまま
+            }
+        }
+
+        /// <summary>小休止の挿入 (2度押し確認)。キューの最後に kind=小休止 の予約が入る。</summary>
+        void OnInsertPausePressed()
+        {
+            if (Time.time - _pauseArmedAt > 3f)
+            {
+                _pauseArmedAt = Time.time;
+                _pauseLabel.text = "もう一度で挿入";
+                Se.Play(Se.Tap);
+                return;
+            }
+            _pauseArmedAt = -100f;
+            _pauseLabel.text = "＋小休止";
+            _ = InsertPauseAsync();
+        }
+
+        async System.Threading.Tasks.Task InsertPauseAsync()
+        {
+            try
+            {
+                await AppConfig.CreateClient().PostRequestAsync(
+                    "小休止", "", AppConfig.Username, "", "小休止");
+                Se.Play(Se.Confirm);
+                SetStatus("小休止を入れました", false);
+                _ = RefreshAsync();
+            }
+            catch (System.Exception e)
+            {
+                SetStatus("小休止の挿入に失敗: " + e.Message, true);
+                Se.Play(Se.Error);
+            }
         }
 
         public override void OnHide()
