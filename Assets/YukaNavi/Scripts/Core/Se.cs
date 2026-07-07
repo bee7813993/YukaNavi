@@ -20,9 +20,9 @@ namespace YukaNavi.Core
 
         public static void Play(string name)
         {
-            if (_source == null)
+            if (_source == null || Bgm.Muted)
             {
-                return;
+                return; // アプリ全体ミュート中は操作音も鳴らさない
             }
             var clip = Resources.Load<AudioClip>("Audio/SE/" + name);
             if (clip != null)

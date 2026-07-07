@@ -1,7 +1,9 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using UnityEngine.Video;
 using YukaNavi.Api;
@@ -16,10 +18,51 @@ namespace YukaNavi.UI
     /// </summary>
     public class HomeScreen : ScreenBase
     {
+        /// <summary>他画面の背後に残し、半透明背景から壁紙・キャラ・時計を透かして見せる。</summary>
+        public override bool KeepVisibleInBackground
+        {
+            get { return true; }
+        }
+
         const float PollIntervalSeconds = 5f;
+
+        // 時計・メッセージ・マスコットの表示/位置/大きさはスキンごとに保存する (HomeLayoutStore)。
+        // 表示のオン/オフはきせかえ画面に統合した。
+
+        /// <summary>長押しで移動・拡縮できるホーム上のパーツ。</summary>
+        enum HomeItem { None, Clock, Ticker, Mascot }
+
+        class MovableItem
+        {
+            public RectTransform Group;
+            public Image HitArea;
+            public GameObject EditControls;  // 移動モード中の ×/拡縮ハンドル
+            public string LayoutKey;         // HomeLayoutStore のキー (clock / ticker / mascot)
+        }
 
         Text _tickerNowText;
         Text _tickerNextText;
+        Text _clockText;
+        Text _dateText;
+        Text _roomNameText;
+        GameObject _roomNameGo;
+        GameObject _roomModal;
+        List<RoomDto> _rooms;
+        MovableItem _clockItem;
+        MovableItem _tickerItem;
+        MovableItem _mascotItem;
+        HomeItem _editing = HomeItem.None;
+        GameObject _editOverlay;
+        GameObject _editHint;
+        Button _bgmButton;
+        Text _bgmButtonLabel;
+        SkinDef _currentSkin;
+        int _editingSiblingIndex; // 移動モード中に最前面へ出す前の描画順
+        int _lastClockMinute = -1;
+        Text _statusClockText;
+        Image _batteryFill;
+        GameObject _batteryGo;
+        Text _nameText;
         GameObject _banner;
         Text _bannerText;
         GameObject _backgroundGo;
@@ -38,42 +81,598 @@ namespace YukaNavi.UI
 
             NoteParticles.Create(transform);
 
-            // ロゴ (上端中央、1800x520 と同比率)
-            var logo = UiFactory.CreateImage(transform, "Logo", "Art/UI/yukanavi_logo");
-            logo.preserveAspect = true;
-            var logoRect = logo.rectTransform;
-            logoRect.anchorMin = logoRect.anchorMax = new Vector2(0.5f, 1f);
-            logoRect.pivot = new Vector2(0.5f, 1f);
-            logoRect.anchoredPosition = new Vector2(0f, -40f);
-            logoRect.sizeDelta = new Vector2(560f, 162f);
+            // 最上部の白帯 (リンクラ風のステータスバー)。壁紙の対象外として不透明の白にする。
+            // 左から 時刻・バッテリー / NAME (自分の名前) / 部屋名 (タップで部屋移動)
+            var statusBar = UiFactory.CreatePanel(transform, "StatusBar", Color.white);
+            statusBar.anchorMin = new Vector2(0f, 1f);
+            statusBar.anchorMax = new Vector2(1f, 1f);
+            statusBar.pivot = new Vector2(0.5f, 1f);
+            statusBar.sizeDelta = new Vector2(0f, 110f);
+            UiFactory.AddShadow(statusBar.gameObject, 4f);
 
-            // 再生中ティッカー (ロゴの下の半透明帯。いま/次 の2行構成)
-            var tickerBg = UiFactory.CreatePanel(transform, "Ticker", new Color(1f, 1f, 1f, 0.72f));
+            // 時刻 (上) + バッテリー (下) の縦2段
+            _statusClockText = UiFactory.CreateText(statusBar, "Clock", "", 30,
+                UiFactory.TextDark, TextAnchor.MiddleLeft);
+            _statusClockText.fontStyle = FontStyle.Bold;
+            var scRect = _statusClockText.rectTransform;
+            scRect.anchorMin = new Vector2(0f, 1f);
+            scRect.anchorMax = new Vector2(0f, 1f);
+            scRect.pivot = new Vector2(0f, 1f);
+            scRect.anchoredPosition = new Vector2(28f, -14f);
+            scRect.sizeDelta = new Vector2(140f, 40f);
+
+            // バッテリー (枠 + 塗り + 先端の凸)。残量が取れない環境 (エディタ等) では非表示
+            var batteryGo = new GameObject("Battery");
+            batteryGo.transform.SetParent(statusBar, false);
+            var batteryFrame = batteryGo.AddComponent<Image>();
+            batteryFrame.color = new Color(0.55f, 0.52f, 0.65f);
+            UiFactory.Roundify(batteryFrame);
+            batteryFrame.raycastTarget = false;
+            var batteryRect = (RectTransform)batteryGo.transform;
+            batteryRect.anchorMin = batteryRect.anchorMax = new Vector2(0f, 1f);
+            batteryRect.pivot = new Vector2(0f, 1f);
+            batteryRect.anchoredPosition = new Vector2(28f, -62f);
+            batteryRect.sizeDelta = new Vector2(64f, 30f);
+            var batteryInner = new GameObject("Inner");
+            batteryInner.transform.SetParent(batteryGo.transform, false);
+            var batteryInnerImg = batteryInner.AddComponent<Image>();
+            batteryInnerImg.color = Color.white;
+            UiFactory.Roundify(batteryInnerImg);
+            batteryInnerImg.raycastTarget = false;
+            UiFactory.StretchFull(batteryInnerImg.rectTransform);
+            batteryInnerImg.rectTransform.offsetMin = new Vector2(3f, 3f);
+            batteryInnerImg.rectTransform.offsetMax = new Vector2(-3f, -3f);
+            var batteryFillGo = new GameObject("Fill");
+            batteryFillGo.transform.SetParent(batteryGo.transform, false);
+            _batteryFill = batteryFillGo.AddComponent<Image>();
+            _batteryFill.color = new Color(0.55f, 0.52f, 0.65f);
+            UiFactory.Roundify(_batteryFill);
+            _batteryFill.raycastTarget = false;
+            var bfRect = _batteryFill.rectTransform;
+            bfRect.anchorMin = new Vector2(0f, 0f);
+            bfRect.anchorMax = new Vector2(1f, 1f);
+            bfRect.offsetMin = new Vector2(6f, 6f);
+            bfRect.offsetMax = new Vector2(-6f, -6f);
+            var batteryTipGo = new GameObject("Tip");
+            batteryTipGo.transform.SetParent(batteryGo.transform, false);
+            var batteryTip = batteryTipGo.AddComponent<Image>();
+            batteryTip.color = new Color(0.55f, 0.52f, 0.65f);
+            UiFactory.Roundify(batteryTip);
+            batteryTip.raycastTarget = false;
+            var tipRect = batteryTip.rectTransform;
+            tipRect.anchorMin = tipRect.anchorMax = new Vector2(1f, 0.5f);
+            tipRect.pivot = new Vector2(0f, 0.5f);
+            tipRect.anchoredPosition = new Vector2(3f, 0f);
+            tipRect.sizeDelta = new Vector2(7f, 14f);
+            _batteryGo = batteryGo;
+            _batteryGo.SetActive(false);
+
+            // NAME プレート (自分の名前。予約時の名前が入る)。
+            // リンクラ風の「灰色の縁 + 白地、上にキャプション・下に黒文字」ボックス
+            var namePlate = CreateOutlinedBox(statusBar, "NamePlate", new Vector2(190f, 0f),
+                new Vector2(400f, 84f), false);
+            var nameCaption = UiFactory.CreateText(namePlate, "Caption", "NAME", 18,
+                UiFactory.Primary, TextAnchor.UpperLeft);
+            nameCaption.fontStyle = FontStyle.Bold;
+            UiFactory.StretchFull(nameCaption.rectTransform);
+            nameCaption.rectTransform.offsetMin = new Vector2(22f, 40f);
+            nameCaption.rectTransform.offsetMax = new Vector2(-16f, -8f);
+            _nameText = UiFactory.CreateText(namePlate, "Name", "", 28,
+                UiFactory.TextDark, TextAnchor.LowerLeft);
+            UiFactory.StretchFull(_nameText.rectTransform);
+            _nameText.rectTransform.offsetMin = new Vector2(22f, 8f);
+            _nameText.rectTransform.offsetMax = new Vector2(-16f, -34f);
+            _nameText.verticalOverflow = VerticalWrapMode.Truncate;
+
+            // 部屋名 (タップで部屋移動モーダル。Web 版の部屋ドロップダウンと同じ動作)。
+            // 左にドアアイコン、右に「ROOM」キャプション + 黒文字の部屋名
+            var roomPill = CreateOutlinedBox(statusBar, "RoomName", new Vector2(-20f, 0f),
+                new Vector2(440f, 84f), true);
+            var roomPillButton = roomPill.gameObject.AddComponent<Button>();
+            roomPill.gameObject.AddComponent<PressEffect>();
+            roomPillButton.onClick.AddListener(OpenRoomModal);
+            var roomIcon = UiFactory.CreateImage(roomPill, "Icon",
+                "Art/UI/Icons/yukanavi_icon_room_door_256");
+            roomIcon.color = UiFactory.PrimaryDark; // 白単色素材を着色
+            roomIcon.preserveAspect = true;
+            roomIcon.raycastTarget = false;
+            var roomIconRect = roomIcon.rectTransform;
+            roomIconRect.anchorMin = roomIconRect.anchorMax = new Vector2(0f, 0.5f);
+            roomIconRect.pivot = new Vector2(0f, 0.5f);
+            roomIconRect.anchoredPosition = new Vector2(16f, 0f);
+            roomIconRect.sizeDelta = new Vector2(40f, 40f);
+            var roomCaption = UiFactory.CreateText(roomPill, "Caption", "ROOM", 18,
+                UiFactory.Primary, TextAnchor.UpperLeft);
+            roomCaption.fontStyle = FontStyle.Bold;
+            UiFactory.StretchFull(roomCaption.rectTransform);
+            roomCaption.rectTransform.offsetMin = new Vector2(70f, 40f);
+            roomCaption.rectTransform.offsetMax = new Vector2(-16f, -8f);
+            _roomNameText = UiFactory.CreateText(roomPill, "Text", "", 26,
+                UiFactory.TextDark, TextAnchor.LowerLeft);
+            UiFactory.StretchFull(_roomNameText.rectTransform);
+            _roomNameText.rectTransform.offsetMin = new Vector2(70f, 8f);
+            _roomNameText.rectTransform.offsetMax = new Vector2(-16f, -34f);
+            _roomNameText.verticalOverflow = VerticalWrapMode.Truncate;
+            _roomNameGo = roomPill.gameObject;
+            _roomNameGo.SetActive(false); // 部屋名 (または URL) が取れたら表示
+
+            // 移動モードの確定用オーバーレイ。移動対象より奥に置き「まわりをタップ」で確定する
+            _editOverlay = new GameObject("EditOverlay");
+            _editOverlay.transform.SetParent(transform, false);
+            UiFactory.StretchFull(_editOverlay.AddComponent<RectTransform>());
+            var editOverlayImg = _editOverlay.AddComponent<Image>();
+            editOverlayImg.color = new Color(0f, 0f, 0f, 0f);
+            var editOverlayButton = _editOverlay.AddComponent<Button>();
+            editOverlayButton.transition = Selectable.Transition.None;
+            editOverlayButton.onClick.AddListener(() => EndEdit(true));
+            _editOverlay.SetActive(false);
+
+            // 再生中ティッカー + 出番バナー (ひとまとまりで長押し移動できる)
+            var tickerGroup = UiFactory.CreatePanel(transform, "TickerGroup");
+            tickerGroup.anchorMin = new Vector2(0f, 1f);
+            tickerGroup.anchorMax = new Vector2(1f, 1f);
+            tickerGroup.pivot = new Vector2(0.5f, 1f);
+            tickerGroup.sizeDelta = new Vector2(-40f, 172f);
+
+            var tickerBg = UiFactory.CreatePanel(tickerGroup, "Ticker", new Color(1f, 1f, 1f, 0.78f));
             tickerBg.anchorMin = new Vector2(0f, 1f);
             tickerBg.anchorMax = new Vector2(1f, 1f);
             tickerBg.pivot = new Vector2(0.5f, 1f);
-            tickerBg.anchoredPosition = new Vector2(0f, -212f);
+            tickerBg.anchoredPosition = Vector2.zero;
             tickerBg.sizeDelta = new Vector2(0f, 96f);
+            UiFactory.Roundify(tickerBg.GetComponent<Image>());
+            tickerBg.GetComponent<Image>().raycastTarget = false;
+            UiFactory.AddShadow(tickerBg.gameObject);
             _tickerNowText = CreateTickerLine(tickerBg, "Now", -6f);
             _tickerNextText = CreateTickerLine(tickerBg, "Next", -48f);
 
             // そろそろ出番バナー (ティッカーの下)
-            var banner = UiFactory.CreatePanel(transform, "Banner", UiFactory.Primary);
+            var banner = UiFactory.CreatePanel(tickerGroup, "Banner", UiFactory.Primary);
             banner.anchorMin = new Vector2(0f, 1f);
             banner.anchorMax = new Vector2(1f, 1f);
             banner.pivot = new Vector2(0.5f, 1f);
-            banner.anchoredPosition = new Vector2(0f, -312f);
-            banner.sizeDelta = new Vector2(-120f, 66f);
+            banner.anchoredPosition = new Vector2(0f, -106f);
+            banner.sizeDelta = new Vector2(-80f, 66f);
+            UiFactory.Roundify(banner.GetComponent<Image>());
+            banner.GetComponent<Image>().raycastTarget = false;
+            UiFactory.AddShadow(banner.gameObject);
             _bannerText = UiFactory.CreateText(banner, "Text", "", 32, Color.white);
             UiFactory.StretchFull(_bannerText.rectTransform);
             _banner = banner.gameObject;
             _banner.SetActive(false);
+
+            _tickerItem = SetupMovable(tickerGroup, HomeLayoutStore.Ticker, HomeItem.Ticker);
+
+            // 大きな時刻表示 (リンクラ風)。長押しで移動できる
+            var clockGroup = UiFactory.CreatePanel(transform, "ClockGroup");
+            clockGroup.anchorMin = clockGroup.anchorMax = new Vector2(1f, 1f);
+            clockGroup.pivot = new Vector2(1f, 1f);
+            clockGroup.sizeDelta = new Vector2(420f, 164f);
+
+            _clockText = UiFactory.CreateText(clockGroup, "Clock", "", 96, Color.white, TextAnchor.MiddleRight);
+            var clockRect = _clockText.rectTransform;
+            clockRect.anchorMin = new Vector2(0f, 1f);
+            clockRect.anchorMax = new Vector2(1f, 1f);
+            clockRect.pivot = new Vector2(0.5f, 1f);
+            clockRect.anchoredPosition = new Vector2(0f, 0f);
+            clockRect.sizeDelta = new Vector2(0f, 110f);
+            UiFactory.AddShadow(_clockText.gameObject, 3f);
+            _dateText = UiFactory.CreateText(clockGroup, "Date", "", 30, new Color(1f, 1f, 1f, 0.92f),
+                TextAnchor.MiddleRight);
+            var dateRect = _dateText.rectTransform;
+            dateRect.anchorMin = new Vector2(0f, 1f);
+            dateRect.anchorMax = new Vector2(1f, 1f);
+            dateRect.pivot = new Vector2(0.5f, 1f);
+            dateRect.anchoredPosition = new Vector2(-4f, -112f);
+            dateRect.sizeDelta = new Vector2(-8f, 40f);
+            UiFactory.AddShadow(_dateText.gameObject, 2f);
+
+            _clockItem = SetupMovable(clockGroup, HomeLayoutStore.Clock, HomeItem.Clock);
+
+            // ホーム設定 (歯車) ボタン: 左上の半透明丸
+            var settingsButton = UiFactory.CreateButton(transform, "HomeSettings", "",
+                new Color(1f, 1f, 1f, 0.55f), UiFactory.PrimaryDark, 24);
+            settingsButton.image.pixelsPerUnitMultiplier = 0.55f; // ほぼ円形に
+            var settingsRect = settingsButton.GetComponent<RectTransform>();
+            settingsRect.anchorMin = settingsRect.anchorMax = new Vector2(0f, 1f);
+            settingsRect.pivot = new Vector2(0f, 1f);
+            settingsRect.anchoredPosition = new Vector2(24f, -130f);
+            settingsRect.sizeDelta = new Vector2(88f, 88f);
+            var settingsIcon = UiFactory.CreateImage(settingsButton.transform, "Icon",
+                "Art/UI/Icons/yukanavi_icon_settings_256");
+            settingsIcon.color = UiFactory.PrimaryDark; // 白単色素材を着色
+            settingsIcon.preserveAspect = true;
+            settingsIcon.raycastTarget = false;
+            var settingsIconRect = settingsIcon.rectTransform;
+            settingsIconRect.anchorMin = settingsIconRect.anchorMax = new Vector2(0.5f, 0.5f);
+            settingsIconRect.pivot = new Vector2(0.5f, 0.5f);
+            settingsIconRect.anchoredPosition = Vector2.zero;
+            settingsIconRect.sizeDelta = new Vector2(52f, 52f);
+            // ホームの表示設定はきせかえ画面に統合した
+            settingsButton.onClick.AddListener(() =>
+            {
+                EndEdit(false);
+                Se.Play(Se.Transition);
+                Manager.Show<SkinScreen>();
+            });
+
+            // サウンド (BGM+操作音) ミュート切替ボタン (右上)。カラオケ用アプリなので既定はミュート
+            _bgmButton = UiFactory.CreateButton(transform, "BgmToggle", "音\nOFF",
+                new Color(1f, 1f, 1f, 0.55f), UiFactory.PrimaryDark, 22);
+            _bgmButton.image.pixelsPerUnitMultiplier = 0.55f; // ほぼ円形に
+            _bgmButtonLabel = _bgmButton.GetComponentInChildren<Text>();
+            var bgmRect = _bgmButton.GetComponent<RectTransform>();
+            bgmRect.anchorMin = bgmRect.anchorMax = new Vector2(1f, 1f);
+            bgmRect.pivot = new Vector2(1f, 1f);
+            bgmRect.anchoredPosition = new Vector2(-24f, -130f);
+            bgmRect.sizeDelta = new Vector2(88f, 88f);
+            _bgmButton.onClick.AddListener(() =>
+            {
+                Bgm.Muted = !Bgm.Muted;
+                Se.Play(Se.Tap);
+                UpdateBgmButton();
+            });
+            UpdateBgmButton();
+
+            // 移動モードのヒント (ナビバーの上)
+            var hint = UiFactory.CreateText(transform, "EditHint",
+                "ドラッグで移動 / ↔で大きさ / ×で非表示 / まわりをタップで決定", 26, Color.white);
+            UiFactory.AddShadow(hint.gameObject, 2f);
+            var hintRect = hint.rectTransform;
+            hintRect.anchorMin = new Vector2(0f, 0f);
+            hintRect.anchorMax = new Vector2(1f, 0f);
+            hintRect.pivot = new Vector2(0.5f, 0f);
+            hintRect.anchoredPosition = new Vector2(0f, GlobalNav.BarHeight + 24f);
+            hintRect.sizeDelta = new Vector2(-40f, 44f);
+            _editHint = hint.gameObject;
+            _editHint.SetActive(false);
+        }
+
+        /// <summary>白帯用の「灰色の縁 + 白地」の角丸ボックス。anchorRight=true で右寄せ配置。</summary>
+        static RectTransform CreateOutlinedBox(RectTransform parent, string name,
+                                               Vector2 position, Vector2 size, bool anchorRight)
+        {
+            var frame = UiFactory.CreatePanel(parent, name, new Color(0.78f, 0.77f, 0.82f));
+            float ax = anchorRight ? 1f : 0f;
+            frame.anchorMin = frame.anchorMax = new Vector2(ax, 0.5f);
+            frame.pivot = new Vector2(ax, 0.5f);
+            frame.anchoredPosition = position;
+            frame.sizeDelta = size;
+            UiFactory.Roundify(frame.GetComponent<Image>());
+
+            var innerGo = new GameObject("Inner");
+            innerGo.transform.SetParent(frame, false);
+            var inner = innerGo.AddComponent<Image>();
+            inner.color = Color.white;
+            UiFactory.Roundify(inner);
+            inner.raycastTarget = false;
+            UiFactory.StretchFull(inner.rectTransform);
+            inner.rectTransform.offsetMin = new Vector2(2f, 2f);
+            inner.rectTransform.offsetMax = new Vector2(-2f, -2f);
+            return frame;
+        }
+
+        static void SetModalRow(RectTransform rect, float y, float height)
+        {
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, y);
+            rect.offsetMin = new Vector2(50f, rect.offsetMin.y);
+            rect.offsetMax = new Vector2(-50f, rect.offsetMax.y);
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
+        }
+
+        void UpdateBgmButton()
+        {
+            bool on = !Bgm.Muted;
+            _bgmButton.image.color = on ? UiFactory.Primary : new Color(1f, 1f, 1f, 0.55f);
+            _bgmButtonLabel.text = on ? "音\nON" : "音\nOFF";
+            _bgmButtonLabel.color = on ? Color.white : UiFactory.PrimaryDark;
+        }
+
+        // ---- 長押し移動モード ----
+
+        /// <summary>
+        /// グループに HitArea (長押し・ドラッグ受け) と ×/拡縮ハンドルを付ける。
+        /// 位置・大きさ・表示は OnShow の ApplyHomeLayout() が現在のスキンから復元する。
+        /// eventTarget を渡すと長押し・ドラッグをそちらで受ける (マスコットのように自前で raycast を持つもの用)。
+        /// </summary>
+        MovableItem SetupMovable(RectTransform group, string layoutKey, HomeItem kind,
+                                 GameObject eventTarget = null)
+        {
+            var item = new MovableItem
+            {
+                Group = group,
+                LayoutKey = layoutKey,
+            };
+            group.anchoredPosition = HomeLayoutStore.DefaultPos(layoutKey);
+
+            // 長押し検出とドラッグの受け皿。移動モード中だけ白くハイライトされる
+            var hitGo = new GameObject("HitArea");
+            hitGo.transform.SetParent(group, false);
+            hitGo.transform.SetAsFirstSibling();
+            item.HitArea = hitGo.AddComponent<Image>();
+            item.HitArea.sprite = UiFactory.RoundedSprite;
+            item.HitArea.type = Image.Type.Sliced;
+            item.HitArea.color = new Color(1f, 1f, 1f, 0f);
+            UiFactory.StretchFull(item.HitArea.rectTransform);
+            if (eventTarget != null)
+            {
+                item.HitArea.raycastTarget = false; // ハイライト表示専用にする
+            }
+            var drag = (eventTarget != null ? eventTarget : hitGo).AddComponent<HomeDraggable>();
+            drag.Target = group;
+            drag.Bounds = (RectTransform)transform;
+            drag.IsEditing = () => _editing == kind;
+            drag.OnLongPress = () => BeginEdit(kind);
+
+            // 移動モード中のコントロール (左上に非表示 ×、右上に拡縮ハンドル)
+            var controls = new GameObject("EditControls");
+            controls.transform.SetParent(group, false);
+            var controlsRect = controls.AddComponent<RectTransform>();
+            UiFactory.StretchFull(controlsRect);
+
+            var hideButton = UiFactory.CreateButton(controls.transform, "Hide", "×", Color.white,
+                UiFactory.PrimaryDark, 40);
+            hideButton.image.pixelsPerUnitMultiplier = 0.55f; // ほぼ円形に
+            var hideRect = hideButton.GetComponent<RectTransform>();
+            hideRect.anchorMin = hideRect.anchorMax = new Vector2(0f, 1f);
+            hideRect.pivot = new Vector2(0.5f, 0.5f);
+            hideRect.anchoredPosition = Vector2.zero;
+            hideRect.sizeDelta = new Vector2(80f, 80f);
+            hideButton.onClick.AddListener(() => HideItem(item));
+
+            // 拡縮ハンドル (右上角。外側へドラッグで拡大、内側へで縮小)
+            var handleGo = new GameObject("ScaleHandle");
+            handleGo.transform.SetParent(controls.transform, false);
+            var handleImg = handleGo.AddComponent<Image>();
+            handleImg.sprite = UiFactory.RoundedSprite;
+            handleImg.type = Image.Type.Sliced;
+            handleImg.pixelsPerUnitMultiplier = 0.55f; // ほぼ円形に
+            handleImg.color = Color.white;
+            UiFactory.AddShadow(handleGo, 3f);
+            var handleRect = handleGo.GetComponent<RectTransform>();
+            handleRect.anchorMin = handleRect.anchorMax = new Vector2(1f, 1f);
+            handleRect.pivot = new Vector2(0.5f, 0.5f);
+            handleRect.anchoredPosition = Vector2.zero;
+            handleRect.sizeDelta = new Vector2(88f, 88f);
+            var handleText = UiFactory.CreateText(handleGo.transform, "Icon", "↔", 44, UiFactory.PrimaryDark);
+            UiFactory.StretchFull(handleText.rectTransform);
+            handleText.rectTransform.localEulerAngles = new Vector3(0f, 0f, 45f); // 斜め (右上-左下) 向きに
+            var scaleHandle = handleGo.AddComponent<ScaleHandle>();
+            scaleHandle.Target = group;
+            scaleHandle.Bounds = (RectTransform)transform;
+
+            item.EditControls = controls;
+            item.EditControls.SetActive(false);
+            return item;
+        }
+
+        /// <summary>現在のスキンに保存された配置を全パーツへ適用する。</summary>
+        void ApplyHomeLayout()
+        {
+            ApplyItemLayout(_clockItem);
+            ApplyItemLayout(_tickerItem);
+            if (_mascotItem != null)
+            {
+                ApplyItemLayout(_mascotItem);
+            }
+        }
+
+        void ApplyItemLayout(MovableItem item)
+        {
+            var skin = _currentSkin ?? SkinManager.Current();
+            var saved = HomeLayoutStore.Load(skin, item.LayoutKey);
+            if (saved == null)
+            {
+                item.Group.anchoredPosition = HomeLayoutStore.DefaultPos(item.LayoutKey);
+                item.Group.localScale = Vector3.one;
+                item.Group.gameObject.SetActive(true);
+                return;
+            }
+            item.Group.anchoredPosition = new Vector2(saved.X, saved.Y);
+            float s = Mathf.Clamp(saved.Scale, HomeLayoutStore.MinScale, HomeLayoutStore.MaxScale);
+            item.Group.localScale = new Vector3(s, s, 1f);
+            item.Group.gameObject.SetActive(saved.Visible);
+        }
+
+        /// <summary>パーツの今の位置・大きさ・表示を現在のスキンに保存する。</summary>
+        void PersistItemLayout(MovableItem item)
+        {
+            var skin = _currentSkin ?? SkinManager.Current();
+            HomeLayoutStore.Save(skin, item.LayoutKey, new SkinLayoutItem
+            {
+                Visible = item.Group.gameObject.activeSelf,
+                X = item.Group.anchoredPosition.x,
+                Y = item.Group.anchoredPosition.y,
+                Scale = item.Group.localScale.x,
+            });
+        }
+
+        MovableItem ItemOf(HomeItem kind)
+        {
+            switch (kind)
+            {
+                case HomeItem.Clock:
+                    return _clockItem;
+                case HomeItem.Mascot:
+                    return _mascotItem;
+                default:
+                    return _tickerItem;
+            }
+        }
+
+        void BeginEdit(HomeItem kind)
+        {
+            if (_editing == kind)
+            {
+                return;
+            }
+            EndEdit(false); // 別パーツの移動中なら確定してから切り替える
+            _editing = kind;
+            var item = ItemOf(kind);
+            item.HitArea.color = new Color(1f, 1f, 1f, 0.28f);
+            item.EditControls.SetActive(true);
+            // 確定用オーバーレイより前面に出す (マスコットは通常オーバーレイより奥にいるため、
+            // これがないと2回目以降のタッチをオーバーレイに取られて操作できない)
+            _editingSiblingIndex = item.Group.GetSiblingIndex();
+            item.Group.SetAsLastSibling();
+            _editOverlay.SetActive(true);
+            _editHint.SetActive(true);
+            Se.Play(Se.Tap); // 長押し成立の合図
+        }
+
+        void EndEdit(bool playSe)
+        {
+            if (_editing == HomeItem.None)
+            {
+                return;
+            }
+            var item = ItemOf(_editing);
+            _editing = HomeItem.None;
+            _editOverlay.SetActive(false);
+            _editHint.SetActive(false);
+            if (item != null)
+            {
+                item.HitArea.color = new Color(1f, 1f, 1f, 0f);
+                item.EditControls.SetActive(false);
+                item.Group.SetSiblingIndex(_editingSiblingIndex); // 描画順を元に戻す
+                PersistItemLayout(item);
+            }
+            if (playSe)
+            {
+                Se.Play(Se.Confirm);
+            }
+        }
+
+        void HideItem(MovableItem item)
+        {
+            EndEdit(false);
+            item.Group.gameObject.SetActive(false);
+            PersistItemLayout(item); // 再表示はきせかえ画面のトグルから
+            Se.Play(Se.Tap);
+        }
+
+        /// <summary>
+        /// 移動モード中の拡縮ハンドル。パーツ中心から外側へドラッグすると拡大、内側へで縮小。
+        /// </summary>
+        class ScaleHandle : MonoBehaviour, IBeginDragHandler, IDragHandler
+        {
+            public RectTransform Target;
+            public RectTransform Bounds;
+
+            Vector2 _startCenter;
+            float _startDist;
+            float _startScale;
+
+            public void OnBeginDrag(PointerEventData eventData)
+            {
+                var corners = new Vector3[4];
+                Target.GetWorldCorners(corners);
+                Vector3 worldCenter = (corners[0] + corners[2]) * 0.5f;
+                var canvas = GetComponentInParent<Canvas>();
+                Camera cam = (canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay)
+                    ? canvas.worldCamera : null;
+                _startCenter = RectTransformUtility.WorldToScreenPoint(cam, worldCenter);
+                _startDist = Mathf.Max(Vector2.Distance(eventData.position, _startCenter), 1f);
+                _startScale = Target.localScale.x;
+            }
+
+            public void OnDrag(PointerEventData eventData)
+            {
+                float k = Vector2.Distance(eventData.position, _startCenter) / _startDist;
+                float s = Mathf.Clamp(_startScale * k, HomeLayoutStore.MinScale, HomeLayoutStore.MaxScale);
+                Target.localScale = new Vector3(s, s, 1f);
+                var canvas = GetComponentInParent<Canvas>();
+                float scale = (canvas != null && canvas.scaleFactor > 0f) ? canvas.scaleFactor : 1f;
+                HomeDraggable.ClampIntoBounds(Target, Bounds, scale);
+            }
+        }
+
+        /// <summary>ホーム上パーツの長押し検出とドラッグ移動。</summary>
+        class HomeDraggable : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IDragHandler
+        {
+            const float LongPressSeconds = 0.55f;
+
+            public RectTransform Target;
+            public RectTransform Bounds;
+            public System.Func<bool> IsEditing;
+            public System.Action OnLongPress;
+
+            bool _pressed;
+            float _downTime;
+
+            public void OnPointerDown(PointerEventData eventData)
+            {
+                _pressed = true;
+                _downTime = Time.unscaledTime;
+            }
+
+            public void OnPointerUp(PointerEventData eventData)
+            {
+                _pressed = false;
+            }
+
+            void Update()
+            {
+                if (_pressed && !IsEditing() && Time.unscaledTime - _downTime >= LongPressSeconds)
+                {
+                    _pressed = false;
+                    OnLongPress();
+                }
+            }
+
+            public void OnDrag(PointerEventData eventData)
+            {
+                if (!IsEditing())
+                {
+                    _pressed = false; // 長押し成立前に動いたら長押しをキャンセル
+                    return;
+                }
+                var canvas = GetComponentInParent<Canvas>();
+                float scale = (canvas != null && canvas.scaleFactor > 0f) ? canvas.scaleFactor : 1f;
+                Target.anchoredPosition += eventData.delta / scale;
+                ClampIntoBounds(Target, Bounds, scale);
+            }
+
+            /// <summary>はみ出した分だけ引き戻す (アンカー形式や拡縮に依存しないよう画面座標で判定)。</summary>
+            public static void ClampIntoBounds(RectTransform target, RectTransform bounds, float scale)
+            {
+                var t = new Vector3[4];
+                var b = new Vector3[4];
+                target.GetWorldCorners(t);
+                bounds.GetWorldCorners(b);
+                float dx = 0f;
+                float dy = 0f;
+                if (t[0].x < b[0].x)
+                {
+                    dx = b[0].x - t[0].x;
+                }
+                else if (t[2].x > b[2].x)
+                {
+                    dx = b[2].x - t[2].x;
+                }
+                if (t[0].y < b[0].y)
+                {
+                    dy = b[0].y - t[0].y;
+                }
+                else if (t[2].y > b[2].y)
+                {
+                    dy = b[2].y - t[2].y;
+                }
+                if (dx != 0f || dy != 0f)
+                {
+                    target.anchoredPosition += new Vector2(dx, dy) / scale;
+                }
+            }
         }
 
         /// <summary>現在のスキンに合わせて背景とマスコットを構築する (変更時のみ)。</summary>
         void ApplySkin()
         {
             var skin = SkinManager.Current();
+            _currentSkin = skin; // 配置 (ApplyHomeLayout / PersistItemLayout) もこのスキンを見る
             if (_appliedSkinId == skin.Id && _appliedSkinRevision == SkinManager.Revision)
             {
                 return;
@@ -87,9 +686,10 @@ namespace YukaNavi.UI
                 Destroy(_backgroundGo);
                 _backgroundGo = null;
             }
-            if (_mascot != null)
+            if (_mascotItem != null)
             {
-                Destroy(_mascot.gameObject);
+                Destroy(_mascotItem.Group.gameObject); // グループごと破棄 (MascotView も子)
+                _mascotItem = null;
                 _mascot = null;
             }
             if (_videoPlayer != null)
@@ -227,9 +827,24 @@ namespace YukaNavi.UI
                 // 読み込み失敗・未対応 type (live2d 等) はデフォルトのゆかりちゃんにフォールバック
             }
             var size = new Vector2(740f, 1110f) * scale;
-            _mascot = MascotView.Create(transform, size, GlobalNav.BarHeight + 20f, custom);
+
+            // MascotView は内部で浮遊・スクイーズのため自身の位置/スケールを動かすので、
+            // ユーザーの移動・拡縮は親グループ側で行う
+            var groupGo = new GameObject("MascotGroup");
+            groupGo.transform.SetParent(transform, false);
+            var group = groupGo.AddComponent<RectTransform>();
+            group.anchorMin = group.anchorMax = new Vector2(0.5f, 0f);
+            group.pivot = new Vector2(0.5f, 0f);
+            group.sizeDelta = size;
+            _mascot = MascotView.Create(group, size, 0f, custom);
+            // スキンにセリフが設定されていればタップ時にランダムで表示する
+            _mascot.CustomLines = (skin.Talk != null && skin.Talk.Count > 0)
+                ? skin.Talk.ToArray() : null;
+            _mascotItem = SetupMovable(group, HomeLayoutStore.Mascot, HomeItem.Mascot, _mascot.gameObject);
+            // 移動モード中はタップ演出 (表情切替・セリフ) を止める
+            _mascot.SuppressTap = () => _editing == HomeItem.Mascot;
             // 描画順: 背景[0] → パーティクル[1] → マスコット[2]
-            _mascot.transform.SetSiblingIndex(2);
+            group.SetSiblingIndex(2);
         }
 
         /// <summary>ティッカーの1行分のテキストを作る (長い曲名は行内で切り詰め)。</summary>
@@ -250,16 +865,205 @@ namespace YukaNavi.UI
 
         public override void OnShow()
         {
+            ReserveScreen.ClearEditSession(); // 曲えらびなおし途中の離脱はホームで無かったことにする
             ApplySkin();
+            ApplyHomeLayout(); // スキンに保存された時計などの配置を反映
             if (_videoPlayer != null)
             {
                 _videoPlayer.Play();
             }
+            // 予約で入力した名前を NAME 枠に反映する
+            string username = AppConfig.Username;
+            _nameText.text = string.IsNullOrEmpty(username) ? "(よやくすると入ります)" : username;
+            _ = LoadRoomNameAsync();
+            if (_polling != null)
+            {
+                StopCoroutine(_polling); // 背後表示のまま OnShow が再度呼ばれても二重ポーリングしない
+            }
             _polling = StartCoroutine(PollRoutine());
+        }
+
+        /// <summary>RebuildAll 用: 子と一緒に消えないリソースとスキン適用状態を片付ける。</summary>
+        public override void OnRebuild()
+        {
+            if (_videoPlayer != null)
+            {
+                Destroy(_videoPlayer);
+                _videoPlayer = null;
+            }
+            if (_videoTexture != null)
+            {
+                _videoTexture.Release();
+                Destroy(_videoTexture);
+                _videoTexture = null;
+            }
+            _backgroundGo = null;
+            _mascot = null;
+            _mascotItem = null;
+            _roomModal = null;
+            _appliedSkinId = null;
+            _appliedSkinRevision = -1;
+            _editing = HomeItem.None;
+        }
+
+        /// <summary>部屋名 (Web 版の「〇〇部屋」) を取得して上部に表示する。名前未設定時は接続先 URL。</summary>
+        async Task LoadRoomNameAsync()
+        {
+            try
+            {
+                var caps = await AppState.EnsureCapabilitiesAsync();
+                string roomName = caps.Server != null ? caps.Server.RoomName : null;
+                var rooms = caps.Server != null ? caps.Server.Rooms : null;
+                if (rooms != null && rooms.Count > 0)
+                {
+                    _rooms = rooms;
+                    SaveKnownRooms(rooms); // 移動先で一覧が取れなくても戻れるように記憶しておく
+                }
+                else
+                {
+                    _rooms = LoadKnownRooms();
+                }
+                string label = string.IsNullOrEmpty(roomName) ? AppConfig.ServerUrl : roomName + "部屋";
+                if (!string.IsNullOrEmpty(label))
+                {
+                    _roomNameText.text = label;
+                    _roomNameGo.SetActive(true);
+                }
+            }
+            catch
+            {
+                // 未接続でも部屋一覧から元の部屋へ戻れるように、ピルは URL 表示で出しておく
+                _rooms = LoadKnownRooms();
+                _roomNameText.text = AppConfig.ServerUrl;
+                _roomNameGo.SetActive(true);
+            }
+        }
+
+        const string KnownRoomsKey = "home.known_rooms";
+
+        static void SaveKnownRooms(List<RoomDto> rooms)
+        {
+            try
+            {
+                PlayerPrefs.SetString(KnownRoomsKey, JsonConvert.SerializeObject(rooms));
+                PlayerPrefs.Save();
+            }
+            catch
+            {
+            }
+        }
+
+        static List<RoomDto> LoadKnownRooms()
+        {
+            try
+            {
+                string json = PlayerPrefs.GetString(KnownRoomsKey, "");
+                return json == "" ? null : JsonConvert.DeserializeObject<List<RoomDto>>(json);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>部屋移動モーダル (Web 版の部屋ドロップダウン相当)。部屋一覧から毎回作り直す。</summary>
+        void OpenRoomModal()
+        {
+            if (_rooms == null || _rooms.Count == 0)
+            {
+                return; // 別部屋未設定なら何もしない
+            }
+            Se.Play(Se.Tap);
+            if (_roomModal != null)
+            {
+                Destroy(_roomModal);
+            }
+            _roomModal = new GameObject("RoomModal");
+            _roomModal.transform.SetParent(transform, false);
+            UiFactory.StretchFull(_roomModal.AddComponent<RectTransform>());
+            var overlay = _roomModal.AddComponent<Image>();
+            overlay.color = new Color(0f, 0f, 0f, 0.55f);
+            var overlayButton = _roomModal.AddComponent<Button>();
+            overlayButton.transition = Selectable.Transition.None;
+            overlayButton.onClick.AddListener(() => _roomModal.SetActive(false));
+
+            const float rowHeight = 112f;
+            var card = UiFactory.CreatePanel(_roomModal.transform, "Card", Color.white);
+            card.anchorMin = card.anchorMax = new Vector2(0.5f, 0.5f);
+            card.pivot = new Vector2(0.5f, 0.5f);
+            card.sizeDelta = new Vector2(880f, 264f + _rooms.Count * rowHeight);
+            UiFactory.Roundify(card.GetComponent<Image>());
+            UiFactory.AddShadow(card.gameObject, 6f);
+            // カード内タップがオーバーレイの「閉じる」に抜けないようにする
+            var cardButton = card.gameObject.AddComponent<Button>();
+            cardButton.transition = Selectable.Transition.None;
+
+            var title = UiFactory.CreateText(card, "Title", "部屋を移動", 34, UiFactory.PrimaryDark);
+            SetModalRow(title.rectTransform, -32f, 60f);
+
+            string currentUrl = NormalizeUrl(AppConfig.ServerUrl);
+            for (int i = 0; i < _rooms.Count; i++)
+            {
+                var room = _rooms[i];
+                bool isCurrent = NormalizeUrl(room.Url) == currentUrl;
+                // 名前が無い部屋は URL 表示 (認証キーワードは見せない)
+                string label = string.IsNullOrEmpty(room.Name)
+                    ? YukariUrl.Normalize(room.Url, out _)
+                    : room.Name + "部屋";
+                Button button;
+                if (isCurrent)
+                {
+                    button = UiFactory.CreateButton(card, "Room" + i, "✓ " + label + " (いまここ)",
+                        UiFactory.Primary, Color.white, 30);
+                    button.onClick.AddListener(() => _roomModal.SetActive(false));
+                }
+                else
+                {
+                    button = UiFactory.CreateSoftButton(card, "Room" + i, label, 30);
+                    string url = room.Url;
+                    button.onClick.AddListener(() => SwitchRoom(url));
+                }
+                SetModalRow(button.GetComponent<RectTransform>(), -(120f + i * rowHeight), 96f);
+            }
+
+            var closeButton = UiFactory.CreateSoftButton(card, "Close", "閉じる", 30);
+            SetModalRow(closeButton.GetComponent<RectTransform>(),
+                -(120f + _rooms.Count * rowHeight + 16f), 96f);
+            closeButton.onClick.AddListener(() => _roomModal.SetActive(false));
+        }
+
+        /// <summary>別の部屋 (サーバー) に接続を切り替える。</summary>
+        void SwitchRoom(string rawUrl)
+        {
+            Se.Play(Se.Confirm);
+            _roomModal.SetActive(false);
+            // 別部屋 URL に ?easypass=XXXX が付いていれば認証キーワードも引き継ぐ
+            string url = YukariUrl.Normalize(rawUrl, out string easypass);
+            AppConfig.ServerUrl = url;
+            if (!string.IsNullOrEmpty(easypass))
+            {
+                AppConfig.EasyPass = easypass;
+            }
+            AppState.Invalidate();
+            // 部屋一覧 (_rooms) は消さない: 移動先で取得できなくても元の部屋に戻れるように
+            _roomNameText.text = url; // 部屋名が取れたら置き換わる
+            _ = LoadRoomNameAsync();
+            _ = RefreshAsync();
+        }
+
+        static string NormalizeUrl(string url)
+        {
+            // easypass 付き URL でも同じ部屋として比較できるようにクエリを除去して比べる
+            return YukariUrl.Normalize(url, out _).TrimEnd('/').ToLowerInvariant();
         }
 
         public override void OnHide()
         {
+            EndEdit(false); // 移動モード中に画面遷移したら現在位置で確定
+            if (_roomModal != null)
+            {
+                _roomModal.SetActive(false);
+            }
             if (_videoPlayer != null)
             {
                 _videoPlayer.Pause();
@@ -269,6 +1073,37 @@ namespace YukaNavi.UI
                 StopCoroutine(_polling);
                 _polling = null;
             }
+        }
+
+        void Update()
+        {
+            // 時刻表示 (分が変わったときだけ文字列を更新)
+            var now = System.DateTime.Now;
+            if (now.Minute != _lastClockMinute)
+            {
+                _lastClockMinute = now.Minute;
+                _clockText.text = now.ToString("HH:mm");
+                _dateText.text = now.ToString("MM/dd ddd").ToUpperInvariant();
+                _statusClockText.text = now.ToString("HH:mm");
+                UpdateBattery();
+            }
+        }
+
+        /// <summary>上部白帯のバッテリー表示。残量が取れない環境 (エディタ等) では出さない。</summary>
+        void UpdateBattery()
+        {
+            float level = SystemInfo.batteryLevel;
+            if (level < 0f)
+            {
+                _batteryGo.SetActive(false);
+                return;
+            }
+            _batteryGo.SetActive(true);
+            // 塗りの幅を残量に合わせる (枠の内側 6px を基準に anchorMax.x で削る)
+            _batteryFill.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(level), 1f);
+            _batteryFill.color = level <= 0.2f
+                ? UiFactory.Danger
+                : new Color(0.55f, 0.52f, 0.65f);
         }
 
         IEnumerator PollRoutine()
@@ -317,7 +1152,19 @@ namespace YukaNavi.UI
                     nowLine += " (" + now.PlayingSinger + ")";
                 }
                 _tickerNowText.text = nowLine;
-                _tickerNextText.text = now.NextSong != null ? "♪ 次: " + now.NextSong.Title : "♪ 次: (予約なし)";
+                if (now.NextSong != null)
+                {
+                    string nextLine = "♪ 次: " + now.NextSong.Title;
+                    if (!string.IsNullOrEmpty(now.NextSong.Singer))
+                    {
+                        nextLine += " (" + now.NextSong.Singer + ")";
+                    }
+                    _tickerNextText.text = nextLine;
+                }
+                else
+                {
+                    _tickerNextText.text = "♪ 次: (予約なし)";
+                }
             }
             else
             {

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -21,21 +21,63 @@ namespace YukaNavi.UI
         Text _pathText;
         readonly List<GameObject> _rows = new List<GameObject>();
 
+        // ホームの表示トグル (時計/メッセージ/マスコット)。配置は現在のスキンに保存される
+        Button _clockToggle;
+        Button _tickerToggle;
+        Button _mascotToggle;
+
         // スキン作成モーダル
         GameObject _createModal;
         InputField _skinNameInput;
         Text _bgPickText;
         Text _charPickText;
+        Text _bgmPickText;
+        Text _recordPickText;
+        Button _recordDefaultButton;
+        string _pickedRecord;
+        /// <summary>0=そのまま (新規時はアプリ標準) / 1=画像を選択 / 2=アプリ標準の盤に戻す</summary>
+        int _recordMode;
+        InputField _talkInput;
         Text _createErrorText;
         Button _charNoneButton;
+        Button _bgmNoneButton;
         Text _modalTitleText;
         Text _saveButtonLabel;
         string _pickedBg;
         string _pickedChar;
+        string _pickedBgm;
         /// <summary>キャラの扱い: 0=ゆかりちゃんのまま 1=画像 2=キャラなし</summary>
         int _charMode;
+        /// <summary>BGM の扱い: 0=現状維持 (既存 or デフォルト) 1=新しいファイル 2=BGMなし</summary>
+        int _bgmMode;
         /// <summary>編集対象 (null なら新規作成)</summary>
         SkinDef _editingSkin;
+
+        // テーマ色プリセット (null = 既定の紫)。基準色1色から派生色を自動生成する
+        static readonly string[] ThemePresets =
+        {
+            null,       // 既定 (紫)
+            "#E06BA8",  // ピンク
+            "#D65C5C",  // 赤
+            "#E08A3C",  // オレンジ
+            "#4CAF6E",  // 緑
+            "#3CAAB4",  // ティール
+            "#4C7FD6",  // 青
+            "#6B7280",  // グレー
+        };
+        readonly List<GameObject> _themeChecks = new List<GameObject>();
+        string _pickedThemeHex;
+
+        // 任意色ピッカー (H/S/V スライダーのサブモーダル)
+        GameObject _colorModal;
+        Slider _hueSlider;
+        Slider _satSlider;
+        Slider _valSlider;
+        Image _colorPreview;
+        Image _customChipImage;
+        Text _customChipLabel;
+        GameObject _customCheck;
+        bool _suppressSliderEvent;
 
         // 背景調整プレビュー
         BackgroundView _previewView;
@@ -60,16 +102,10 @@ namespace YukaNavi.UI
 
         public override void BuildUi()
         {
-            var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.PanelBg);
+            var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.ScreenOverlayBg);
             UiFactory.StretchFull(bg);
 
-            var topBar = UiFactory.CreatePanel(transform, "TopBar", UiFactory.Primary);
-            topBar.anchorMin = new Vector2(0f, 1f);
-            topBar.anchorMax = new Vector2(1f, 1f);
-            topBar.pivot = new Vector2(0.5f, 1f);
-            topBar.sizeDelta = new Vector2(0f, 110f);
-            var title = UiFactory.CreateText(topBar, "Title", "きせかえ", 42, Color.white);
-            UiFactory.StretchFull(title.rectTransform);
+            UiFactory.CreateTopBar(transform, "きせかえ");
 
             var caption = UiFactory.CreateText(transform, "Caption",
                 "手持ちの画像や動画で、背景とキャラをカスタマイズできます", 26, UiFactory.TextDark);
@@ -115,21 +151,91 @@ namespace YukaNavi.UI
             });
 #endif
 
+            // ホームの表示 (きせかえに統合したホーム設定)
+            var homeLabel = UiFactory.CreateText(transform, "HomeLabel",
+                "ホーム画面の表示 (ホームで長押しすると移動・拡縮できます)", 22, UiFactory.TextMuted,
+                TextAnchor.MiddleLeft);
+            var homeLabelRect = homeLabel.rectTransform;
+            homeLabelRect.anchorMin = new Vector2(0f, 1f);
+            homeLabelRect.anchorMax = new Vector2(1f, 1f);
+            homeLabelRect.pivot = new Vector2(0.5f, 1f);
+            homeLabelRect.anchoredPosition = new Vector2(0f, -264f);
+            homeLabelRect.offsetMin = new Vector2(24f, homeLabelRect.offsetMin.y);
+            homeLabelRect.offsetMax = new Vector2(-24f, homeLabelRect.offsetMax.y);
+            homeLabelRect.sizeDelta = new Vector2(homeLabelRect.sizeDelta.x, 32f);
+
+            var homeBar = UiFactory.CreatePanel(transform, "HomeToggles");
+            homeBar.anchorMin = new Vector2(0f, 1f);
+            homeBar.anchorMax = new Vector2(1f, 1f);
+            homeBar.pivot = new Vector2(0.5f, 1f);
+            homeBar.anchoredPosition = new Vector2(0f, -300f);
+            homeBar.offsetMin = new Vector2(20f, homeBar.offsetMin.y);
+            homeBar.offsetMax = new Vector2(-20f, homeBar.offsetMax.y);
+            homeBar.sizeDelta = new Vector2(homeBar.sizeDelta.x, 80f);
+            var homeLayoutGroup = homeBar.gameObject.AddComponent<HorizontalLayoutGroup>();
+            homeLayoutGroup.childForceExpandWidth = true;
+            homeLayoutGroup.childForceExpandHeight = true;
+            homeLayoutGroup.spacing = 10f;
+
+            _clockToggle = AddHomeToggle(homeBar, "時計", HomeLayoutStore.Clock);
+            _tickerToggle = AddHomeToggle(homeBar, "メッセージ", HomeLayoutStore.Ticker);
+            _mascotToggle = AddHomeToggle(homeBar, "マスコット", HomeLayoutStore.Mascot);
+
+            var resetButton = UiFactory.CreateButton(homeBar, "ResetLayout", "配置リセット",
+                UiFactory.PrimaryDark, Color.white, 24);
+            resetButton.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Confirm);
+                HomeLayoutStore.ResetAll(SkinManager.Current());
+                UpdateHomeToggles();
+                SetMessage("ホームの配置を初期状態に戻しました");
+            });
+
             _pathText = UiFactory.CreateText(transform, "Path", "", 20, new Color(0.5f, 0.47f, 0.6f));
             var pathRect = _pathText.rectTransform;
             pathRect.anchorMin = new Vector2(0f, 1f);
             pathRect.anchorMax = new Vector2(1f, 1f);
             pathRect.pivot = new Vector2(0.5f, 1f);
-            pathRect.anchoredPosition = new Vector2(0f, -258f);
+            pathRect.anchoredPosition = new Vector2(0f, -392f);
             pathRect.sizeDelta = new Vector2(-40f, 48f);
 
             var scrollRectT = UiFactory.CreateScrollList(transform, "SkinList", out _listContent);
             scrollRectT.anchorMin = new Vector2(0f, 0f);
             scrollRectT.anchorMax = new Vector2(1f, 1f);
             scrollRectT.offsetMin = new Vector2(20f, GlobalNav.BarHeight + 16f);
-            scrollRectT.offsetMax = new Vector2(-20f, -314f);
+            scrollRectT.offsetMax = new Vector2(-20f, -448f);
 
             BuildCreateModal();
+            BuildColorModal();
+        }
+
+        Button AddHomeToggle(RectTransform bar, string label, string key)
+        {
+            var button = UiFactory.CreateButton(bar, key, label,
+                new Color(0.75f, 0.73f, 0.80f), Color.white, 24);
+            button.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Tap);
+                var skin = SkinManager.Current();
+                HomeLayoutStore.SetVisible(skin, key, !HomeLayoutStore.GetVisible(skin, key));
+                UpdateHomeToggles();
+            });
+            return button;
+        }
+
+        /// <summary>ホーム表示トグルの見た目を現在のスキンの保存値に合わせる。</summary>
+        void UpdateHomeToggles()
+        {
+            var skin = SkinManager.Current();
+            UpdateHomeToggle(_clockToggle, "時計", HomeLayoutStore.GetVisible(skin, HomeLayoutStore.Clock));
+            UpdateHomeToggle(_tickerToggle, "メッセージ", HomeLayoutStore.GetVisible(skin, HomeLayoutStore.Ticker));
+            UpdateHomeToggle(_mascotToggle, "マスコット", HomeLayoutStore.GetVisible(skin, HomeLayoutStore.Mascot));
+        }
+
+        static void UpdateHomeToggle(Button button, string label, bool visible)
+        {
+            button.image.color = visible ? UiFactory.Primary : new Color(0.75f, 0.73f, 0.80f);
+            button.GetComponentInChildren<Text>().text = visible ? "✓ " + label : label;
         }
 
         void BuildCreateModal()
@@ -144,7 +250,9 @@ namespace YukaNavi.UI
             var card = UiFactory.CreatePanel(_createModal.transform, "Card", Color.white);
             card.anchorMin = card.anchorMax = new Vector2(0.5f, 0.5f);
             card.pivot = new Vector2(0.5f, 0.5f);
-            card.sizeDelta = new Vector2(940f, 1480f);
+            card.sizeDelta = new Vector2(940f, 1860f);
+            UiFactory.Roundify(card.GetComponent<Image>());
+            UiFactory.AddShadow(card.gameObject, 8f);
             // カード内タップがオーバーレイに抜けないようにする
             var cardButton = card.gameObject.AddComponent<Button>();
             cardButton.transition = Selectable.Transition.None;
@@ -190,12 +298,76 @@ namespace YukaNavi.UI
                 new Color(0.5f, 0.47f, 0.6f), TextAnchor.MiddleLeft);
             SetCardRow(_charPickText.rectTransform, -982f, 30f);
 
+            // BGM (任意)。登録するとこのスキン適用中はデフォルト BGM の代わりに流れる
+            var bgmButton = UiFactory.CreateButton(card, "PickBgm", "BGM を選ぶ (任意)",
+                UiFactory.Primary, Color.white, 28);
+            var bgmRect = bgmButton.GetComponent<RectTransform>();
+            bgmRect.anchorMin = bgmRect.anchorMax = new Vector2(0f, 1f);
+            bgmRect.pivot = new Vector2(0f, 1f);
+            bgmRect.anchoredPosition = new Vector2(50f, -1030f);
+            bgmRect.sizeDelta = new Vector2(490f, 80f);
+            bgmButton.onClick.AddListener(PickBgmFile);
+
+            _bgmNoneButton = UiFactory.CreateButton(card, "BgmNone", "BGMなし",
+                new Color(0.75f, 0.73f, 0.80f), Color.white, 28);
+            var bgmNoneRect = _bgmNoneButton.GetComponent<RectTransform>();
+            bgmNoneRect.anchorMin = bgmNoneRect.anchorMax = new Vector2(1f, 1f);
+            bgmNoneRect.pivot = new Vector2(1f, 1f);
+            bgmNoneRect.anchoredPosition = new Vector2(-50f, -1030f);
+            bgmNoneRect.sizeDelta = new Vector2(320f, 80f);
+            _bgmNoneButton.onClick.AddListener(ToggleBgmNone);
+
+            _bgmPickText = UiFactory.CreateText(card, "BgmPicked", "未選択 (アプリのBGM)", 22,
+                new Color(0.5f, 0.47f, 0.6f), TextAnchor.MiddleLeft);
+            SetCardRow(_bgmPickText.rectTransform, -1112f, 30f);
+
+            // リモコンのレコード盤 (任意)。円形の透過 PNG を想定
+            var recordButton = UiFactory.CreateButton(card, "PickRecord", "レコード盤を選ぶ (任意)",
+                UiFactory.Primary, Color.white, 28);
+            var recordRect = recordButton.GetComponent<RectTransform>();
+            recordRect.anchorMin = recordRect.anchorMax = new Vector2(0f, 1f);
+            recordRect.pivot = new Vector2(0f, 1f);
+            recordRect.anchoredPosition = new Vector2(50f, -1160f);
+            recordRect.sizeDelta = new Vector2(490f, 80f);
+            recordButton.onClick.AddListener(PickRecordFile);
+
+            _recordDefaultButton = UiFactory.CreateButton(card, "RecordDefault", "標準の盤",
+                new Color(0.75f, 0.73f, 0.80f), Color.white, 28);
+            var recordDefaultRect = _recordDefaultButton.GetComponent<RectTransform>();
+            recordDefaultRect.anchorMin = recordDefaultRect.anchorMax = new Vector2(1f, 1f);
+            recordDefaultRect.pivot = new Vector2(1f, 1f);
+            recordDefaultRect.anchoredPosition = new Vector2(-50f, -1160f);
+            recordDefaultRect.sizeDelta = new Vector2(320f, 80f);
+            _recordDefaultButton.onClick.AddListener(ToggleRecordDefault);
+
+            _recordPickText = UiFactory.CreateText(card, "RecordPicked", "未選択 (アプリ標準の盤)", 22,
+                new Color(0.5f, 0.47f, 0.6f), TextAnchor.MiddleLeft);
+            SetCardRow(_recordPickText.rectTransform, -1242f, 30f);
+
+            // テーマ色 (ボタンや文字の色)。基準色から派生色を自動生成する
+            var themeLabel = UiFactory.CreateText(card, "ThemeLabel", "テーマ色 (ボタンや文字の色)", 26,
+                UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
+            SetCardRow(themeLabel.rectTransform, -1282f, 34f);
+            BuildThemeChips(card);
+
+            // キャラのセリフ (1行に1つ。タップでランダム表示)
+            var talkLabel = UiFactory.CreateText(card, "TalkLabel",
+                "キャラのセリフ (1行に1つ、タップでランダム表示)", 26,
+                UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
+            SetCardRow(talkLabel.rectTransform, -1406f, 34f);
+            _talkInput = UiFactory.CreateInputField(card, "TalkInput",
+                "例: うたっていこ〜♪ (空ならアプリ標準のセリフ)", 26);
+            _talkInput.lineType = InputField.LineType.MultiLineNewline;
+            ((Text)_talkInput.textComponent).alignment = TextAnchor.UpperLeft;
+            ((Text)_talkInput.placeholder).alignment = TextAnchor.UpperLeft;
+            SetCardRow(_talkInput.GetComponent<RectTransform>(), -1446f, 130f);
+
             var hint = UiFactory.CreateText(card, "Hint",
                 "※ 選んだファイルはアプリ内にコピーされます", 20, new Color(0.5f, 0.47f, 0.6f));
-            SetCardRow(hint.rectTransform, -1020f, 28f);
+            SetCardRow(hint.rectTransform, -1590f, 28f);
 
             _createErrorText = UiFactory.CreateText(card, "Error", "", 24, UiFactory.Danger);
-            SetCardRow(_createErrorText.rectTransform, -1056f, 36f);
+            SetCardRow(_createErrorText.rectTransform, -1624f, 36f);
 
             var saveButton = UiFactory.CreateButton(card, "Save", "作成する", UiFactory.Primary, Color.white, 34);
             _saveButtonLabel = saveButton.GetComponentInChildren<Text>();
@@ -206,8 +378,7 @@ namespace YukaNavi.UI
             saveRect.sizeDelta = new Vector2(340f, 92f);
             saveButton.onClick.AddListener(CreateSkin);
 
-            var cancelButton = UiFactory.CreateButton(card, "Cancel", "やめる",
-                new Color(0.75f, 0.73f, 0.80f), Color.white, 34);
+            var cancelButton = UiFactory.CreateSoftButton(card, "Cancel", "やめる", 34);
             var cancelRect = cancelButton.GetComponent<RectTransform>();
             cancelRect.anchorMin = cancelRect.anchorMax = new Vector2(0.5f, 0f);
             cancelRect.pivot = new Vector2(0.5f, 0f);
@@ -220,6 +391,267 @@ namespace YukaNavi.UI
             });
 
             _createModal.SetActive(false);
+        }
+
+        /// <summary>テーマ色の選択チップ列 (丸い色見本。選択中は ✓)。</summary>
+        void BuildThemeChips(RectTransform card)
+        {
+            _themeChecks.Clear();
+            var row = UiFactory.CreatePanel(card, "ThemeChips");
+            SetCardRow(row, -1322f, 72f);
+            var layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+            layout.childControlWidth = false;
+            layout.childControlHeight = false;
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.spacing = 20f;
+
+            foreach (var preset in ThemePresets)
+            {
+                string hex = preset;
+                Color color = new Color(0.48f, 0.36f, 0.84f); // 既定 (紫)
+                if (hex != null)
+                {
+                    ColorUtility.TryParseHtmlString(hex, out color);
+                }
+                var chipGo = new GameObject("Chip");
+                chipGo.transform.SetParent(row, false);
+                var img = chipGo.AddComponent<Image>();
+                img.sprite = UiFactory.RoundedSprite;
+                img.type = Image.Type.Sliced;
+                img.pixelsPerUnitMultiplier = 0.55f; // ほぼ円形に
+                img.color = color;
+                chipGo.GetComponent<RectTransform>().sizeDelta = new Vector2(72f, 72f);
+                var button = chipGo.AddComponent<Button>();
+                chipGo.AddComponent<PressEffect>();
+                button.onClick.AddListener(() =>
+                {
+                    Se.Play(Se.Tap);
+                    _pickedThemeHex = hex;
+                    UpdateThemeChips();
+                });
+                var check = UiFactory.CreateText(chipGo.transform, "Check", "✓", 36, Color.white);
+                UiFactory.StretchFull(check.rectTransform);
+                check.gameObject.SetActive(false);
+                _themeChecks.Add(check.gameObject);
+            }
+
+            // カスタム (任意色) チップ: タップでカラーピッカーを開く
+            var customGo = new GameObject("Custom");
+            customGo.transform.SetParent(row, false);
+            _customChipImage = customGo.AddComponent<Image>();
+            _customChipImage.sprite = UiFactory.RoundedSprite;
+            _customChipImage.type = Image.Type.Sliced;
+            _customChipImage.pixelsPerUnitMultiplier = 0.55f; // ほぼ円形に
+            _customChipImage.color = Color.white;
+            customGo.GetComponent<RectTransform>().sizeDelta = new Vector2(72f, 72f);
+            var customButton = customGo.AddComponent<Button>();
+            customGo.AddComponent<PressEffect>();
+            customButton.onClick.AddListener(OpenColorModal);
+            _customChipLabel = UiFactory.CreateText(customGo.transform, "Plus", "＋", 40, UiFactory.PrimaryDark);
+            UiFactory.StretchFull(_customChipLabel.rectTransform);
+            var customCheck = UiFactory.CreateText(customGo.transform, "Check", "✓", 36, Color.white);
+            UiFactory.StretchFull(customCheck.rectTransform);
+            _customCheck = customCheck.gameObject;
+            _customCheck.SetActive(false);
+        }
+
+        void UpdateThemeChips()
+        {
+            bool isPreset = false;
+            for (int i = 0; i < _themeChecks.Count; i++)
+            {
+                bool selected = ThemePresets[i] == _pickedThemeHex;
+                isPreset |= selected;
+                _themeChecks[i].SetActive(selected);
+            }
+            // プリセットに無い色はカスタムチップに色見本として表示する
+            var customColor = Color.white;
+            bool custom = !isPreset && !string.IsNullOrEmpty(_pickedThemeHex)
+                && ColorUtility.TryParseHtmlString(_pickedThemeHex, out customColor);
+            _customChipImage.color = custom ? customColor : Color.white;
+            _customChipLabel.gameObject.SetActive(!custom);
+            _customCheck.SetActive(custom);
+        }
+
+        // ---- 任意色ピッカー ----
+
+        void BuildColorModal()
+        {
+            _colorModal = new GameObject("ColorModal");
+            _colorModal.transform.SetParent(transform, false);
+            UiFactory.StretchFull(_colorModal.AddComponent<RectTransform>());
+            var overlay = _colorModal.AddComponent<Image>();
+            overlay.color = new Color(0f, 0f, 0f, 0.55f);
+            var overlayButton = _colorModal.AddComponent<Button>();
+            overlayButton.transition = Selectable.Transition.None;
+            overlayButton.onClick.AddListener(() => _colorModal.SetActive(false));
+
+            var card = UiFactory.CreatePanel(_colorModal.transform, "Card", Color.white);
+            card.anchorMin = card.anchorMax = new Vector2(0.5f, 0.5f);
+            card.pivot = new Vector2(0.5f, 0.5f);
+            card.sizeDelta = new Vector2(880f, 640f);
+            UiFactory.Roundify(card.GetComponent<Image>());
+            UiFactory.AddShadow(card.gameObject, 6f);
+            // カード内タップがオーバーレイの「閉じる」に抜けないようにする
+            var cardButton = card.gameObject.AddComponent<Button>();
+            cardButton.transition = Selectable.Transition.None;
+
+            var title = UiFactory.CreateText(card, "Title", "テーマ色をつくる", 34, UiFactory.PrimaryDark);
+            SetCardRow(title.rectTransform, -28f, 54f);
+
+            // プレビュー (中央の丸)
+            var previewGo = new GameObject("Preview");
+            previewGo.transform.SetParent(card, false);
+            _colorPreview = previewGo.AddComponent<Image>();
+            _colorPreview.sprite = UiFactory.RoundedSprite;
+            _colorPreview.type = Image.Type.Sliced;
+            _colorPreview.pixelsPerUnitMultiplier = 0.55f; // ほぼ円形に
+            _colorPreview.raycastTarget = false;
+            UiFactory.AddShadow(previewGo, 3f);
+            var previewRect = previewGo.GetComponent<RectTransform>();
+            previewRect.anchorMin = previewRect.anchorMax = new Vector2(0.5f, 1f);
+            previewRect.pivot = new Vector2(0.5f, 1f);
+            previewRect.anchoredPosition = new Vector2(0f, -94f);
+            previewRect.sizeDelta = new Vector2(110f, 110f);
+
+            _hueSlider = AddColorSlider(card, "色あい", -240f, 360f);
+            _satSlider = AddColorSlider(card, "あざやかさ", -324f, 100f);
+            _valSlider = AddColorSlider(card, "明るさ", -408f, 100f);
+
+            var okButton = UiFactory.CreateButton(card, "Ok", "この色にする", UiFactory.Primary, Color.white, 30);
+            var okRect = okButton.GetComponent<RectTransform>();
+            okRect.anchorMin = okRect.anchorMax = new Vector2(0.5f, 0f);
+            okRect.pivot = new Vector2(0.5f, 0f);
+            okRect.anchoredPosition = new Vector2(-180f, 36f);
+            okRect.sizeDelta = new Vector2(320f, 92f);
+            okButton.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Confirm);
+                _pickedThemeHex = "#" + ColorUtility.ToHtmlStringRGB(CurrentSliderColor());
+                UpdateThemeChips();
+                _colorModal.SetActive(false);
+            });
+
+            var cancelButton = UiFactory.CreateSoftButton(card, "Cancel", "やめる", 30);
+            var colorCancelRect = cancelButton.GetComponent<RectTransform>();
+            colorCancelRect.anchorMin = colorCancelRect.anchorMax = new Vector2(0.5f, 0f);
+            colorCancelRect.pivot = new Vector2(0.5f, 0f);
+            colorCancelRect.anchoredPosition = new Vector2(180f, 36f);
+            colorCancelRect.sizeDelta = new Vector2(320f, 92f);
+            cancelButton.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Tap);
+                _colorModal.SetActive(false);
+            });
+
+            _colorModal.SetActive(false);
+        }
+
+        /// <summary>「ラベル + スライダー」の1行を作る。</summary>
+        Slider AddColorSlider(RectTransform card, string label, float y, float maxValue)
+        {
+            var labelText = UiFactory.CreateText(card, label, label, 26, UiFactory.TextDark, TextAnchor.MiddleLeft);
+            SetCardRow(labelText.rectTransform, y, 64f);
+            labelText.rectTransform.offsetMax = new Vector2(-620f, labelText.rectTransform.offsetMax.y);
+
+            var sliderGo = new GameObject(label + "Slider");
+            sliderGo.transform.SetParent(card, false);
+            var sliderRect = sliderGo.AddComponent<RectTransform>();
+            sliderRect.anchorMin = new Vector2(0f, 1f);
+            sliderRect.anchorMax = new Vector2(1f, 1f);
+            sliderRect.pivot = new Vector2(0.5f, 1f);
+            sliderRect.anchoredPosition = new Vector2(0f, y);
+            sliderRect.offsetMin = new Vector2(280f, sliderRect.offsetMin.y);
+            sliderRect.offsetMax = new Vector2(-60f, sliderRect.offsetMax.y);
+            sliderRect.sizeDelta = new Vector2(sliderRect.sizeDelta.x, 64f);
+
+            var slider = sliderGo.AddComponent<Slider>();
+            slider.minValue = 0f;
+            slider.maxValue = maxValue;
+
+            var bgGo = new GameObject("Bg");
+            bgGo.transform.SetParent(sliderGo.transform, false);
+            var bgImg = bgGo.AddComponent<Image>();
+            bgImg.sprite = UiFactory.RoundedSprite;
+            bgImg.type = Image.Type.Sliced;
+            bgImg.pixelsPerUnitMultiplier = 2.5f; // 細いバーでも角丸が潰れないように
+            bgImg.color = new Color(0.85f, 0.83f, 0.90f);
+            var bgRect = bgGo.GetComponent<RectTransform>();
+            bgRect.anchorMin = new Vector2(0f, 0.5f);
+            bgRect.anchorMax = new Vector2(1f, 0.5f);
+            bgRect.sizeDelta = new Vector2(0f, 16f);
+
+            var handleArea = new GameObject("HandleArea");
+            handleArea.transform.SetParent(sliderGo.transform, false);
+            var handleAreaRect = handleArea.AddComponent<RectTransform>();
+            UiFactory.StretchFull(handleAreaRect);
+            handleAreaRect.offsetMin = new Vector2(22f, 0f);
+            handleAreaRect.offsetMax = new Vector2(-22f, 0f);
+            var handleGo = new GameObject("Handle");
+            handleGo.transform.SetParent(handleArea.transform, false);
+            var handleImg = handleGo.AddComponent<Image>();
+            handleImg.sprite = UiFactory.RoundedSprite;
+            handleImg.type = Image.Type.Sliced;
+            handleImg.pixelsPerUnitMultiplier = 0.55f; // ほぼ円形に
+            handleImg.color = Color.white;
+            UiFactory.AddShadow(handleGo, 2f);
+            var handleRect = handleGo.GetComponent<RectTransform>();
+            handleRect.sizeDelta = new Vector2(44f, 44f);
+            slider.handleRect = handleRect;
+            slider.targetGraphic = handleImg;
+
+            slider.onValueChanged.AddListener(_ => OnColorSliderChanged());
+            return slider;
+        }
+
+        Color CurrentSliderColor()
+        {
+            return Color.HSVToRGB(_hueSlider.value / 360f, _satSlider.value / 100f, _valSlider.value / 100f);
+        }
+
+        void OnColorSliderChanged()
+        {
+            if (_suppressSliderEvent)
+            {
+                return;
+            }
+            _colorPreview.color = CurrentSliderColor();
+        }
+
+        void OpenColorModal()
+        {
+            Se.Play(Se.Tap);
+            // いま選んでいる色 (無ければ既定の紫) から始める
+            var initial = new Color(0.48f, 0.36f, 0.84f);
+            if (!string.IsNullOrEmpty(_pickedThemeHex))
+            {
+                ColorUtility.TryParseHtmlString(_pickedThemeHex, out initial);
+            }
+            Color.RGBToHSV(initial, out float h, out float s, out float v);
+            _suppressSliderEvent = true;
+            _hueSlider.value = h * 360f;
+            _satSlider.value = s * 100f;
+            _valSlider.value = v * 100f;
+            _suppressSliderEvent = false;
+            _colorPreview.color = CurrentSliderColor();
+            _colorModal.SetActive(true);
+        }
+
+        /// <summary>テーマ色が変わっていれば UI 全体を作り直す (戻り値 true)。以後 UI 参照は無効。</summary>
+        bool ApplyThemeAndRebuild()
+        {
+            if (!YukariTheme.ApplyFromSkin(SkinManager.Current()))
+            {
+                return false;
+            }
+            if (GlobalNav.Instance != null)
+            {
+                GlobalNav.Instance.Rebuild();
+            }
+            Manager.RebuildAll(); // この画面も作り直され OnShow まで呼ばれる
+            return true;
         }
 
         static void SetCardRow(RectTransform rect, float y, float height)
@@ -390,8 +822,13 @@ namespace YukaNavi.UI
                 return;
             }
             AppConfig.SkinId = id;
+            Bgm.RefreshForCurrentSkin();
             SetMessage("スキンを取り込みました");
             Se.Play(Se.Confirm);
+            if (ApplyThemeAndRebuild())
+            {
+                return;
+            }
             Rebuild();
         }
 
@@ -422,6 +859,141 @@ namespace YukaNavi.UI
         void SetMessage(string message)
         {
             _pathText.text = message;
+        }
+
+        /// <summary>端末のファイルピッカーで BGM (音声ファイル) を選ぶ。</summary>
+        void PickBgmFile()
+        {
+            Se.Play(Se.Tap);
+#if UNITY_EDITOR
+            string picked = UnityEditor.EditorUtility.OpenFilePanel("BGM を選ぶ", "", "mp3,ogg,wav");
+            OnBgmPicked(string.IsNullOrEmpty(picked) ? null : picked);
+#else
+            NativeFilePicker.PickFile(OnBgmPicked, new string[] { "audio/*" });
+#endif
+        }
+
+        void OnBgmPicked(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return; // キャンセル
+            }
+            // m4a/aac は Unity のランタイム読み込みが非対応 (Android のピッカーでは選べてしまう)
+            string ext = Path.GetExtension(path).ToLowerInvariant();
+            if (ext == ".m4a" || ext == ".aac")
+            {
+                _createErrorText.text = "m4a は使えません (mp3 / ogg / wav に変換してください)";
+                Se.Play(Se.Error);
+                return;
+            }
+            _createErrorText.text = "";
+            _pickedBgm = path;
+            _bgmMode = 1;
+            UpdateBgmUi();
+        }
+
+        /// <summary>「BGMなし」のトグル (スキン BGM を外してアプリの BGM に戻す)。もう一度押すと解除。</summary>
+        void ToggleBgmNone()
+        {
+            Se.Play(Se.Tap);
+            if (_bgmMode == 2)
+            {
+                _bgmMode = _pickedBgm != null ? 1 : 0;
+            }
+            else
+            {
+                _bgmMode = 2;
+            }
+            UpdateBgmUi();
+        }
+
+        void UpdateBgmUi()
+        {
+            _bgmNoneButton.image.color = _bgmMode == 2 ? UiFactory.Primary : new Color(0.75f, 0.73f, 0.80f);
+            switch (_bgmMode)
+            {
+                case 2:
+                    _bgmPickText.text = "スキンの BGM を使いません (アプリのBGM)";
+                    break;
+                case 1:
+                    _bgmPickText.text = "選択済み: " + Path.GetFileName(_pickedBgm);
+                    break;
+                default:
+                    bool hasExisting = _editingSkin != null && _editingSkin.Bgm != null
+                        && !string.IsNullOrEmpty(_editingSkin.Bgm.File);
+                    _bgmPickText.text = hasExisting
+                        ? "現在の BGM: " + _editingSkin.Bgm.File
+                        : "未選択 (アプリのBGM)";
+                    break;
+            }
+        }
+
+        /// <summary>端末のファイルピッカーでレコード盤の画像を選ぶ。</summary>
+        void PickRecordFile()
+        {
+            Se.Play(Se.Tap);
+#if UNITY_EDITOR
+            string picked = UnityEditor.EditorUtility.OpenFilePanel("レコード盤の画像を選ぶ", "", "png,jpg,jpeg");
+            OnRecordPicked(string.IsNullOrEmpty(picked) ? null : picked);
+#else
+            NativeFilePicker.PickFile(OnRecordPicked, new string[] { "image/*" });
+#endif
+        }
+
+        void OnRecordPicked(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return; // キャンセル
+            }
+            string ext = Path.GetExtension(path).ToLowerInvariant();
+            if (ext != ".png" && ext != ".jpg" && ext != ".jpeg")
+            {
+                _createErrorText.text = "画像ファイル (png / jpg) を選んでください";
+                Se.Play(Se.Error);
+                return;
+            }
+            _createErrorText.text = "";
+            _pickedRecord = path;
+            _recordMode = 1;
+            UpdateRecordUi();
+        }
+
+        /// <summary>「標準の盤」のトグル (スキンのレコード盤を外してアプリ標準に戻す)。もう一度押すと解除。</summary>
+        void ToggleRecordDefault()
+        {
+            Se.Play(Se.Tap);
+            if (_recordMode == 2)
+            {
+                _recordMode = _pickedRecord != null ? 1 : 0;
+            }
+            else
+            {
+                _recordMode = 2;
+            }
+            UpdateRecordUi();
+        }
+
+        void UpdateRecordUi()
+        {
+            _recordDefaultButton.image.color = _recordMode == 2 ? UiFactory.Primary : new Color(0.75f, 0.73f, 0.80f);
+            switch (_recordMode)
+            {
+                case 2:
+                    _recordPickText.text = "アプリ標準のレコード盤を使います";
+                    break;
+                case 1:
+                    _recordPickText.text = "選択済み: " + Path.GetFileName(_pickedRecord);
+                    break;
+                default:
+                    bool hasExisting = _editingSkin != null && _editingSkin.Record != null
+                        && !string.IsNullOrEmpty(_editingSkin.Record.File);
+                    _recordPickText.text = hasExisting
+                        ? "現在のレコード盤: " + _editingSkin.Record.File
+                        : "未選択 (アプリ標準の盤)";
+                    break;
+            }
         }
 
         /// <summary>「キャラなし」のトグル。もう一度押すと「ゆかりちゃんのまま」に戻る。</summary>
@@ -469,6 +1041,15 @@ namespace YukaNavi.UI
             _pickedChar = null;
             _charMode = 0;
             UpdateCharUi();
+            _pickedBgm = null;
+            _bgmMode = 0;
+            UpdateBgmUi();
+            _pickedRecord = null;
+            _recordMode = 0;
+            UpdateRecordUi();
+            _talkInput.text = "";
+            _pickedThemeHex = null;
+            UpdateThemeChips();
             _bgPickText.text = "未選択";
             _createErrorText.text = "";
             _adjRotation = 0f;
@@ -491,6 +1072,13 @@ namespace YukaNavi.UI
             _skinNameInput.text = skin.Name;
             _pickedBg = null;
             _pickedChar = null;
+            _pickedBgm = null;
+            _bgmMode = 0; // 既存 BGM は維持
+            _pickedRecord = null;
+            _recordMode = 0; // 既存のレコード盤は維持
+            _talkInput.text = skin.Talk != null ? string.Join("\n", skin.Talk) : "";
+            _pickedThemeHex = skin.Theme != null ? skin.Theme.Primary : null;
+            UpdateThemeChips();
             _createErrorText.text = "";
 
             // キャラ設定の復元
@@ -507,6 +1095,8 @@ namespace YukaNavi.UI
                 _charMode = 1;
             }
             UpdateCharUi();
+            UpdateBgmUi();
+            UpdateRecordUi();
 
             // 背景の復元 (画像はプレビュー + 調整値も復元)
             _adjRotation = 0f;
@@ -603,6 +1193,21 @@ namespace YukaNavi.UI
             }
         }
 
+        /// <summary>セリフ入力欄を1行=1セリフのリストにする (空行は除く)。</summary>
+        List<string> ParseTalkLines()
+        {
+            var lines = new List<string>();
+            foreach (var line in (_talkInput.text ?? "").Split('\n'))
+            {
+                string trimmed = line.Trim();
+                if (trimmed != "")
+                {
+                    lines.Add(trimmed);
+                }
+            }
+            return lines;
+        }
+
         void CreateSkin()
         {
             string name = (_skinNameInput.text ?? "").Trim();
@@ -612,13 +1217,18 @@ namespace YukaNavi.UI
                 Se.Play(Se.Error);
                 return;
             }
+            var talkLines = ParseTalkLines();
 
             if (_editingSkin != null)
             {
                 // 既存スキンの更新
                 if (!SkinManager.UpdateSkin(_editingSkin, name, _pickedBg,
                         _charMode == 1 ? _pickedChar : null,
-                        _adjRotation, _adjZoom, _adjOffset, _charMode))
+                        _adjRotation, _adjZoom, _adjOffset, _charMode,
+                        _bgmMode == 1 ? _pickedBgm : null, _bgmMode == 2,
+                        _pickedThemeHex,
+                        _recordMode == 1 ? _pickedRecord : null, _recordMode == 2,
+                        talkLines))
                 {
                     _createErrorText.text = "スキンの保存に失敗しました";
                     Se.Play(Se.Error);
@@ -629,16 +1239,21 @@ namespace YukaNavi.UI
             else
             {
                 // 新規作成
-                if (_pickedBg == null && _charMode == 0)
+                if (_pickedBg == null && _charMode == 0 && _bgmMode != 1 && _recordMode != 1
+                    && talkLines.Count == 0)
                 {
-                    _createErrorText.text = "背景を選ぶか、キャラの設定を変えてください";
+                    _createErrorText.text = "背景を選ぶか、キャラ・BGM・レコード盤などの設定を変えてください";
                     Se.Play(Se.Error);
                     return;
                 }
                 string id = SkinManager.CreateSkin(name, _pickedBg,
                     _charMode == 1 ? _pickedChar : null,
                     _adjRotation, _adjZoom, _adjOffset,
-                    _charMode == 2);
+                    _charMode == 2,
+                    _bgmMode == 1 ? _pickedBgm : null,
+                    _pickedThemeHex,
+                    _recordMode == 1 ? _pickedRecord : null,
+                    talkLines);
                 if (id == null)
                 {
                     _createErrorText.text = "スキンの作成に失敗しました";
@@ -648,16 +1263,23 @@ namespace YukaNavi.UI
                 AppConfig.SkinId = id;
             }
             SkinManager.BumpRevision();
+            Bgm.RefreshForCurrentSkin();
             Se.Play(Se.Confirm);
             _createModal.SetActive(false);
+            if (ApplyThemeAndRebuild())
+            {
+                return;
+            }
             Rebuild();
         }
 
         public override void OnShow()
         {
             _createModal.SetActive(false);
+            _colorModal.SetActive(false);
             _pathText.text = SkinManager.SkinsRoot;
             Rebuild();
+            UpdateHomeToggles();
         }
 
         void Rebuild()
@@ -681,6 +1303,7 @@ namespace YukaNavi.UI
             rowGo.transform.SetParent(_listContent, false);
             var img = rowGo.AddComponent<Image>();
             img.color = selected ? new Color(0.90f, 0.84f, 1.0f) : UiFactory.CardBg;
+            UiFactory.Roundify(img);
             var le = rowGo.AddComponent<LayoutElement>();
             le.preferredHeight = 110f;
             var button = rowGo.AddComponent<Button>();
@@ -742,7 +1365,12 @@ namespace YukaNavi.UI
                         {
                             AppConfig.SkinId = "";
                         }
+                        Bgm.RefreshForCurrentSkin();
                         Se.Play(Se.Confirm);
+                        if (ApplyThemeAndRebuild())
+                        {
+                            return;
+                        }
                         Rebuild();
                     }
                     else
@@ -758,8 +1386,14 @@ namespace YukaNavi.UI
         void Apply(string skinId)
         {
             AppConfig.SkinId = skinId;
+            Bgm.RefreshForCurrentSkin(); // スキン BGM も切り替える
             Se.Play(Se.Confirm);
+            if (ApplyThemeAndRebuild())
+            {
+                return; // テーマ色が変わった → 全 UI 再構築済み
+            }
             Rebuild();
+            UpdateHomeToggles(); // 表示トグルは選択中スキンの保存値を映す
         }
     }
 }

@@ -75,6 +75,87 @@ namespace YukaNavi.Api
             }
         }
 
+        /// <summary>期別インデックス: 年ごとの曲数。</summary>
+        public Task<ListerYearsDto> GetListerYearsAsync()
+            => GetApiAsync<ListerYearsDto>("api/lister_index.php?mode=years");
+
+        /// <summary>期別インデックス: 指定年の期ごとの曲数・作品数。</summary>
+        public Task<ListerQuartersDto> GetListerQuartersAsync(int year)
+            => GetApiAsync<ListerQuartersDto>("api/lister_index.php?mode=quarters&year=" + year);
+
+        /// <summary>期別インデックス: 期内の作品一覧。quarter: 1=冬 2=春 3=夏 4=秋。</summary>
+        public Task<ListerProgramsDto> GetListerProgramsAsync(int year, int quarter)
+            => GetApiAsync<ListerProgramsDto>(
+                "api/lister_index.php?mode=programs&year=" + year + "&quarter=" + quarter);
+
+        /// <summary>シリーズ内の作品一覧 (シリーズでの再検索用)。</summary>
+        public Task<ListerProgramsDto> GetListerGroupProgramsAsync(string group)
+            => GetApiAsync<ListerProgramsDto>(
+                "api/lister_index.php?mode=programs&group=" + UnityWebRequest.EscapeURL(group));
+
+        /// <summary>頭文字インデックス: 頭文字ごとの名前数。target: program | artist | group。</summary>
+        public Task<ListerInitialsDto> GetListerInitialsAsync(string target)
+            => GetApiAsync<ListerInitialsDto>(
+                "api/lister_index.php?mode=initials&target=" + target);
+
+        /// <summary>
+        /// 頭文字インデックス: 名前一覧。initial (頭文字) か keyword (部分一致) のどちらかで絞る。
+        /// </summary>
+        public Task<ListerNamesDto> GetListerNamesAsync(string target, string initial = null, string keyword = null)
+        {
+            string path = "api/lister_index.php?mode=names&target=" + target;
+            if (!string.IsNullOrEmpty(initial))
+            {
+                path += "&initial=" + UnityWebRequest.EscapeURL(initial);
+            }
+            else if (!string.IsNullOrEmpty(keyword))
+            {
+                path += "&keyword=" + UnityWebRequest.EscapeURL(keyword);
+            }
+            return GetApiAsync<ListerNamesDto>(path);
+        }
+
+        /// <summary>
+        /// ListerDB の曲検索 (曲単位グルーピング、同じ曲の複数動画は Files に並ぶ)。
+        /// program / artist / group / worker は完全一致 (AND)、anyword はあいまい検索。
+        /// order: date_desc (既定。ファイル更新日の新しい順) / date_asc / name (曲名順)。
+        /// </summary>
+        public Task<ListerIndexSongsDto> GetListerIndexSongsAsync(
+            string program = null, string artist = null, string group = null, string worker = null,
+            string anyword = null, string order = null, bool flat = false)
+        {
+            string path = "api/lister_index.php?mode=songs";
+            if (!string.IsNullOrEmpty(order))
+            {
+                path += "&order=" + order;
+            }
+            if (flat)
+            {
+                path += "&flat=1"; // グルーピングせずファイル単位で返す
+            }
+            if (!string.IsNullOrEmpty(program))
+            {
+                path += "&program=" + UnityWebRequest.EscapeURL(program);
+            }
+            if (!string.IsNullOrEmpty(artist))
+            {
+                path += "&artist=" + UnityWebRequest.EscapeURL(artist);
+            }
+            if (!string.IsNullOrEmpty(group))
+            {
+                path += "&group=" + UnityWebRequest.EscapeURL(group);
+            }
+            if (!string.IsNullOrEmpty(worker))
+            {
+                path += "&worker=" + UnityWebRequest.EscapeURL(worker);
+            }
+            if (!string.IsNullOrEmpty(anyword))
+            {
+                path += "&anyword=" + UnityWebRequest.EscapeURL(anyword);
+            }
+            return GetApiAsync<ListerIndexSongsDto>(path);
+        }
+
         /// <summary>
         /// ユーザー識別 Cookie (YkariUserID / YkariUsername) を付与する。
         /// これにより予約が Web 版と同じ仕組みでユーザーの履歴に紐づく。
@@ -108,12 +189,38 @@ namespace YukaNavi.Api
         public Task<NowPlayingDto> GetNowPlayingAsync()
             => GetApiAsync<NowPlayingDto>("api/nowplaying.php");
 
+        /// <summary>予約オプション (exec.php に渡す任意項目)。</summary>
+        public class RequestOptions
+        {
+            /// <summary>キー変更 (-6〜+6、0 = 変更なし)</summary>
+            public int Keychange;
+            /// <summary>シークレット予約</summary>
+            public bool Secret;
+            /// <summary>BGV モード (exec.php 側で kind がカラオケ配信になる)</summary>
+            public bool Loop;
+            /// <summary>別プレイヤー再生 (exec.php 側で kind が 動画_別プ になる)</summary>
+            public bool OtherPlayer;
+            /// <summary>この曲の後に小休止</summary>
+            public bool Pause;
+            /// <summary>音ズレ補正 ms (-9900〜9900)</summary>
+            public int AudioDelay;
+            /// <summary>音量増減 % (-100〜100、0 = 変更なし)</summary>
+            public int Volume;
+            /// <summary>音声トラック (0 = 1トラック目)</summary>
+            public int Track;
+            /// <summary>曲の長さ (秒、0 = 不明)。残り時間の計算に使われる</summary>
+            public int Duration;
+            /// <summary>既存予約の差し替え先 id (負なら新規)</summary>
+            public int SelectId = -1;
+        }
+
         /// <summary>
         /// 予約投稿 (exec.php の XHR モード)。成功で新しい予約 ID を返す。
         /// 注意: exec.php は不正入力を HTTP 200 + 空応答で拒否する (api/README.md 参照)。
         /// </summary>
         public async Task<int> PostRequestAsync(string filename, string fullpath, string singerName,
-                                                string comment, string kind = "動画", bool secret = false)
+                                                string comment, string kind = "動画",
+                                                RequestOptions options = null)
         {
             var form = new UnityEngine.WWWForm();
             form.AddField("filename", filename);
@@ -122,9 +229,48 @@ namespace YukaNavi.Api
             form.AddField("freesinger", singerName);
             form.AddField("comment", comment ?? "");
             form.AddField("kind", kind);
-            if (secret)
+            if (options != null)
             {
-                form.AddField("secret", "1");
+                if (options.Keychange != 0)
+                {
+                    form.AddField("keychange", options.Keychange.ToString());
+                }
+                if (options.Secret)
+                {
+                    form.AddField("secret", "1");
+                }
+                if (options.Loop)
+                {
+                    form.AddField("loop", "1");
+                }
+                if (options.OtherPlayer)
+                {
+                    form.AddField("otherplayer", "1");
+                }
+                if (options.Pause)
+                {
+                    form.AddField("pause", "1");
+                }
+                if (options.AudioDelay != 0)
+                {
+                    form.AddField("audiodelay", options.AudioDelay.ToString());
+                }
+                if (options.Volume != 0)
+                {
+                    form.AddField("volume", options.Volume.ToString());
+                }
+                if (options.Track > 0)
+                {
+                    form.AddField("track", options.Track.ToString());
+                }
+                if (options.Duration > 0)
+                {
+                    form.AddField("duration", options.Duration.ToString());
+                }
+                if (options.SelectId >= 0)
+                {
+                    form.AddField("selectid", options.SelectId.ToString());
+                }
             }
 
             string url = BaseUrl.TrimEnd('/') + "/exec.php";
@@ -185,6 +331,80 @@ namespace YukaNavi.Api
         }
 
         /// <summary>
+        /// ファイル詳細 (音声トラック一覧 + 動画詳細情報)。予約確認画面用。
+        /// 解析結果はサーバー側でキャッシュされる。
+        /// </summary>
+        public Task<FileDetailsDto> GetFileDetailsAsync(string fullpath)
+            => GetApiAsync<FileDetailsDto>(
+                "api/file_details.php?fullpath=" + UnityWebRequest.EscapeURL(fullpath));
+
+        /// <summary>
+        /// 音声トラックの一覧を取得する (動画ファイルのみ有効)。
+        /// 戻り値はトラックのラベル一覧。空 = 判別できない (mp4 以外・解析失敗)。
+        /// </summary>
+        public async Task<System.Collections.Generic.List<string>> GetTrackListAsync(string fullpath)
+        {
+            var labels = new System.Collections.Generic.List<string>();
+            try
+            {
+                string json = await GetTextAsync(
+                    "gettracklist_json.php?fullpath=" + UnityWebRequest.EscapeURL(fullpath), true);
+                // 旧サーバーでは JSON の前に PHP Warning が混入することがあるため '[' 以降を読む
+                int start = json.IndexOf('[');
+                if (start < 0)
+                {
+                    return labels;
+                }
+                var arr = Newtonsoft.Json.Linq.JArray.Parse(json.Substring(start));
+                foreach (var item in arr)
+                {
+                    // 各要素は [トラック種別, ラベル] の配列
+                    string label = "";
+                    if (item is Newtonsoft.Json.Linq.JArray inner && inner.Count > 1)
+                    {
+                        label = inner[1]?.ToString() ?? "";
+                    }
+                    labels.Add(label);
+                }
+            }
+            catch
+            {
+                labels.Clear();
+            }
+            return labels;
+        }
+
+        /// <summary>
+        /// 予約に入っている歌う人の一覧。Cookie の YkariUsername (自分の名前) が先頭に入る。
+        /// </summary>
+        public async Task<System.Collections.Generic.List<string>> GetSingerListAsync()
+        {
+            var singers = new System.Collections.Generic.List<string>();
+            try
+            {
+                string json = await GetTextAsync("getsingerlist_json.php", true);
+                int start = json.IndexOf('[');
+                if (start < 0)
+                {
+                    return singers;
+                }
+                var arr = Newtonsoft.Json.Linq.JArray.Parse(json.Substring(start));
+                foreach (var item in arr)
+                {
+                    string name = item?["singer"]?.ToString() ?? "";
+                    if (name != "" && !singers.Contains(name))
+                    {
+                        singers.Add(name);
+                    }
+                }
+            }
+            catch
+            {
+            }
+            return singers;
+        }
+
+        /// <summary>
         /// 予約の個別移動。action は up / down / warikomi (次に再生)。
         /// 戻り値は情報メッセージ (「すでに一番上です。」等。空 = 正常に移動)。
         /// </summary>
@@ -198,6 +418,69 @@ namespace YukaNavi.Api
         public async Task DeleteRequestAsync(int id)
         {
             await GetApiAsync<DeleteResult>("api/request_delete.php?id=" + id);
+        }
+
+        /// <summary>
+        /// 予約へのコメント追記 (commentedit.php)。Web 版と同じく既存コメントの末尾に
+        /// 「>> コメント by 名前」の形式で追記される (再生中の曲ならニコ風コメントにも流れる)。
+        /// </summary>
+        public async Task AddRequestCommentAsync(int id, string comment, string name)
+        {
+            string path = "commentedit.php?id=" + id
+                + "&addcomment=" + UnityWebRequest.EscapeURL(comment)
+                + "&name=" + UnityWebRequest.EscapeURL(name ?? "");
+            string html = await GetTextAsync(path, true);
+            if (html != null && (html.Contains("wrong id") || html.Contains("nodata")))
+            {
+                throw new ApiException("コメントを追加できませんでした (予約が見つかりません)");
+            }
+        }
+
+        /// <summary>
+        /// 予約の並べ替え (requestlist_reorder.php)。表示順 (上から) の id 配列を送る。
+        /// サーバー側で未再生のみが並べ替えられ、再生中・再生済みの順序は保持される。
+        /// </summary>
+        public async Task ReorderRequestsAsync(System.Collections.Generic.List<int> ids)
+        {
+            string url = BaseUrl.TrimEnd('/') + "/requestlist_reorder.php";
+            if (!string.IsNullOrEmpty(EasyPass))
+            {
+                url += "?easypass=" + UnityWebRequest.EscapeURL(EasyPass);
+            }
+            string json = JsonConvert.SerializeObject(new ReorderBody { Ids = ids });
+            using (var req = new UnityWebRequest(url, "POST"))
+            {
+                req.uploadHandler = new UploadHandlerRaw(System.Text.Encoding.UTF8.GetBytes(json));
+                req.downloadHandler = new DownloadHandlerBuffer();
+                req.SetRequestHeader("Content-Type", "application/json");
+                req.timeout = TimeoutSeconds;
+                ApplyCookies(req);
+                var op = req.SendWebRequest();
+                while (!op.isDone)
+                {
+                    await Task.Yield();
+                }
+                if (req.result != UnityWebRequest.Result.Success)
+                {
+                    throw new ApiException($"{req.error} ({url})", (int)req.responseCode);
+                }
+                var result = JsonConvert.DeserializeObject<ReorderResult>(req.downloadHandler.text ?? "");
+                if (result == null || result.Status != "ok")
+                {
+                    throw new ApiException("並べ替えに失敗: " + (result?.Message ?? "不明なエラー"));
+                }
+            }
+        }
+
+        class ReorderBody
+        {
+            [JsonProperty("ids")] public System.Collections.Generic.List<int> Ids;
+        }
+
+        class ReorderResult
+        {
+            [JsonProperty("status")] public string Status;
+            [JsonProperty("message")] public string Message;
         }
 
         class MoveResult

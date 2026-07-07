@@ -22,22 +22,37 @@ namespace YukaNavi.UI
         public override void BuildUi()
         {
             // 背景
-            var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.PanelBg);
+            var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.ScreenOverlayBg);
             UiFactory.StretchFull(bg);
+
+            // 接続設定用イラスト (中央が明るく UI を重ねられる素材)。画面比に合わせて覆う
+            var artSprite = UiFactory.LoadSprite("Art/ScreenArt/yukanavi_connect_illustration");
+            if (artSprite != null)
+            {
+                var artGo = new GameObject("BgArt");
+                artGo.transform.SetParent(transform, false);
+                var art = artGo.AddComponent<Image>();
+                art.sprite = artSprite;
+                art.raycastTarget = false;
+                UiFactory.StretchFull(art.rectTransform);
+                var fitter = artGo.AddComponent<AspectRatioFitter>();
+                fitter.aspectRatio = 1080f / 1920f;
+                fitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+            }
 
             // タイトル
             var title = UiFactory.CreateText(transform, "Title", "接続設定", 52, UiFactory.PrimaryDark);
             SetTopRect(title.rectTransform, -80f, 70f);
 
             var caption = UiFactory.CreateText(transform, "Caption",
-                "ゆかりサーバーの URL を入力してください", 30, UiFactory.TextDark);
-            SetTopRect(caption.rectTransform, -170f, 40f);
+                "ゆかりサーバーの URL を入力してください\n(ykr.moe はポート番号だけでもOK)", 28, UiFactory.TextDark);
+            SetTopRect(caption.rectTransform, -160f, 76f);
 
             // URL 入力
             var urlLabel = UiFactory.CreateText(transform, "UrlLabel", "サーバー URL", 30,
                 UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
             SetTopRect(urlLabel.rectTransform, -260f, 40f);
-            _urlInput = UiFactory.CreateInputField(transform, "UrlInput", "http://192.168.x.x/");
+            _urlInput = UiFactory.CreateInputField(transform, "UrlInput", "http://192.168.x.x/ か ポート番号");
             SetTopRect(_urlInput.GetComponent<RectTransform>(), -310f, 84f);
             // URL 欄の右に QR 読み取りボタンを置く
             var urlRect = _urlInput.GetComponent<RectTransform>();
@@ -111,34 +126,25 @@ namespace YukaNavi.UI
             _tested = false;
         }
 
-        /// <summary>URL の体裁を整える (http:// 前置、末尾 / 補完)。</summary>
-        static string NormalizeUrl(string raw)
+        /// <summary>URL の体裁を整え、?easypass=XXXX が付いていれば取り出す (YukariUrl に委譲)。</summary>
+        static string NormalizeUrl(string raw, out string easypass)
         {
-            string url = (raw ?? "").Trim();
-            if (url == "")
-            {
-                return "";
-            }
-            if (!url.StartsWith("http://") && !url.StartsWith("https://"))
-            {
-                url = "http://" + url;
-            }
-            if (!url.EndsWith("/"))
-            {
-                url += "/";
-            }
-            return url;
+            return YukariUrl.Normalize(raw, out easypass);
         }
 
         async Task TestAsync()
         {
-            string url = NormalizeUrl(_urlInput.text);
+            string url = NormalizeUrl(_urlInput.text, out string urlPass);
             if (url == "")
             {
                 SetResult("URL を入力してください", true);
                 return;
             }
             _urlInput.text = url;
+            if (!string.IsNullOrEmpty(urlPass))
+            {
+                _passInput.text = urlPass; // URL に付いていた認証キーワードを取り込む
+            }
             string pass = (_passInput.text ?? "").Trim();
             var client = new ApiClient(url, pass);
 
@@ -187,11 +193,15 @@ namespace YukaNavi.UI
 
         void SaveAndBack()
         {
-            string url = NormalizeUrl(_urlInput.text);
+            string url = NormalizeUrl(_urlInput.text, out string urlPass);
             if (url == "")
             {
                 SetResult("URL を入力してください", true);
                 return;
+            }
+            if (!string.IsNullOrEmpty(urlPass))
+            {
+                _passInput.text = urlPass;
             }
             if (!_tested)
             {
@@ -201,6 +211,7 @@ namespace YukaNavi.UI
             AppConfig.ServerUrl = url;
             AppConfig.EasyPass = (_passInput.text ?? "").Trim();
             AppConfig.IsConfigured = true;
+            AppState.Invalidate(); // capabilities を取り直す
             Se.Play(Se.Transition);
             Manager.ShowAsRoot<HomeScreen>();
         }

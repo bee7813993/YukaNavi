@@ -33,6 +33,11 @@ namespace YukaNavi.Api
         [JsonProperty("kind")] public string Kind;
         /// <summary>未再生 / 再生中 / 再生済 など (日本語文字列)</summary>
         [JsonProperty("nowplaying")] public string Nowplaying;
+        /// <summary>予約の変更用: ファイルのフルパス (旧サーバーでは null)</summary>
+        [JsonProperty("fullpath")] public string FullPath;
+        [JsonProperty("secret")] public int Secret;
+        [JsonProperty("loop")] public int Loop;
+        [JsonProperty("pause")] public int Pause;
         [JsonProperty("track")] public int Track;
         [JsonProperty("keychange")] public int Keychange;
         [JsonProperty("audiodelay")] public int Audiodelay;

@@ -30,6 +30,11 @@ namespace YukaNavi
 
         void Start()
         {
+            // フォーカスを失っても再生状態のポーリングを止めない
+            // (エディタや PC でウィンドウが非アクティブだと既定ではポーズし、
+            //  曲の切り替わり表示がタッチするまで止まって見える。モバイルでは無視される設定)
+            Application.runInBackground = true;
+
             // EventSystem (プロジェクトは新 Input System のみのため InputSystemUIInputModule を使う)
             if (FindFirstObjectByType<EventSystem>() == null)
             {
@@ -54,14 +59,16 @@ namespace YukaNavi
             var seSource = gameObject.AddComponent<AudioSource>();
             Se.Init(seSource);
             _bgmSource = gameObject.AddComponent<AudioSource>();
-            var bgmClip = Resources.Load<AudioClip>("Audio/BGM/yukanavi_home_loop");
-            if (bgmClip != null)
-            {
-                _bgmSource.clip = bgmClip;
-                _bgmSource.loop = true;
-                _bgmSource.volume = 0.35f;
-                _bgmSource.Play();
-            }
+            _bgmSource.volume = 0.35f;
+            // 既定ミュート (カラオケの邪魔をしない)。スキンに BGM があればそちらを流す
+            Bgm.Init(_bgmSource, Resources.Load<AudioClip>("Audio/BGM/yukanavi_home_loop"));
+
+            // スキンのテーマ色を画面構築前に適用する (UI は生成時に色を焼き込むため)
+            YukariTheme.ApplyFromSkin(SkinManager.Current());
+
+            // 最奥の下地 (ホームが背後にいない画面 [初回の接続設定など] で半透明背景が暗くならないように)
+            var canvasBg = UiFactory.CreatePanel(canvasGo.transform, "CanvasBackground", UiFactory.PanelBg);
+            UiFactory.StretchFull(canvasBg);
 
             // 画面登録 (専用レイヤーに置き、後から作るナビバーが常に前面になるようにする)
             var screenLayer = UiFactory.CreatePanel(canvasGo.transform, "Screens");
@@ -75,6 +82,12 @@ namespace YukaNavi
             _screens.Register<QrScanScreen>();
             _screens.Register<SkinScreen>();
             _screens.Register<MypageScreen>();
+            _screens.Register<ReserveScreen>();
+            _screens.Register<SearchResultScreen>();
+            _screens.Register<NameIndexScreen>();
+            _screens.Register<UrlRequestScreen>();
+            _screens.Register<PeriodScreen>();
+            _screens.Register<RequestDetailScreen>();
 
             // 下部の常時表示ナビゲーションバー (戻る / メニュー / ホーム)
             GlobalNav.Create(canvasGo.transform, _screens);
@@ -87,6 +100,28 @@ namespace YukaNavi
             {
                 _screens.ShowAsRoot<ConnectScreen>();
             }
+
+            // 共有メニュー経由で起動された場合は URL リクエスト画面を開く
+            HandleSharedUrl();
+        }
+
+        /// <summary>起動中に共有された場合も、アプリ復帰のタイミングで受け取る。</summary>
+        void OnApplicationFocus(bool focused)
+        {
+            if (focused && _screens != null)
+            {
+                HandleSharedUrl();
+            }
+        }
+
+        void HandleSharedUrl()
+        {
+            string url = ShareIntent.ConsumePendingUrl();
+            if (string.IsNullOrEmpty(url) || !AppConfig.IsConfigured)
+            {
+                return;
+            }
+            UrlRequestScreen.OpenWithUrl(_screens, url);
         }
     }
 }

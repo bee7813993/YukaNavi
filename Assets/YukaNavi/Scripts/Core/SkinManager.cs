@@ -12,11 +12,44 @@ namespace YukaNavi.Core
         [JsonProperty("name")] public string Name;
         [JsonProperty("background")] public SkinLayer Background;
         [JsonProperty("character")] public SkinLayer Character;
+        /// <summary>スキン専用 BGM (type="audio")。null = アプリのデフォルト BGM</summary>
+        [JsonProperty("bgm")] public SkinLayer Bgm;
+        /// <summary>リモコンのレコード盤画像 (type="image")。null = アプリ標準の盤</summary>
+        [JsonProperty("record")] public SkinLayer Record;
+        /// <summary>マスコットをタップしたときのセリフ (1要素=1つ、ランダム表示)。null = 標準</summary>
+        [JsonProperty("talk")] public List<string> Talk;
+        /// <summary>テーマ色。null = 既定 (紫)</summary>
+        [JsonProperty("theme")] public SkinTheme Theme;
+        /// <summary>ホーム画面パーツの配置 (時計など)。null = 未設定 (初期配置)</summary>
+        [JsonProperty("layout")] public SkinHomeLayout Layout;
 
         /// <summary>スキンフォルダの絶対パス。null = 組み込みデフォルト</summary>
         [JsonIgnore] public string Folder;
         /// <summary>フォルダ名 (保存キー)。"" = 組み込みデフォルト</summary>
         [JsonIgnore] public string Id = "";
+    }
+
+    /// <summary>スキンのテーマ色。基準色1色から UI の派生色 (濃色・淡色・背景) を自動で作る。</summary>
+    public class SkinTheme
+    {
+        /// <summary>基準色 ("#RRGGBB")</summary>
+        [JsonProperty("primary")] public string Primary;
+    }
+
+    /// <summary>ホーム画面パーツ (時計/メッセージ/マスコット) の配置。スキンごとに保存される。</summary>
+    public class SkinHomeLayout
+    {
+        [JsonProperty("clock")] public SkinLayoutItem Clock;
+        [JsonProperty("ticker")] public SkinLayoutItem Ticker;
+        [JsonProperty("mascot")] public SkinLayoutItem Mascot;
+    }
+
+    public class SkinLayoutItem
+    {
+        [JsonProperty("visible")] public bool Visible = true;
+        [JsonProperty("x")] public float X;
+        [JsonProperty("y")] public float Y;
+        [JsonProperty("scale")] public float Scale = 1f;
     }
 
     public class SkinLayer
@@ -95,17 +128,24 @@ namespace YukaNavi.Core
                 "└─ myskin/          ← 好きなフォルダ名\r\n" +
                 "    ├─ skin.json    ← 設定ファイル (下記)\r\n" +
                 "    ├─ bg.png       ← 背景 (画像 または mp4 動画)\r\n" +
-                "    └─ chara.png    ← キャラ画像 (透過PNG推奨)\r\n" +
+                "    ├─ chara.png    ← キャラ画像 (透過PNG推奨)\r\n" +
+                "    └─ record.png   ← リモコンのレコード盤 (円形の透過PNG)\r\n" +
                 "\r\n" +
                 "skin.json の例:\r\n" +
                 "{\r\n" +
                 "  \"name\": \"マイスキン\",\r\n" +
                 "  \"background\": { \"type\": \"image\", \"file\": \"bg.png\" },\r\n" +
-                "  \"character\": { \"type\": \"image\", \"file\": \"chara.png\", \"scale\": 1.0 }\r\n" +
+                "  \"character\": { \"type\": \"image\", \"file\": \"chara.png\", \"scale\": 1.0 },\r\n" +
+                "  \"bgm\": { \"type\": \"audio\", \"file\": \"bgm.mp3\" },\r\n" +
+                "  \"record\": { \"type\": \"image\", \"file\": \"record.png\" },\r\n" +
+                "  \"talk\": [\"うたっていこ〜♪\", \"つぎはどの曲にする？\"]\r\n" +
                 "}\r\n" +
                 "\r\n" +
                 "- background の type: \"image\" または \"video\" (mp4)\r\n" +
                 "- character の type: \"image\" または \"none\" (キャラなし)\r\n" +
+                "- bgm は任意 (mp3 / ogg / wav)。無ければアプリのデフォルト BGM\r\n" +
+                "- record は任意。リモコン画面のレコード盤が差し替わります\r\n" +
+                "- talk は任意。キャラをタップしたときのセリフ (ランダムで1つ表示)\r\n" +
                 "- ファイルが見つからない場合はデフォルトに戻ります\r\n";
         }
 
@@ -183,7 +223,9 @@ namespace YukaNavi.Core
         /// </summary>
         public static string CreateSkin(string name, string bgSourcePath, string charSourcePath,
                                         float bgRotation, float bgZoom, Vector2 bgOffset,
-                                        bool charNone = false)
+                                        bool charNone = false, string bgmSourcePath = null,
+                                        string themePrimary = null, string recordSourcePath = null,
+                                        List<string> talkLines = null)
         {
             try
             {
@@ -234,7 +276,34 @@ namespace YukaNavi.Core
                     character = new SkinLayer { Type = "image", File = destName, Scale = 1f };
                 }
 
-                var def = new SkinDef { Name = name, Background = background, Character = character };
+                SkinLayer bgm = null;
+                if (!string.IsNullOrEmpty(bgmSourcePath) && File.Exists(bgmSourcePath))
+                {
+                    string ext = Path.GetExtension(bgmSourcePath).ToLowerInvariant();
+                    string destName = "bgm" + ext;
+                    File.Copy(bgmSourcePath, Path.Combine(folder, destName), true);
+                    bgm = new SkinLayer { Type = "audio", File = destName };
+                }
+
+                SkinLayer record = null;
+                if (!string.IsNullOrEmpty(recordSourcePath) && File.Exists(recordSourcePath))
+                {
+                    string ext = Path.GetExtension(recordSourcePath).ToLowerInvariant();
+                    string destName = "record" + ext;
+                    File.Copy(recordSourcePath, Path.Combine(folder, destName), true);
+                    record = new SkinLayer { Type = "image", File = destName };
+                }
+
+                var def = new SkinDef
+                {
+                    Name = name,
+                    Background = background,
+                    Character = character,
+                    Bgm = bgm,
+                    Record = record,
+                    Talk = (talkLines != null && talkLines.Count > 0) ? talkLines : null,
+                    Theme = string.IsNullOrEmpty(themePrimary) ? null : new SkinTheme { Primary = themePrimary },
+                };
                 string json = JsonConvert.SerializeObject(def, Formatting.Indented,
                     new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
                 File.WriteAllText(Path.Combine(folder, "skin.json"), json, new UTF8Encoding(false));
@@ -247,11 +316,16 @@ namespace YukaNavi.Core
         }
 
         /// <summary>
-        /// 既存スキンを更新する。newBgSource / newCharSource が null なら既存ファイルを維持する。
+        /// 既存スキンを更新する。newBgSource / newCharSource / newBgmSource が null なら既存ファイルを維持する。
         /// charMode: 0=デフォルト (ゆかりちゃん) / 1=画像 / 2=キャラなし
+        /// removeBgm=true でスキン BGM を外す (newBgmSource より優先)。
         /// </summary>
         public static bool UpdateSkin(SkinDef skin, string name, string newBgSource, string newCharSource,
-                                      float bgRotation, float bgZoom, Vector2 bgOffset, int charMode)
+                                      float bgRotation, float bgZoom, Vector2 bgOffset, int charMode,
+                                      string newBgmSource = null, bool removeBgm = false,
+                                      string themePrimary = null,
+                                      string newRecordSource = null, bool removeRecord = false,
+                                      List<string> talkLines = null)
         {
             if (skin.Folder == null)
             {
@@ -310,11 +384,74 @@ namespace YukaNavi.Core
                 }
                 // charMode==1 で newCharSource なし → 既存のキャラ画像を維持
 
+                var bgm = skin.Bgm;
+                if (removeBgm)
+                {
+                    if (bgm != null && !string.IsNullOrEmpty(bgm.File))
+                    {
+                        string old = Path.Combine(skin.Folder, bgm.File);
+                        if (File.Exists(old))
+                        {
+                            File.Delete(old);
+                        }
+                    }
+                    bgm = null;
+                }
+                else if (!string.IsNullOrEmpty(newBgmSource) && File.Exists(newBgmSource))
+                {
+                    if (bgm != null && !string.IsNullOrEmpty(bgm.File))
+                    {
+                        string old = Path.Combine(skin.Folder, bgm.File);
+                        if (File.Exists(old))
+                        {
+                            File.Delete(old);
+                        }
+                    }
+                    string ext = Path.GetExtension(newBgmSource).ToLowerInvariant();
+                    string destName = "bgm" + ext;
+                    File.Copy(newBgmSource, Path.Combine(skin.Folder, destName), true);
+                    bgm = new SkinLayer { Type = "audio", File = destName };
+                }
+
+                var record = skin.Record;
+                if (removeRecord)
+                {
+                    if (record != null && !string.IsNullOrEmpty(record.File))
+                    {
+                        string old = Path.Combine(skin.Folder, record.File);
+                        if (File.Exists(old))
+                        {
+                            File.Delete(old);
+                        }
+                    }
+                    record = null;
+                }
+                else if (!string.IsNullOrEmpty(newRecordSource) && File.Exists(newRecordSource))
+                {
+                    if (record != null && !string.IsNullOrEmpty(record.File))
+                    {
+                        string old = Path.Combine(skin.Folder, record.File);
+                        if (File.Exists(old))
+                        {
+                            File.Delete(old);
+                        }
+                    }
+                    string ext = Path.GetExtension(newRecordSource).ToLowerInvariant();
+                    string destName = "record" + ext;
+                    File.Copy(newRecordSource, Path.Combine(skin.Folder, destName), true);
+                    record = new SkinLayer { Type = "image", File = destName };
+                }
+
                 var def = new SkinDef
                 {
                     Name = string.IsNullOrEmpty(name) ? skin.Name : name,
                     Background = background,
                     Character = character,
+                    Bgm = bgm,
+                    Record = record,
+                    Talk = (talkLines != null && talkLines.Count > 0) ? talkLines : null,
+                    Theme = string.IsNullOrEmpty(themePrimary) ? null : new SkinTheme { Primary = themePrimary },
+                    Layout = skin.Layout, // ホーム配置は編集操作では変えない (引き継ぐ)
                 };
                 string json = JsonConvert.SerializeObject(def, Formatting.Indented,
                     new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
@@ -437,6 +574,64 @@ namespace YukaNavi.Core
             try
             {
                 Directory.Delete(skin.Folder, true);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>ホーム配置の1パーツ分を取得する (未設定なら null)。key: clock / ticker / mascot</summary>
+        public static SkinLayoutItem GetLayoutItem(SkinDef skin, string key)
+        {
+            if (skin.Layout == null)
+            {
+                return null;
+            }
+            switch (key)
+            {
+                case "clock":
+                    return skin.Layout.Clock;
+                case "ticker":
+                    return skin.Layout.Ticker;
+                case "mascot":
+                    return skin.Layout.Mascot;
+                default:
+                    return null;
+            }
+        }
+
+        /// <summary>ホーム配置の1パーツ分をスキンに保存する (skin.json を書き戻す)。</summary>
+        public static bool SaveLayoutItem(SkinDef skin, string key, SkinLayoutItem item)
+        {
+            if (skin.Folder == null)
+            {
+                return false;
+            }
+            try
+            {
+                if (skin.Layout == null)
+                {
+                    skin.Layout = new SkinHomeLayout();
+                }
+                switch (key)
+                {
+                    case "clock":
+                        skin.Layout.Clock = item;
+                        break;
+                    case "ticker":
+                        skin.Layout.Ticker = item;
+                        break;
+                    case "mascot":
+                        skin.Layout.Mascot = item;
+                        break;
+                    default:
+                        return false;
+                }
+                string json = JsonConvert.SerializeObject(skin, Formatting.Indented,
+                    new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+                File.WriteAllText(Path.Combine(skin.Folder, "skin.json"), json, new UTF8Encoding(false));
                 return true;
             }
             catch
