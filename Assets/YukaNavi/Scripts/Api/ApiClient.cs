@@ -208,6 +208,8 @@ namespace YukaNavi.Api
             public int Volume;
             /// <summary>音声トラック (0 = 1トラック目)</summary>
             public int Track;
+            /// <summary>曲の長さ (秒、0 = 不明)。残り時間の計算に使われる</summary>
+            public int Duration;
             /// <summary>既存予約の差し替え先 id (負なら新規)</summary>
             public int SelectId = -1;
         }
@@ -260,6 +262,10 @@ namespace YukaNavi.Api
                 if (options.Track > 0)
                 {
                     form.AddField("track", options.Track.ToString());
+                }
+                if (options.Duration > 0)
+                {
+                    form.AddField("duration", options.Duration.ToString());
                 }
                 if (options.SelectId >= 0)
                 {
@@ -323,6 +329,14 @@ namespace YukaNavi.Api
             }
             return GetApiAsync<PlayerActionDto>(path);
         }
+
+        /// <summary>
+        /// ファイル詳細 (音声トラック一覧 + 動画詳細情報)。予約確認画面用。
+        /// 解析結果はサーバー側でキャッシュされる。
+        /// </summary>
+        public Task<FileDetailsDto> GetFileDetailsAsync(string fullpath)
+            => GetApiAsync<FileDetailsDto>(
+                "api/file_details.php?fullpath=" + UnityWebRequest.EscapeURL(fullpath));
 
         /// <summary>
         /// 音声トラックの一覧を取得する (動画ファイルのみ有効)。

@@ -25,6 +25,21 @@ namespace YukaNavi.UI
             var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.ScreenOverlayBg);
             UiFactory.StretchFull(bg);
 
+            // 接続設定用イラスト (中央が明るく UI を重ねられる素材)。画面比に合わせて覆う
+            var artSprite = UiFactory.LoadSprite("Art/ScreenArt/yukanavi_connect_illustration");
+            if (artSprite != null)
+            {
+                var artGo = new GameObject("BgArt");
+                artGo.transform.SetParent(transform, false);
+                var art = artGo.AddComponent<Image>();
+                art.sprite = artSprite;
+                art.raycastTarget = false;
+                UiFactory.StretchFull(art.rectTransform);
+                var fitter = artGo.AddComponent<AspectRatioFitter>();
+                fitter.aspectRatio = 1080f / 1920f;
+                fitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+            }
+
             // タイトル
             var title = UiFactory.CreateText(transform, "Title", "接続設定", 52, UiFactory.PrimaryDark);
             SetTopRect(title.rectTransform, -80f, 70f);

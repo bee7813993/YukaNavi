@@ -55,7 +55,18 @@ namespace YukaNavi.UI
         Text _topBarTitle;
         Text _submitLabel;
         Text _completeMessage;
+        LayoutElement _songPanelLe;
         Text _songText;
+        Text _songSubText;
+        Text _kindBadgeText;
+        RectTransform _kindBadgeRect;
+        GameObject _detailsRow;
+        LayoutElement _detailsLe;
+        Text _detailsHeaderText;
+        Text _detailsText;
+        bool _detailsOpen;
+        VideoDetailsDto _videoDetails;
+        int _durationSeconds;
         InputField _nameInput;
         InputField _commentInput;
         Button _favoriteButton;
@@ -205,19 +216,68 @@ namespace YukaNavi.UI
 
         void BuildForm(RectTransform form)
         {
-            // 曲名 (PrimaryPale で強調)
+            // 曲名 (PrimaryPale で強調)。高さは曲名の行数に合わせて OnShow で更新する
             var songPanel = AddPanel(form, 170f, color: UiFactory.PrimaryPale);
             UiFactory.AddShadow(songPanel.gameObject, 3f);
+            _songPanelLe = songPanel.GetComponent<LayoutElement>();
             var songCaption = UiFactory.CreateText(songPanel, "Caption", "よやくする曲", 24,
-                UiFactory.PrimaryDark, TextAnchor.UpperLeft);
-            UiFactory.StretchFull(songCaption.rectTransform);
-            songCaption.rectTransform.offsetMin = new Vector2(24f, 110f);
-            songCaption.rectTransform.offsetMax = new Vector2(-24f, -10f);
-            _songText = UiFactory.CreateText(songPanel, "Song", "", 30, UiFactory.TextDark, TextAnchor.UpperLeft);
-            UiFactory.StretchFull(_songText.rectTransform);
-            _songText.rectTransform.offsetMin = new Vector2(24f, 8f);
-            _songText.rectTransform.offsetMax = new Vector2(-24f, -52f);
-            _songText.verticalOverflow = VerticalWrapMode.Truncate;
+                UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
+            var capRect = songCaption.rectTransform;
+            capRect.anchorMin = new Vector2(0f, 1f);
+            capRect.anchorMax = new Vector2(1f, 1f);
+            capRect.pivot = new Vector2(0.5f, 1f);
+            capRect.anchoredPosition = new Vector2(0f, -12f);
+            capRect.offsetMin = new Vector2(24f, capRect.offsetMin.y);
+            capRect.offsetMax = new Vector2(-24f, capRect.offsetMax.y);
+            capRect.sizeDelta = new Vector2(capRect.sizeDelta.x, 34f);
+
+            // 種別バッジ (URL指定 / 小休止 のときだけ表示)
+            _kindBadgeText = UiFactory.CreateBadge(songPanel, "KindBadge", "", UiFactory.PrimaryDark, Color.white);
+            _kindBadgeRect = (RectTransform)_kindBadgeText.transform.parent;
+            _kindBadgeRect.anchorMin = _kindBadgeRect.anchorMax = new Vector2(1f, 1f);
+            _kindBadgeRect.pivot = new Vector2(1f, 1f);
+            _kindBadgeRect.anchoredPosition = new Vector2(-20f, -10f);
+            _kindBadgeRect.sizeDelta = new Vector2(150f, 40f);
+            _kindBadgeRect.gameObject.SetActive(false);
+
+            _songText = UiFactory.CreateText(songPanel, "Song", "", 32, UiFactory.TextDark, TextAnchor.UpperLeft);
+            _songText.fontStyle = FontStyle.Bold;
+            _songSubText = UiFactory.CreateText(songPanel, "SongSub", "", 25, UiFactory.TextMuted, TextAnchor.UpperLeft);
+
+            // 動画詳細情報 (タップで開閉。解析できたファイルだけ表示される)
+            var detailsPanel = AddPanel(form, 64f);
+            _detailsRow = detailsPanel.gameObject;
+            _detailsLe = detailsPanel.GetComponent<LayoutElement>();
+            var detailsHeader = UiFactory.CreateButton(detailsPanel, "DetailsHeader", "",
+                new Color(1f, 1f, 1f, 0f), UiFactory.Primary, 26);
+            var dhRect = (RectTransform)detailsHeader.transform;
+            dhRect.anchorMin = new Vector2(0f, 1f);
+            dhRect.anchorMax = new Vector2(1f, 1f);
+            dhRect.pivot = new Vector2(0.5f, 1f);
+            dhRect.anchoredPosition = Vector2.zero;
+            dhRect.sizeDelta = new Vector2(0f, 64f);
+            _detailsHeaderText = UiFactory.CreateText(detailsHeader.transform, "Label",
+                "動画詳細情報 ▼", 26, UiFactory.Primary, TextAnchor.MiddleLeft);
+            UiFactory.StretchFull(_detailsHeaderText.rectTransform);
+            _detailsHeaderText.rectTransform.offsetMin = new Vector2(24f, 0f);
+            detailsHeader.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Tap);
+                _detailsOpen = !_detailsOpen;
+                UpdateDetailsRow();
+            });
+            _detailsText = UiFactory.CreateText(detailsPanel, "Details", "", 25,
+                UiFactory.TextDark, TextAnchor.UpperLeft);
+            var dtRect = _detailsText.rectTransform;
+            dtRect.anchorMin = new Vector2(0f, 1f);
+            dtRect.anchorMax = new Vector2(1f, 1f);
+            dtRect.pivot = new Vector2(0.5f, 1f);
+            dtRect.anchoredPosition = new Vector2(0f, -60f);
+            dtRect.offsetMin = new Vector2(24f, dtRect.offsetMin.y);
+            dtRect.offsetMax = new Vector2(-24f, dtRect.offsetMax.y);
+            dtRect.sizeDelta = new Vector2(dtRect.sizeDelta.x, 300f);
+            _detailsText.verticalOverflow = VerticalWrapMode.Overflow;
+            _detailsRow.SetActive(false);
 
             // 予約の変更中のみ: 曲そのものを差し替える (検索画面へ)
             var changeSongPanel = AddPanel(form, 84f, transparent: true);
@@ -287,34 +347,41 @@ namespace YukaNavi.UI
 
             AddSectionHeader(form, "オプション");
 
+            // 使う頻度が高い順に上から並べる: 音声トラック → キー変更 → シークレット・小休止 → それ以外
+
+            // 音声トラック (on/off vocal の切替。トラックが複数ある動画でだけ表示される)
+            _trackValueText = AddStepperRow(form, out _trackRow, "音声トラック",
+                () => { _track = Mathf.Max(_track - 1, 0); UpdateOptionTexts(); },
+                () => { _track = Mathf.Min(_track + 1, _trackMax - 1); UpdateOptionTexts(); });
+
             // キー変更
             _keyValueText = AddStepperRow(form, out _keyRow, "キー変更",
                 () => { _keychange = Mathf.Max(_keychange - 1, -6); UpdateOptionTexts(); },
                 () => { _keychange = Mathf.Min(_keychange + 1, 6); UpdateOptionTexts(); });
 
-            // トグル群
-            _secretButton = AddToggleRow(form, out _secretRow, "シークレット (歌うまで曲名を表示しない)",
+            // シークレット / 小休止 (よく使うので半幅で横に並べる)
+            var togglePair = AddPanel(form, 100f, transparent: true);
+            _secretButton = AddHalfToggle(togglePair, 0f, 0.5f, "シークレット (曲名をふせる)",
                 () => { _secret = !_secret; UpdateToggles(); });
+            _secretRow = _secretButton.gameObject;
+            _pauseButton = AddHalfToggle(togglePair, 0.5f, 1f, "小休止 (ループ再生)",
+                () => { _pause = !_pause; UpdateToggles(); });
+            _pauseRow = _pauseButton.gameObject;
+
             _bgvButton = AddToggleRow(form, out _bgvRow, "BGVモード (配信のBGVとして再生)",
                 () => { _bgv = !_bgv; UpdateToggles(); });
             _otherButton = AddToggleRow(form, out _otherRow, "別プレイヤー再生",
                 () => { _otherplayer = !_otherplayer; UpdateToggles(); });
             _otherButtonLabel = _otherButton.GetComponentInChildren<Text>();
-            _pauseButton = AddToggleRow(form, out _pauseRow, "小休止リクエスト (止めるまでループ再生)",
-                () => { _pause = !_pause; UpdateToggles(); });
 
-            // 音量 / 音ズレ
-            _volumeValueText = AddStepperRow(form, out _, "音量増減",
+            // 音量 / 音ズレ (半幅のミニステッパーで横に並べる)
+            var finePair = AddPanel(form, 158f, transparent: true);
+            _volumeValueText = AddHalfStepper(finePair, 0f, 0.5f, "音量増減",
                 () => { _volume = Mathf.Max(_volume - 10, -100); UpdateOptionTexts(); },
                 () => { _volume = Mathf.Min(_volume + 10, 100); UpdateOptionTexts(); });
-            _delayValueText = AddStepperRow(form, out _, "音ズレ補正",
+            _delayValueText = AddHalfStepper(finePair, 0.5f, 1f, "音ズレ補正",
                 () => { _audioDelay = Mathf.Max(_audioDelay - 100, -9900); UpdateOptionTexts(); },
                 () => { _audioDelay = Mathf.Min(_audioDelay + 100, 9900); UpdateOptionTexts(); });
-
-            // 音声トラック
-            _trackValueText = AddStepperRow(form, out _trackRow, "音声トラック",
-                () => { _track = Mathf.Max(_track - 1, 0); UpdateOptionTexts(); },
-                () => { _track = Mathf.Min(_track + 1, _trackMax - 1); UpdateOptionTexts(); });
 
             // エラー表示
             var errorPanel = AddPanel(form, 56f, transparent: true);
@@ -489,7 +556,7 @@ namespace YukaNavi.UI
             labelText.rectTransform.offsetMin = new Vector2(24f, 4f);
             labelText.rectTransform.offsetMax = new Vector2(-560f, -4f);
 
-            var minus = UiFactory.CreateButton(panel, "Minus", "−", UiFactory.PrimaryDark, Color.white, 34);
+            var minus = UiFactory.CreateSoftButton(panel, "Minus", "−", 34);
             var minusRect = minus.GetComponent<RectTransform>();
             minusRect.anchorMin = minusRect.anchorMax = new Vector2(1f, 0.5f);
             minusRect.pivot = new Vector2(1f, 0.5f);
@@ -508,7 +575,7 @@ namespace YukaNavi.UI
             valueRect.anchoredPosition = new Vector2(-140f, 0f);
             valueRect.sizeDelta = new Vector2(266f, 80f);
 
-            var plus = UiFactory.CreateButton(panel, "Plus", "＋", UiFactory.PrimaryDark, Color.white, 34);
+            var plus = UiFactory.CreateSoftButton(panel, "Plus", "＋", 34);
             var plusRect = plus.GetComponent<RectTransform>();
             plusRect.anchorMin = plusRect.anchorMax = new Vector2(1f, 0.5f);
             plusRect.pivot = new Vector2(1f, 0.5f);
@@ -538,7 +605,136 @@ namespace YukaNavi.UI
             return button;
         }
 
+        /// <summary>半幅トグルボタン (x0〜x1 は 0〜1 の分割率)。</summary>
+        Button AddHalfToggle(RectTransform panel, float x0, float x1, string label, System.Action onToggle)
+        {
+            var button = UiFactory.CreateButton(panel, "Toggle", label, ToggleOffColor, Color.white, 24);
+            var rect = (RectTransform)button.transform;
+            rect.anchorMin = new Vector2(x0, 0f);
+            rect.anchorMax = new Vector2(x1, 1f);
+            rect.offsetMin = new Vector2(x0 == 0f ? 0f : 8f, 0f);
+            rect.offsetMax = new Vector2(x1 == 1f ? 0f : -8f, 0f);
+            button.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Tap);
+                onToggle();
+            });
+            return button;
+        }
+
+        /// <summary>半幅のミニステッパー (ラベル上段 + [−] 値 [＋] 下段)。値表示 Text を返す。</summary>
+        Text AddHalfStepper(RectTransform panel, float x0, float x1, string label,
+                            System.Action onMinus, System.Action onPlus)
+        {
+            var cardGo = new GameObject(label);
+            cardGo.transform.SetParent(panel, false);
+            var img = cardGo.AddComponent<Image>();
+            img.color = UiFactory.CardBg;
+            UiFactory.Roundify(img);
+            var card = (RectTransform)cardGo.transform;
+            card.anchorMin = new Vector2(x0, 0f);
+            card.anchorMax = new Vector2(x1, 1f);
+            card.offsetMin = new Vector2(x0 == 0f ? 0f : 8f, 0f);
+            card.offsetMax = new Vector2(x1 == 1f ? 0f : -8f, 0f);
+
+            var labelText = UiFactory.CreateText(card, "Label", label, 24, UiFactory.PrimaryDark);
+            var labelRect = labelText.rectTransform;
+            labelRect.anchorMin = new Vector2(0f, 1f);
+            labelRect.anchorMax = new Vector2(1f, 1f);
+            labelRect.pivot = new Vector2(0.5f, 1f);
+            labelRect.anchoredPosition = new Vector2(0f, -10f);
+            labelRect.sizeDelta = new Vector2(0f, 32f);
+
+            var minus = UiFactory.CreateSoftButton(card, "Minus", "−", 30);
+            var minusRect = (RectTransform)minus.transform;
+            minusRect.anchorMin = minusRect.anchorMax = new Vector2(0f, 0f);
+            minusRect.pivot = new Vector2(0f, 0f);
+            minusRect.anchoredPosition = new Vector2(14f, 12f);
+            minusRect.sizeDelta = new Vector2(100f, 66f);
+            minus.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Tap);
+                onMinus();
+            });
+
+            var value = UiFactory.CreateText(card, "Value", "", 26, UiFactory.TextDark);
+            var valueRect = value.rectTransform;
+            valueRect.anchorMin = new Vector2(0f, 0f);
+            valueRect.anchorMax = new Vector2(1f, 0f);
+            valueRect.pivot = new Vector2(0.5f, 0f);
+            valueRect.anchoredPosition = new Vector2(0f, 12f);
+            valueRect.offsetMin = new Vector2(118f, valueRect.offsetMin.y);
+            valueRect.offsetMax = new Vector2(-118f, valueRect.offsetMax.y);
+            valueRect.sizeDelta = new Vector2(valueRect.sizeDelta.x, 66f);
+
+            var plus = UiFactory.CreateSoftButton(card, "Plus", "＋", 30);
+            var plusRect = (RectTransform)plus.transform;
+            plusRect.anchorMin = plusRect.anchorMax = new Vector2(1f, 0f);
+            plusRect.pivot = new Vector2(1f, 0f);
+            plusRect.anchoredPosition = new Vector2(-14f, 12f);
+            plusRect.sizeDelta = new Vector2(100f, 66f);
+            plus.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Tap);
+                onPlus();
+            });
+
+            return value;
+        }
+
         // ---- 表示更新 ----
+
+        /// <summary>曲名・補足の行数に合わせて曲カードの中身と高さを更新する。</summary>
+        void LayoutSongCard()
+        {
+            const float wrapWidth = 940f;
+            string title = _entry.Line1 ?? "";
+            float y = 52f;
+
+            int titleLines = UiFactory.EstimateWrapLines(title, 32, wrapWidth);
+            float titleHeight = titleLines * 44f + 4f;
+            _songText.text = UiFactory.NoWordWrap(title);
+            var titleRect = _songText.rectTransform;
+            titleRect.anchorMin = new Vector2(0f, 1f);
+            titleRect.anchorMax = new Vector2(1f, 1f);
+            titleRect.pivot = new Vector2(0.5f, 1f);
+            titleRect.anchoredPosition = new Vector2(0f, -y);
+            titleRect.offsetMin = new Vector2(24f, titleRect.offsetMin.y);
+            titleRect.offsetMax = new Vector2(-24f, titleRect.offsetMax.y);
+            titleRect.sizeDelta = new Vector2(titleRect.sizeDelta.x, titleHeight);
+            y += titleHeight;
+
+            bool hasSub = !string.IsNullOrEmpty(_entry.Line2);
+            _songSubText.gameObject.SetActive(hasSub);
+            if (hasSub)
+            {
+                y += 6f;
+                int subLines = UiFactory.EstimateWrapLines(_entry.Line2, 25, wrapWidth);
+                float subHeight = subLines * 34f + 4f;
+                _songSubText.text = UiFactory.NoWordWrap(_entry.Line2);
+                var subRect = _songSubText.rectTransform;
+                subRect.anchorMin = new Vector2(0f, 1f);
+                subRect.anchorMax = new Vector2(1f, 1f);
+                subRect.pivot = new Vector2(0.5f, 1f);
+                subRect.anchoredPosition = new Vector2(0f, -y);
+                subRect.offsetMin = new Vector2(24f, subRect.offsetMin.y);
+                subRect.offsetMax = new Vector2(-24f, subRect.offsetMax.y);
+                subRect.sizeDelta = new Vector2(subRect.sizeDelta.x, subHeight);
+                y += subHeight;
+            }
+
+            // 種別バッジ (URL指定 / 小休止)
+            bool hasKind = !string.IsNullOrEmpty(_entry.Kind);
+            _kindBadgeRect.gameObject.SetActive(hasKind);
+            if (hasKind)
+            {
+                _kindBadgeText.text = _entry.Kind;
+                _kindBadgeRect.sizeDelta = new Vector2(
+                    UiFactory.EstimateTextWidth(_entry.Kind, 22) + 40f, 40f);
+            }
+
+            _songPanelLe.preferredHeight = y + 16f;
+        }
 
         void UpdateMypageButtons()
         {
@@ -550,12 +746,21 @@ namespace YukaNavi.UI
             _laterButton.GetComponentInChildren<Text>().text = inLater ? "✓ あとで歌う" : "あとで歌う";
         }
 
+        /// <summary>トグルの見た目 (色 + 先頭の ✓) を状態に合わせる。</summary>
+        static void SetToggle(Button button, bool on)
+        {
+            button.image.color = on ? UiFactory.Primary : ToggleOffColor;
+            var label = button.GetComponentInChildren<Text>();
+            string baseLabel = label.text.StartsWith("✓ ") ? label.text.Substring(2) : label.text;
+            label.text = on ? "✓ " + baseLabel : baseLabel;
+        }
+
         void UpdateToggles()
         {
-            _secretButton.image.color = _secret ? UiFactory.Primary : ToggleOffColor;
-            _bgvButton.image.color = _bgv ? UiFactory.Primary : ToggleOffColor;
-            _otherButton.image.color = _otherplayer ? UiFactory.Primary : ToggleOffColor;
-            _pauseButton.image.color = _pause ? UiFactory.Primary : ToggleOffColor;
+            SetToggle(_secretButton, _secret);
+            SetToggle(_bgvButton, _bgv);
+            SetToggle(_otherButton, _otherplayer);
+            SetToggle(_pauseButton, _pause);
         }
 
         void UpdateOptionTexts()
@@ -589,9 +794,7 @@ namespace YukaNavi.UI
             _submitLabel.text = _editId >= 0 ? "この内容で変更する" : "この内容で予約する";
             _changeSongRow.SetActive(_editId >= 0);
 
-            _songText.text = string.IsNullOrEmpty(_entry.Line2)
-                ? _entry.Line1
-                : _entry.Line1 + "\n" + _entry.Line2;
+            LayoutSongCard();
             _errorText.text = "";
             _submitButton.interactable = true;
             _completeOverlay.SetActive(false);
@@ -631,8 +834,14 @@ namespace YukaNavi.UI
             UpdateToggles();
             UpdateOptionTexts();
 
+            // ファイル詳細は取得できるまで隠しておく
+            _videoDetails = null;
+            _durationSeconds = 0;
+            _detailsOpen = false;
+            UpdateDetailsRow();
+
             _ = ApplyCapabilitiesAsync();
-            _ = LoadTracksAsync();
+            _ = LoadFileDetailsAsync();
             _ = LoadSingersAsync();
         }
 
@@ -665,8 +874,11 @@ namespace YukaNavi.UI
             }
         }
 
-        /// <summary>音声トラックの一覧を取得して選択行を出し分ける (Web 版と同じ規則)。</summary>
-        async Task LoadTracksAsync()
+        /// <summary>
+        /// ファイル詳細 (音声トラック + 動画詳細情報) を取得して、
+        /// トラック選択行の出し分け (Web 版と同じ規則) と詳細プルダウンの表示を行う。
+        /// </summary>
+        async Task LoadFileDetailsAsync()
         {
             if (!IsVideoFile(_entry.FullPath))
             {
@@ -676,7 +888,15 @@ namespace YukaNavi.UI
             List<string> labels;
             try
             {
-                labels = await AppConfig.CreateClient().GetTrackListAsync(_entry.FullPath);
+                var details = await AppConfig.CreateClient().GetFileDetailsAsync(_entry.FullPath);
+                labels = details.Tracks ?? new List<string>();
+                if (entryAtLoad != _entry)
+                {
+                    return; // 画面が別の曲に切り替わっていたら破棄
+                }
+                _videoDetails = details.Details;
+                _durationSeconds = details.Details != null ? details.Details.DurationSeconds : 0;
+                UpdateDetailsRow();
             }
             catch
             {
@@ -684,7 +904,7 @@ namespace YukaNavi.UI
             }
             if (entryAtLoad != _entry)
             {
-                return; // 画面が別の曲に切り替わっていたら破棄
+                return;
             }
             if (labels.Count == 1)
             {
@@ -695,6 +915,58 @@ namespace YukaNavi.UI
             _track = Mathf.Clamp(_track, 0, _trackMax - 1); // 変更時は現在のトラックを保つ
             UpdateOptionTexts();
             _trackRow.SetActive(true);
+        }
+
+        /// <summary>動画詳細情報プルダウンの中身と開閉状態を反映する。</summary>
+        void UpdateDetailsRow()
+        {
+            if (_videoDetails == null)
+            {
+                _detailsRow.SetActive(false);
+                return;
+            }
+            _detailsRow.SetActive(true);
+            _detailsHeaderText.text = _detailsOpen ? "動画詳細情報 ▲" : "動画詳細情報 ▼";
+
+            var lines = new List<string>();
+            var d = _videoDetails;
+            if (!string.IsNullOrEmpty(d.Duration))
+            {
+                lines.Add("曲の長さ: " + d.Duration);
+            }
+            if (!string.IsNullOrEmpty(d.Resolution))
+            {
+                lines.Add("解像度: " + d.Resolution);
+            }
+            if (d.FrameRate > 0f)
+            {
+                lines.Add("フレームレート: " + d.FrameRate + " fps");
+            }
+            if (!string.IsNullOrEmpty(d.VideoCodec))
+            {
+                lines.Add("映像コーデック: " + d.VideoCodec);
+            }
+            if (!string.IsNullOrEmpty(d.AudioCodec))
+            {
+                string audio = d.AudioCodec;
+                if (!string.IsNullOrEmpty(d.AudioChannels))
+                {
+                    audio += " / " + d.AudioChannels;
+                }
+                if (!string.IsNullOrEmpty(d.AudioSampleRate))
+                {
+                    audio += " / " + d.AudioSampleRate;
+                }
+                lines.Add("音声コーデック: " + audio);
+            }
+            if (!string.IsNullOrEmpty(d.Bitrate))
+            {
+                lines.Add("ビットレート: " + d.Bitrate);
+            }
+
+            _detailsText.text = string.Join("\n", lines);
+            _detailsText.gameObject.SetActive(_detailsOpen);
+            _detailsLe.preferredHeight = 64f + (_detailsOpen ? lines.Count * 38f + 16f : 0f);
         }
 
         // ---- 予約 ----
@@ -725,6 +997,7 @@ namespace YukaNavi.UI
                 Volume = _volume,
                 AudioDelay = _audioDelay,
                 Track = _track,
+                Duration = _durationSeconds, // 残り時間の計算用 (Web 版と同じ)
                 SelectId = _editId, // 負なら新規、既存 id なら差し替え (変更)
             };
             string kind = string.IsNullOrEmpty(_entry.Kind) ? "動画" : _entry.Kind;
