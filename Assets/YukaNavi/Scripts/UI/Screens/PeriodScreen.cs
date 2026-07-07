@@ -8,7 +8,8 @@ using YukaNavi.Core;
 namespace YukaNavi.UI
 {
     /// <summary>
-    /// 期別リスト画面。アニメの1クール (3ヶ月) ごとに「年 → 期 → 作品」と辿り、
+    /// 期別リスト / 年代別リスト画面。期別はアニメの1クール (3ヶ月) ごとに
+    /// 「年 → 期 → 作品」、年代別 (OpenYearly) は「年 → 1年ぶんの作品」(quarter=0) と辿り、
     /// 作品をタップすると検索結果画面 (作品の完全一致) で曲一覧を出す。
     /// 期の判別は ListerDB のタイアップのリリース日 (ゆかりすたー本家と同じ基準)。
     /// ナビの「戻る」で階層を1つずつ遡る。
@@ -23,10 +24,14 @@ namespace YukaNavi.UI
         }
 
         static bool _resetPending;
+        static bool _pendingYearly;
 
+        /// <summary>年代別モード (年 → 1年ぶんの作品一覧。期の階層を挟まない)</summary>
+        bool _yearly;
         Level _level = Level.Years;
         int _year;
         int _quarter;
+        Text _titleText;
         Text _breadcrumbText;
         Text _statusText;
         RectTransform _listContent;
@@ -41,6 +46,15 @@ namespace YukaNavi.UI
         public static void Open(ScreenManager manager)
         {
             _resetPending = true;
+            _pendingYearly = false;
+            manager.Show<PeriodScreen>();
+        }
+
+        /// <summary>年代別リスト (年 → 1年ぶんの作品一覧) として開く。</summary>
+        public static void OpenYearly(ScreenManager manager)
+        {
+            _resetPending = true;
+            _pendingYearly = true;
             manager.Show<PeriodScreen>();
         }
 
@@ -49,7 +63,8 @@ namespace YukaNavi.UI
             var bg = UiFactory.CreatePanel(transform, "Background", UiFactory.ScreenOverlayBg);
             UiFactory.StretchFull(bg);
 
-            UiFactory.CreateTopBar(transform, "期別リスト");
+            var topBar = UiFactory.CreateTopBar(transform, "期別リスト");
+            _titleText = topBar.GetComponentInChildren<Text>();
 
             // 現在位置 (パンくず)
             _breadcrumbText = UiFactory.CreateText(transform, "Breadcrumb", "", 26,
@@ -119,6 +134,8 @@ namespace YukaNavi.UI
             if (_resetPending)
             {
                 _resetPending = false;
+                _yearly = _pendingYearly;
+                _titleText.text = _yearly ? "年代別リスト" : "期別リスト";
                 _ = ShowYearsAsync();
             }
             else if (_rows.Count == 0)
@@ -133,7 +150,14 @@ namespace YukaNavi.UI
             switch (_level)
             {
                 case Level.Programs:
-                    _ = ShowQuartersAsync(_year);
+                    if (_yearly)
+                    {
+                        _ = ShowYearsAsync(); // 年代別は期の階層を挟まない
+                    }
+                    else
+                    {
+                        _ = ShowQuartersAsync(_year);
+                    }
                     return true;
                 case Level.Quarters:
                     _ = ShowYearsAsync();
@@ -156,21 +180,29 @@ namespace YukaNavi.UI
             }
         }
 
-        /// <summary>前の期 / 次の期へ移動する (年またぎ対応)。</summary>
+        /// <summary>前の期 / 次の期へ移動する (年またぎ対応)。年全体ビューでは年単位で移動。</summary>
         void MoveQuarter(int direction)
         {
             Se.Play(Se.Tap);
-            int quarter = _quarter + direction;
+            int quarter = _quarter;
             int year = _year;
-            if (quarter < 1)
+            if (quarter == 0)
             {
-                quarter = 4;
-                year--;
+                year += direction;
             }
-            else if (quarter > 4)
+            else
             {
-                quarter = 1;
-                year++;
+                quarter += direction;
+                if (quarter < 1)
+                {
+                    quarter = 4;
+                    year--;
+                }
+                else if (quarter > 4)
+                {
+                    quarter = 1;
+                    year++;
+                }
             }
             _ = ShowProgramsAsync(year, quarter);
         }
@@ -194,6 +226,8 @@ namespace YukaNavi.UI
         {
             switch (quarter)
             {
+                case 0:
+                    return "1年すべて";
                 case 1:
                     return "1月〜3月：冬";
                 case 2:
@@ -244,7 +278,14 @@ namespace YukaNavi.UI
             foreach (var year in data.Years)
             {
                 int y = year.Year;
-                AddIndexRow($"{y} 年", $"{year.Songs} 曲", () => _ = ShowQuartersAsync(y));
+                if (_yearly)
+                {
+                    AddIndexRow($"{y} 年", $"{year.Songs} 曲", () => _ = ShowProgramsAsync(y, 0));
+                }
+                else
+                {
+                    AddIndexRow($"{y} 年", $"{year.Songs} 曲", () => _ = ShowQuartersAsync(y));
+                }
             }
         }
 
@@ -298,9 +339,13 @@ namespace YukaNavi.UI
             _level = Level.Programs;
             _year = year;
             _quarter = quarter;
-            _breadcrumbText.text = $"期別 ＞ {year} 年 ＞ {QuarterLabel(quarter)}";
+            _breadcrumbText.text = _yearly
+                ? $"年代別 ＞ {year} 年"
+                : $"期別 ＞ {year} 年 ＞ {QuarterLabel(quarter)}";
             _quarterNav.SetActive(true);
-            _quarterNavLabel.text = $"{year} 年　{QuarterLabel(quarter)}";
+            _quarterNavLabel.text = quarter == 0 ? $"{year} 年" : $"{year} 年　{QuarterLabel(quarter)}";
+            _prevButton.GetComponentInChildren<Text>().text = quarter == 0 ? "◀ 前の年" : "◀ 前の期";
+            _nextButton.GetComponentInChildren<Text>().text = quarter == 0 ? "次の年 ▶" : "次の期 ▶";
             int serial = ++_loadSerial;
             SetStatus("読み込み中...", false);
             ClearRows();

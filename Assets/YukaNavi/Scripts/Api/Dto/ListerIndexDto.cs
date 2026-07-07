@@ -82,4 +82,35 @@ namespace YukaNavi.Api
         [JsonProperty("found_worker")] public string Worker;
         [JsonProperty("found_file_size")] public long FileSize;
     }
+
+    /// <summary>mode=initials の data。頭文字 (ひらがな清音 + その他) ごとの名前数。</summary>
+    public class ListerInitialsDto
+    {
+        [JsonProperty("target")] public string Target;
+        [JsonProperty("initials")] public List<ListerInitialDto> Initials;
+    }
+
+    public class ListerInitialDto
+    {
+        /// <summary>頭文字 ("あ"〜"ん" または "その他")</summary>
+        [JsonProperty("head")] public string Head;
+        [JsonProperty("names")] public int Names;
+    }
+
+    /// <summary>mode=names の data。頭文字またはキーワードで絞った名前一覧。</summary>
+    public class ListerNamesDto
+    {
+        [JsonProperty("target")] public string Target;
+        [JsonProperty("names")] public List<ListerNameDto> Names;
+    }
+
+    public class ListerNameDto
+    {
+        [JsonProperty("name")] public string Name;
+        [JsonProperty("songs")] public int Songs;
+        /// <summary>所属シリーズ (target=program のときのみ、無ければ null)</summary>
+        [JsonProperty("group")] public string Group;
+        /// <summary>参加作品数 (target=artist / group のときのみ)</summary>
+        [JsonProperty("programs")] public int Programs;
+    }
 }

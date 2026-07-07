@@ -30,6 +30,10 @@ namespace YukaNavi.Api
 
     public class FeaturesDto
     {
+        /// <summary>リスター (アニソンDB) 検索が使えるか (旧サーバーではキー欠落 = true 扱い)</summary>
+        [JsonProperty("lister_search")] public bool ListerSearch = true;
+        /// <summary>Everything (ファイル名検索) が使えるか (旧サーバーではキー欠落 = true 扱い)</summary>
+        [JsonProperty("everything_search")] public bool EverythingSearch = true;
         [JsonProperty("mypage")] public bool Mypage;
         [JsonProperty("bingo")] public bool Bingo;
         [JsonProperty("keychange")] public bool Keychange;

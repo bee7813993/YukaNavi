@@ -65,7 +65,7 @@ namespace YukaNavi.UI
             tabBar.offsetMax = new Vector2(-20f, tabBar.offsetMax.y);
             tabBar.sizeDelta = new Vector2(tabBar.sizeDelta.x, 80f);
             var tabs = UiFactory.CreateSegmentTabs(tabBar,
-                new[] { "アニソンDBでさがす", "ファイル名でさがす" }, 28);
+                new[] { "リスターDBでさがす", "ファイル名で探す(Everything)" }, 25);
             _listerTab = tabs[0];
             _fileTab = tabs[1];
             _listerTab.onClick.AddListener(() => SetMode(true));
@@ -90,7 +90,7 @@ namespace YukaNavi.UI
             grid.anchoredPosition = new Vector2(0f, -474f);
             grid.offsetMin = new Vector2(20f, grid.offsetMin.y);
             grid.offsetMax = new Vector2(-20f, grid.offsetMax.y);
-            grid.sizeDelta = new Vector2(grid.sizeDelta.x, 320f);
+            grid.sizeDelta = new Vector2(grid.sizeDelta.x, 482f);
             var gridLayout = grid.gameObject.AddComponent<GridLayoutGroup>();
             gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
             gridLayout.constraintCount = 2;
@@ -98,12 +98,19 @@ namespace YukaNavi.UI
             gridLayout.spacing = new Vector2(16f, 16f);
             gridLayout.childAlignment = TextAnchor.UpperCenter;
 
+            // 履歴・お気に入り曲はマイページ (ナビから常時行ける) にあるためここには置かない
+            AddWayCard(grid, "作品名で探す", "頭文字インデックス\nから作品をさがす",
+                () => NameIndexScreen.Open(Manager, "program"));
+            AddWayCard(grid, "歌手名で探す", "頭文字インデックス\nから歌手をさがす",
+                () => NameIndexScreen.Open(Manager, "artist"));
+            AddWayCard(grid, "シリーズ名で探す", "シリーズから作品を\nたどってさがす",
+                () => NameIndexScreen.Open(Manager, "group"));
             AddWayCard(grid, "期別リスト", "アニメの期ごとに\n作品からさがす",
                 () => PeriodScreen.Open(Manager));
-            AddWayCard(grid, "履歴", "予約したことが\nある曲から",
-                () => MypageScreen.Open(Manager, 0));
-            AddWayCard(grid, "お気に入り曲", "マイページの\nお気に入りから",
-                () => MypageScreen.Open(Manager, 2));
+            AddWayCard(grid, "年代別リスト", "1年ごとにまとめて\n作品からさがす",
+                () => PeriodScreen.OpenYearly(Manager));
+            AddWayCard(grid, "お気に入り検索", "☆保存した歌手・\n作品・ワードから",
+                () => MypageScreen.Open(Manager, 3));
 
             _listerMode = PlayerPrefs.GetInt(ModePrefKey, 1) == 1;
             ApplyMode();
@@ -114,6 +121,43 @@ namespace YukaNavi.UI
             // 予約の変更 (曲えらびなおし) 中はタイトルで状態を示す
             _topTitle.text = ReserveScreen.EditSession != null ? "差しかえる曲をえらぶ" : "曲をさがす";
             RebuildSavedChips(); // 保存/解除の変更を反映する
+            _ = ApplySearchAvailabilityAsync();
+        }
+
+        /// <summary>
+        /// サーバーで使えない検索タブを隠す (リスターDB 未設定 / Everything 未起動)。
+        /// 取得に失敗した時は両方表示のまま (検索実行時にサーバーがエラーを返す)。
+        /// </summary>
+        async System.Threading.Tasks.Task ApplySearchAvailabilityAsync()
+        {
+            bool lister = true;
+            bool everything = true;
+            try
+            {
+                var caps = await AppConfig.CreateClient().GetCapabilitiesAsync();
+                if (caps.Features != null)
+                {
+                    lister = caps.Features.ListerSearch;
+                    everything = caps.Features.EverythingSearch;
+                }
+            }
+            catch (System.Exception)
+            {
+                return;
+            }
+            _listerTab.gameObject.SetActive(lister);
+            _fileTab.gameObject.SetActive(everything);
+            // 使えない方が選択中だったら残っている方へ寄せる
+            if (!lister && _listerMode && everything)
+            {
+                _listerMode = false;
+                ApplyMode();
+            }
+            else if (!everything && !_listerMode && lister)
+            {
+                _listerMode = true;
+                ApplyMode();
+            }
         }
 
         /// <summary>保存ワードのチップ行 (横スクロール) を作る。</summary>
@@ -184,9 +228,10 @@ namespace YukaNavi.UI
                 var item = search;
                 var chip = UiFactory.CreateButton(_chipContent, "Chip", item.Label,
                     UiFactory.PrimaryPale, UiFactory.PrimaryDark, 24);
-                var text = chip.GetComponentInChildren<Text>();
                 var le = chip.gameObject.AddComponent<LayoutElement>();
-                le.preferredWidth = Mathf.Max(text.preferredWidth + 44f, 110f);
+                // Text.preferredWidth はレイアウト前に信用できず、コンテンツ総幅が狂って
+                // 後ろのチップまでスクロールできなくなるため概算幅を使う
+                le.preferredWidth = Mathf.Max(UiFactory.EstimateTextWidth(item.Label, 24) + 48f, 110f);
                 chip.onClick.AddListener(() =>
                 {
                     Se.Play(Se.Transition);

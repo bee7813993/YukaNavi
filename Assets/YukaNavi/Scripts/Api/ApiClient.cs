@@ -93,6 +93,28 @@ namespace YukaNavi.Api
             => GetApiAsync<ListerProgramsDto>(
                 "api/lister_index.php?mode=programs&group=" + UnityWebRequest.EscapeURL(group));
 
+        /// <summary>頭文字インデックス: 頭文字ごとの名前数。target: program | artist | group。</summary>
+        public Task<ListerInitialsDto> GetListerInitialsAsync(string target)
+            => GetApiAsync<ListerInitialsDto>(
+                "api/lister_index.php?mode=initials&target=" + target);
+
+        /// <summary>
+        /// 頭文字インデックス: 名前一覧。initial (頭文字) か keyword (部分一致) のどちらかで絞る。
+        /// </summary>
+        public Task<ListerNamesDto> GetListerNamesAsync(string target, string initial = null, string keyword = null)
+        {
+            string path = "api/lister_index.php?mode=names&target=" + target;
+            if (!string.IsNullOrEmpty(initial))
+            {
+                path += "&initial=" + UnityWebRequest.EscapeURL(initial);
+            }
+            else if (!string.IsNullOrEmpty(keyword))
+            {
+                path += "&keyword=" + UnityWebRequest.EscapeURL(keyword);
+            }
+            return GetApiAsync<ListerNamesDto>(path);
+        }
+
         /// <summary>
         /// ListerDB の曲検索 (曲単位グルーピング、同じ曲の複数動画は Files に並ぶ)。
         /// program / artist / group / worker は完全一致 (AND)、anyword はあいまい検索。

@@ -498,17 +498,22 @@ namespace YukaNavi.UI
                 UiFactory.Roundify(img);
                 UiFactory.AddShadow(rowGo, 3f);
                 var le = rowGo.AddComponent<LayoutElement>();
-                le.preferredHeight = 112f;
                 var button = rowGo.AddComponent<Button>();
                 rowGo.AddComponent<PressEffect>();
                 button.onClick.AddListener(() => ReserveScreen.Open(Manager, entry));
 
-                var nameText = UiFactory.CreateText(rowGo.transform, "Name", item.Name, 28,
+                // ファイル名は文章ではないので半角スペースで折り返さず、行数に合わせて全文表示する
+                int nameLines = UiFactory.EstimateWrapLines(item.Name, 28, 990f);
+                float nameHeight = nameLines * 38f + 4f;
+                le.preferredHeight = Mathf.Max(nameHeight + 28f, 112f);
+
+                var nameText = UiFactory.CreateText(rowGo.transform, "Name",
+                    UiFactory.NoWordWrap(item.Name), 28,
                     UiFactory.TextDark, TextAnchor.MiddleLeft);
                 UiFactory.StretchFull(nameText.rectTransform);
                 nameText.rectTransform.offsetMin = new Vector2(24f, 6f);
                 nameText.rectTransform.offsetMax = new Vector2(-24f, -6f);
-                nameText.verticalOverflow = VerticalWrapMode.Truncate;
+                nameText.verticalOverflow = VerticalWrapMode.Overflow;
 
                 _rows.Add(rowGo);
             }

@@ -6,9 +6,9 @@ using YukaNavi.Core;
 namespace YukaNavi.UI
 {
     /// <summary>
-    /// マイページ画面。履歴 / あとで歌う / お気に入り曲 の一覧を表示し、
-    /// 行タップからもう一度予約できる。データはすべて端末ローカル (LocalMypage) に
-    /// 保存されるため、サーバー設定に依存せずオフラインでも閲覧できる。
+    /// マイページ画面。履歴 / あとで歌う / お気に入り曲 / お気に入り検索 の一覧を表示し、
+    /// 行タップからもう一度予約 (検索はタップで実行) できる。データはすべて端末ローカル
+    /// (LocalMypage) に保存されるため、サーバー設定に依存せずオフラインでも閲覧できる。
     /// </summary>
     public class MypageScreen : ScreenBase
     {
@@ -17,11 +17,12 @@ namespace YukaNavi.UI
             History,
             Later,
             Favorite,
+            Search,
         }
 
         static int _pendingTab = -1;
 
-        /// <summary>タブを指定して開く (0=うたった曲 1=あとで歌う 2=お気に入り)。検索トップの動線用。</summary>
+        /// <summary>タブを指定して開く (0=うたった曲 1=あとで歌う 2=お気に入り曲 3=お気に入り検索)。検索トップの動線用。</summary>
         public static void Open(ScreenManager manager, int tab)
         {
             _pendingTab = tab;
@@ -29,9 +30,7 @@ namespace YukaNavi.UI
         }
 
         Tab _tab = Tab.History;
-        Button _historyTab;
-        Button _laterTab;
-        Button _favoriteTab;
+        Button[] _tabs;
         Text _statusText;
         RectTransform _listContent;
         readonly List<GameObject> _rows = new List<GameObject>();
@@ -43,7 +42,7 @@ namespace YukaNavi.UI
 
             UiFactory.CreateTopBar(transform, "マイページ");
 
-            // タブ (うたった曲 / あとで歌う / お気に入り)
+            // タブ (うたった曲 / あとで歌う / お気に入り曲 / お気に入り検索)
             var tabBar = UiFactory.CreatePanel(transform, "Tabs");
             tabBar.anchorMin = new Vector2(0f, 1f);
             tabBar.anchorMax = new Vector2(1f, 1f);
@@ -52,14 +51,13 @@ namespace YukaNavi.UI
             tabBar.offsetMin = new Vector2(20f, tabBar.offsetMin.y);
             tabBar.offsetMax = new Vector2(-20f, tabBar.offsetMax.y);
             tabBar.sizeDelta = new Vector2(tabBar.sizeDelta.x, 80f);
-            var tabs = UiFactory.CreateSegmentTabs(tabBar,
-                new[] { "うたった曲", "あとで歌う", "お気に入り" }, 28);
-            _historyTab = tabs[0];
-            _laterTab = tabs[1];
-            _favoriteTab = tabs[2];
-            _historyTab.onClick.AddListener(() => SetTab(Tab.History));
-            _laterTab.onClick.AddListener(() => SetTab(Tab.Later));
-            _favoriteTab.onClick.AddListener(() => SetTab(Tab.Favorite));
+            _tabs = UiFactory.CreateSegmentTabs(tabBar,
+                new[] { "うたった曲", "あとで歌う", "お気に入り曲", "お気に入り検索" }, 23);
+            for (int i = 0; i < _tabs.Length; i++)
+            {
+                var tab = (Tab)i;
+                _tabs[i].onClick.AddListener(() => SetTab(tab));
+            }
 
             _statusText = UiFactory.CreateText(transform, "Status", "", 28, UiFactory.TextDark);
             var statusRect = _statusText.rectTransform;
@@ -80,7 +78,7 @@ namespace YukaNavi.UI
 
         public override void OnShow()
         {
-            if (_pendingTab >= 0 && _pendingTab <= 2)
+            if (_pendingTab >= 0 && _pendingTab <= 3)
             {
                 _tab = (Tab)_pendingTab;
                 _pendingTab = -1;
@@ -103,7 +101,7 @@ namespace YukaNavi.UI
 
         void UpdateTabColors()
         {
-            UiFactory.SetSegmentSelected(new[] { _historyTab, _laterTab, _favoriteTab }, (int)_tab);
+            UiFactory.SetSegmentSelected(_tabs, (int)_tab);
         }
 
         void Reload()
@@ -113,6 +111,23 @@ namespace YukaNavi.UI
                 Destroy(row);
             }
             _rows.Clear();
+
+            // お気に入り検索 (保存した検索条件) は曲とは別の行を出す
+            if (_tab == Tab.Search)
+            {
+                var searches = LocalMypage.GetSavedSearches();
+                if (searches.Count == 0)
+                {
+                    _statusText.text = "まだありません (検索結果の ☆ で保存できます)";
+                    return;
+                }
+                _statusText.text = searches.Count + " 件";
+                foreach (var search in searches)
+                {
+                    AddSearchRow(search);
+                }
+                return;
+            }
 
             List<LocalMypage.Item> items;
             switch (_tab)
@@ -145,6 +160,83 @@ namespace YukaNavi.UI
         static string FormatDate(long unixtime)
         {
             return System.DateTimeOffset.FromUnixTimeSeconds(unixtime).ToLocalTime().ToString("M/d HH:mm");
+        }
+
+        static string SearchKindLabel(LocalMypage.SavedSearch item)
+        {
+            switch (item.Field)
+            {
+                case "artist":
+                    return "歌手";
+                case "program":
+                    return "作品";
+                case "group":
+                    return "シリーズ";
+                case "worker":
+                    return "動画制作";
+            }
+            return item.Kind == "everything" ? "キーワード (ファイル名)" : "キーワード (アニソンDB)";
+        }
+
+        /// <summary>お気に入り検索の行 (タップで検索実行 / 削除は2度押し)。</summary>
+        void AddSearchRow(LocalMypage.SavedSearch item)
+        {
+            var rowGo = new GameObject("Row");
+            rowGo.transform.SetParent(_listContent, false);
+            var img = rowGo.AddComponent<Image>();
+            img.color = UiFactory.CardBg;
+            UiFactory.Roundify(img);
+            UiFactory.AddShadow(rowGo, 3f);
+            var le = rowGo.AddComponent<LayoutElement>();
+            le.preferredHeight = 118f;
+            var button = rowGo.AddComponent<Button>();
+            rowGo.AddComponent<PressEffect>();
+            button.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Transition);
+                SearchResultScreen.Open(Manager, SearchResultScreen.FromSavedSearch(item));
+            });
+
+            // 上段: 種類 / 下段: 検索の値
+            var kind = UiFactory.CreateText(rowGo.transform, "Kind", SearchKindLabel(item), 22,
+                UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
+            UiFactory.StretchFull(kind.rectTransform);
+            kind.rectTransform.offsetMin = new Vector2(28f, 70f);
+            kind.rectTransform.offsetMax = new Vector2(-160f, -12f);
+
+            string value = !string.IsNullOrEmpty(item.Value) ? item.Value : item.Keyword;
+            var title = UiFactory.CreateText(rowGo.transform, "Title", UiFactory.NoWordWrap(value ?? ""),
+                30, UiFactory.TextDark, TextAnchor.MiddleLeft);
+            title.verticalOverflow = VerticalWrapMode.Truncate;
+            UiFactory.StretchFull(title.rectTransform);
+            title.rectTransform.offsetMin = new Vector2(28f, 10f);
+            title.rectTransform.offsetMax = new Vector2(-160f, -52f);
+
+            // 削除 (2度押し確認、曲の行と同じ様式)
+            var deleteButton = UiFactory.CreateButton(rowGo.transform, "Delete", "削除",
+                UiFactory.Danger, Color.white, 24);
+            var delRect = deleteButton.GetComponent<RectTransform>();
+            delRect.anchorMin = delRect.anchorMax = new Vector2(1f, 0.5f);
+            delRect.pivot = new Vector2(1f, 0.5f);
+            delRect.anchoredPosition = new Vector2(-16f, 0f);
+            delRect.sizeDelta = new Vector2(120f, 76f);
+            var delLabel = deleteButton.GetComponentInChildren<Text>();
+            bool armed = false;
+            deleteButton.onClick.AddListener(() =>
+            {
+                if (!armed)
+                {
+                    armed = true;
+                    delLabel.text = "本当に？";
+                    Se.Play(Se.Tap);
+                    return;
+                }
+                LocalMypage.ToggleSavedSearch(item); // 保存済みなので解除になる
+                Se.Play(Se.Confirm);
+                Reload();
+            });
+
+            _rows.Add(rowGo);
         }
 
         void AddRow(LocalMypage.Item item)
