@@ -52,6 +52,7 @@ namespace YukaNavi.UI
             searchBtnRect.anchoredPosition = new Vector2(-20f, -134f);
             searchBtnRect.sizeDelta = new Vector2(220f, 92f);
             searchButton.onClick.AddListener(RunSearch);
+            UiFactory.OnSubmit(_searchInput, RunSearch); // Enter でも検索
 
             // 保存したワードのチップ (横スクロール)。結果画面の ☆ で保存できる
             BuildSavedChips();
@@ -91,11 +92,13 @@ namespace YukaNavi.UI
             grid.anchoredPosition = new Vector2(0f, -474f);
             grid.offsetMin = new Vector2(20f, grid.offsetMin.y);
             grid.offsetMax = new Vector2(-20f, grid.offsetMax.y);
-            grid.sizeDelta = new Vector2(grid.sizeDelta.x, 648f);
+            // カードの高さは文字の大きさ設定に追従 (ラベル1行 + キャプション2行)
+            float wayCellHeight = 20f + (UiFactory.ScaledFontSize(32) + 10f) + UiFactory.LineHeight(21) * 2f;
+            grid.sizeDelta = new Vector2(grid.sizeDelta.x, wayCellHeight * 4f + 16f * 3f);
             var gridLayout = grid.gameObject.AddComponent<GridLayoutGroup>();
             gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
             gridLayout.constraintCount = 2;
-            gridLayout.cellSize = new Vector2(508f, 150f);
+            gridLayout.cellSize = new Vector2(508f, wayCellHeight);
             gridLayout.spacing = new Vector2(16f, 16f);
             gridLayout.childAlignment = TextAnchor.UpperCenter;
 
@@ -138,7 +141,7 @@ namespace YukaNavi.UI
             bool internet = true;
             try
             {
-                var caps = await AppConfig.CreateClient().GetCapabilitiesAsync();
+                var caps = await AppState.EnsureCapabilitiesAsync();
                 if (caps.Features != null)
                 {
                     lister = caps.Features.ListerSearch;
@@ -211,6 +214,7 @@ namespace YukaNavi.UI
             scroll.vertical = false;
             scroll.movementType = ScrollRect.MovementType.Clamped;
             scroll.scrollSensitivity = 30f;
+            UiFactory.AddHorizontalMoreIndicator(scroll); // 右に続きがあるとき「›」を出す
 
             _chipHint = UiFactory.CreateText(panel, "Hint",
                 "検索結果の ☆ でワードを保存すると、ここに並びます", 22, UiFactory.TextMuted,
@@ -250,18 +254,30 @@ namespace YukaNavi.UI
         /// <summary>「他の方法でさがす」のカード (メニューの機能カードと同じ雰囲気)。</summary>
         Button AddWayCard(RectTransform grid, string label, string caption, System.Action onTap)
         {
+            float labelHeight = UiFactory.ScaledFontSize(32) + 10f;
             var button = UiFactory.CreateButton(grid, label, "",
                 new Color(1f, 1f, 1f, 0.92f), Color.white);
             var labelText = UiFactory.CreateText(button.transform, "Label", label, 32,
                 UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
-            UiFactory.StretchFull(labelText.rectTransform);
-            labelText.rectTransform.offsetMin = new Vector2(28f, 78f);
-            labelText.rectTransform.offsetMax = new Vector2(-12f, -14f);
+            var labelRect = labelText.rectTransform;
+            labelRect.anchorMin = new Vector2(0f, 1f);
+            labelRect.anchorMax = new Vector2(1f, 1f);
+            labelRect.pivot = new Vector2(0.5f, 1f);
+            labelRect.anchoredPosition = new Vector2(0f, -10f);
+            labelRect.offsetMin = new Vector2(28f, labelRect.offsetMin.y);
+            labelRect.offsetMax = new Vector2(-12f, labelRect.offsetMax.y);
+            labelRect.sizeDelta = new Vector2(labelRect.sizeDelta.x, labelHeight);
+            UiFactory.FitLabel(labelText, 20);
             var captionText = UiFactory.CreateText(button.transform, "Caption", caption, 21,
                 UiFactory.TextMuted, TextAnchor.UpperLeft);
-            UiFactory.StretchFull(captionText.rectTransform);
-            captionText.rectTransform.offsetMin = new Vector2(28f, 12f);
-            captionText.rectTransform.offsetMax = new Vector2(-12f, -76f);
+            var captionRect = captionText.rectTransform;
+            captionRect.anchorMin = new Vector2(0f, 1f);
+            captionRect.anchorMax = new Vector2(1f, 1f);
+            captionRect.pivot = new Vector2(0.5f, 1f);
+            captionRect.anchoredPosition = new Vector2(0f, -(10f + labelHeight));
+            captionRect.offsetMin = new Vector2(28f, captionRect.offsetMin.y);
+            captionRect.offsetMax = new Vector2(-12f, captionRect.offsetMax.y);
+            captionRect.sizeDelta = new Vector2(captionRect.sizeDelta.x, UiFactory.LineHeight(21) * 2f);
             button.onClick.AddListener(() =>
             {
                 Se.Play(Se.Transition);

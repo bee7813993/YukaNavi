@@ -432,6 +432,7 @@ namespace YukaNavi.UI
             scroll.vertical = false;
             scroll.movementType = ScrollRect.MovementType.Clamped;
             scroll.scrollSensitivity = 30f;
+            UiFactory.AddHorizontalMoreIndicator(scroll); // 右に続きがあるとき「›」を出す
 
             _singerRow.SetActive(false);
         }
@@ -578,6 +579,7 @@ namespace YukaNavi.UI
             valueRect.pivot = new Vector2(1f, 0.5f);
             valueRect.anchoredPosition = new Vector2(-140f, 0f);
             valueRect.sizeDelta = new Vector2(266f, 80f);
+            UiFactory.FitLabel(value, 18); // トラック名など長い値でも枠内に収める
 
             var plus = UiFactory.CreateSoftButton(panel, "Plus", "＋", 34);
             var plusRect = plus.GetComponent<RectTransform>();
@@ -670,6 +672,7 @@ namespace YukaNavi.UI
             valueRect.offsetMin = new Vector2(118f, valueRect.offsetMin.y);
             valueRect.offsetMax = new Vector2(-118f, valueRect.offsetMax.y);
             valueRect.sizeDelta = new Vector2(valueRect.sizeDelta.x, 66f);
+            UiFactory.FitLabel(value, 18);
 
             var plus = UiFactory.CreateSoftButton(card, "Plus", "＋", 30);
             var plusRect = (RectTransform)plus.transform;
@@ -696,7 +699,7 @@ namespace YukaNavi.UI
             float y = 52f;
 
             int titleLines = UiFactory.EstimateWrapLines(title, 32, wrapWidth);
-            float titleHeight = titleLines * 44f + 4f;
+            float titleHeight = titleLines * UiFactory.LineHeight(32) + 4f;
             _songText.text = UiFactory.NoWordWrap(title);
             var titleRect = _songText.rectTransform;
             titleRect.anchorMin = new Vector2(0f, 1f);
@@ -714,7 +717,7 @@ namespace YukaNavi.UI
             {
                 y += 6f;
                 int subLines = UiFactory.EstimateWrapLines(_entry.Line2, 25, wrapWidth);
-                float subHeight = subLines * 34f + 4f;
+                float subHeight = subLines * UiFactory.LineHeight(25) + 4f;
                 _songSubText.text = UiFactory.NoWordWrap(_entry.Line2);
                 var subRect = _songSubText.rectTransform;
                 subRect.anchorMin = new Vector2(0f, 1f);
@@ -970,7 +973,7 @@ namespace YukaNavi.UI
 
             _detailsText.text = string.Join("\n", lines);
             _detailsText.gameObject.SetActive(_detailsOpen);
-            _detailsLe.preferredHeight = 64f + (_detailsOpen ? lines.Count * 38f + 16f : 0f);
+            _detailsLe.preferredHeight = 64f + (_detailsOpen ? lines.Count * UiFactory.LineHeight(25) + 16f : 0f);
         }
 
         // ---- 予約 ----

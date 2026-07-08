@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using YukaNavi.Core;
 
@@ -254,6 +255,16 @@ namespace YukaNavi.UI
                 yield return null;
             }
             _menuContent.localScale = Vector3.one;
+        }
+
+        void Update()
+        {
+            // Android の戻るボタン / 戻るジェスチャ (Input System では Escape として届く)。
+            // ナビの「戻る」ボタンと同じ動作にする。エディタでも Esc キーで確認できる
+            if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+            {
+                OnBack();
+            }
         }
 
         void OnBack()

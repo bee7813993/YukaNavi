@@ -247,15 +247,48 @@ namespace YukaNavi.UI
             var overlay = _createModal.AddComponent<Image>();
             overlay.color = new Color(0f, 0f, 0f, 0.55f);
 
-            var card = UiFactory.CreatePanel(_createModal.transform, "Card", Color.white);
-            card.anchorMin = card.anchorMax = new Vector2(0.5f, 0.5f);
-            card.pivot = new Vector2(0.5f, 0.5f);
-            card.sizeDelta = new Vector2(940f, 1860f);
-            UiFactory.Roundify(card.GetComponent<Image>());
-            UiFactory.AddShadow(card.gameObject, 8f);
+            // 外枠は画面の高さに合わせ、中身 (card) は縦スクロールできるようにする
+            // (項目が増えて 9:16 の画面や大きい文字サイズでは収まらないため)
+            var cardFrame = UiFactory.CreatePanel(_createModal.transform, "Card", Color.white);
+            cardFrame.anchorMin = new Vector2(0.5f, 0f);
+            cardFrame.anchorMax = new Vector2(0.5f, 1f);
+            cardFrame.pivot = new Vector2(0.5f, 0.5f);
+            // 上 40px / 下はナビバー + 20px を空ける (下部の保存ボタンがナビバーに隠れないように)
+            float topMargin = 40f;
+            float bottomMargin = GlobalNav.BarHeight + 20f;
+            cardFrame.anchoredPosition = new Vector2(0f, (bottomMargin - topMargin) / 2f);
+            cardFrame.sizeDelta = new Vector2(940f, -(topMargin + bottomMargin));
+            UiFactory.Roundify(cardFrame.GetComponent<Image>());
+            UiFactory.AddShadow(cardFrame.gameObject, 8f);
             // カード内タップがオーバーレイに抜けないようにする
-            var cardButton = card.gameObject.AddComponent<Button>();
+            var cardButton = cardFrame.gameObject.AddComponent<Button>();
             cardButton.transition = Selectable.Transition.None;
+
+            var modalScroll = cardFrame.gameObject.AddComponent<ScrollRect>();
+            var viewportGo = new GameObject("Viewport");
+            viewportGo.transform.SetParent(cardFrame, false);
+            var viewportRect = viewportGo.AddComponent<RectTransform>();
+            UiFactory.StretchFull(viewportRect);
+            viewportRect.offsetMin = new Vector2(0f, 150f); // 下部の保存/やめるボタン行は固定
+            var viewportImg = viewportGo.AddComponent<Image>();
+            viewportImg.color = Color.white;
+            UiFactory.Roundify(viewportImg);
+            var viewportMask = viewportGo.AddComponent<Mask>();
+            viewportMask.showMaskGraphic = false;
+
+            var contentGo = new GameObject("Content");
+            contentGo.transform.SetParent(viewportGo.transform, false);
+            var card = contentGo.AddComponent<RectTransform>();
+            card.anchorMin = new Vector2(0f, 1f);
+            card.anchorMax = new Vector2(1f, 1f);
+            card.pivot = new Vector2(0.5f, 1f);
+            card.sizeDelta = new Vector2(0f, 1700f);
+
+            modalScroll.content = card;
+            modalScroll.viewport = viewportRect;
+            modalScroll.horizontal = false;
+            modalScroll.movementType = ScrollRect.MovementType.Clamped;
+            modalScroll.scrollSensitivity = 30f;
 
             _modalTitleText = UiFactory.CreateText(card, "Title", "スキンを作る", 38, UiFactory.PrimaryDark);
             SetCardRow(_modalTitleText.rectTransform, -22f, 54f);
@@ -369,7 +402,7 @@ namespace YukaNavi.UI
             _createErrorText = UiFactory.CreateText(card, "Error", "", 24, UiFactory.Danger);
             SetCardRow(_createErrorText.rectTransform, -1624f, 36f);
 
-            var saveButton = UiFactory.CreateButton(card, "Save", "作成する", UiFactory.Primary, Color.white, 34);
+            var saveButton = UiFactory.CreateButton(cardFrame, "Save", "作成する", UiFactory.Primary, Color.white, 34);
             _saveButtonLabel = saveButton.GetComponentInChildren<Text>();
             var saveRect = saveButton.GetComponent<RectTransform>();
             saveRect.anchorMin = saveRect.anchorMax = new Vector2(0.5f, 0f);
@@ -378,7 +411,7 @@ namespace YukaNavi.UI
             saveRect.sizeDelta = new Vector2(340f, 92f);
             saveButton.onClick.AddListener(CreateSkin);
 
-            var cancelButton = UiFactory.CreateSoftButton(card, "Cancel", "やめる", 34);
+            var cancelButton = UiFactory.CreateSoftButton(cardFrame, "Cancel", "やめる", 34);
             var cancelRect = cancelButton.GetComponent<RectTransform>();
             cancelRect.anchorMin = cancelRect.anchorMax = new Vector2(0.5f, 0f);
             cancelRect.pivot = new Vector2(0.5f, 0f);

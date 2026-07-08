@@ -118,7 +118,7 @@ namespace YukaNavi.UI
         {
             try
             {
-                var caps = await AppConfig.CreateClient().GetCapabilitiesAsync();
+                var caps = await AppState.EnsureCapabilitiesAsync();
                 _pauseButtonGo.SetActive(caps.Features != null && caps.Features.Userpause);
             }
             catch (System.Exception)
@@ -271,15 +271,15 @@ namespace YukaNavi.UI
             // 各行とも折り返して全文表示し、行の高さは内容に合わせて伸ばす (縦は広めに使う)
             // (テキスト幅 ≈ リスト幅 1040 - バッジ 118 - 右余白 24)
             int nameLines = UiFactory.EstimateWrapLines(title, 30, 870f);
-            float nameHeight = nameLines * 42f;
+            float nameHeight = nameLines * UiFactory.LineHeight(30);
             float artistHeight = artistLine != ""
-                ? UiFactory.EstimateWrapLines(artistLine, 24, 870f) * 32f + 4f : 0f;
+                ? UiFactory.EstimateWrapLines(artistLine, 24, 870f) * UiFactory.LineHeight(24) + 4f : 0f;
             float workHeight = workLine != ""
-                ? UiFactory.EstimateWrapLines(workLine, 24, 870f) * 32f + 4f : 0f;
+                ? UiFactory.EstimateWrapLines(workLine, 24, 870f) * UiFactory.LineHeight(24) + 4f : 0f;
             // コメント (みんなで追記できる) は全文見せる
             string comment = masked ? "" : (item.Comment ?? "").Trim();
             float commentHeight = comment != ""
-                ? UiFactory.EstimateWrapLines(comment, 22, 870f) * 30f + 10f : 0f;
+                ? UiFactory.EstimateWrapLines(comment, 22, 870f) * UiFactory.LineHeight(22) + 10f : 0f;
             float rowHeight = Mathf.Max(
                 20f + nameHeight + 6f + artistHeight + workHeight + commentHeight + 12f + 62f + 16f,
                 DefaultRowHeight);

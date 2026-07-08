@@ -52,7 +52,9 @@ namespace YukaNavi
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080f, 1920f);
-            scaler.matchWidthOrHeight = 0.5f;
+            // 幅基準で固定する。0.5 (中間) だと 9:16 より細長い端末で Canvas の実効幅が
+            // 1080 を下回り、固定幅のカードやグリッドが左右にはみ出す
+            scaler.matchWidthOrHeight = 0f;
             canvasGo.AddComponent<GraphicRaycaster>();
 
             // SE / BGM

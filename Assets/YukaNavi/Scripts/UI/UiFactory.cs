@@ -352,6 +352,7 @@ namespace YukaNavi.UI
                 go.AddComponent<PressEffect>();
                 var text = CreateText(go.transform, "Label", labels[i], fontSize, Primary);
                 StretchFull(text.rectTransform);
+                FitLabel(text); // 大きい文字サイズ設定でもタブ内に収める
                 buttons[i] = button;
             }
             return buttons;
@@ -376,7 +377,7 @@ namespace YukaNavi.UI
             {
                 units += c <= 0x7F ? 0.56f : 1.04f;
             }
-            return units * fontSize;
+            return units * ScaledFontSize(fontSize);
         }
 
         /// <summary>概算の折り返し行数 (足りないと最終行が欠けるため少し多めに見積もる)。改行にも対応。</summary>
@@ -541,6 +542,52 @@ namespace YukaNavi.UI
             return img;
         }
 
+        const string FontScaleKey = "ui.font_scale";
+        static float _fontScale;
+        static bool _fontScaleLoaded;
+
+        /// <summary>
+        /// 全テキスト共通の拡大率 (スマホでの視認性向上。既定 1.15)。
+        /// 各所の指定サイズは公称値のまま、実描画・幅見積もり・行高をこの係数で揃える。
+        /// 接続設定画面から変更でき端末に保存される。変更後は ScreenManager.RebuildAll() で反映。
+        /// </summary>
+        public static float FontScale
+        {
+            get
+            {
+                if (!_fontScaleLoaded)
+                {
+                    _fontScale = PlayerPrefs.GetFloat(FontScaleKey, 1.15f);
+                    _fontScaleLoaded = true;
+                }
+                return _fontScale;
+            }
+            set
+            {
+                _fontScale = Mathf.Clamp(value, 1f, 1.6f);
+                _fontScaleLoaded = true;
+                PlayerPrefs.SetFloat(FontScaleKey, _fontScale);
+                PlayerPrefs.Save();
+            }
+        }
+
+        /// <summary>FontScale 適用後の実フォントサイズ。</summary>
+        public static int ScaledFontSize(int fontSize)
+        {
+            return Mathf.RoundToInt(fontSize * FontScale);
+        }
+
+        /// <summary>
+        /// 折り返しテキスト1行分の高さ (FontScale 込み)。
+        /// 丸ゴシックの実行高は fontSize より大きいため、大きいサイズでは比例分を確保する
+        /// (固定 +12px だけだと 145% 以上で縦 Truncate の行が消える)。
+        /// </summary>
+        public static float LineHeight(int fontSize)
+        {
+            float scaled = ScaledFontSize(fontSize);
+            return Mathf.Max(scaled + 12f, scaled * 1.45f);
+        }
+
         public static Text CreateText(Transform parent, string name, string content, int fontSize,
                                       Color color, TextAnchor align = TextAnchor.MiddleCenter)
         {
@@ -549,7 +596,7 @@ namespace YukaNavi.UI
             var text = go.AddComponent<Text>();
             text.font = Font;
             text.text = content;
-            text.fontSize = fontSize;
+            text.fontSize = ScaledFontSize(fontSize);
             text.color = color;
             text.alignment = align;
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -655,6 +702,97 @@ namespace YukaNavi.UI
             input.textComponent = text;
             input.placeholder = ph;
             return input;
+        }
+
+        /// <summary>
+        /// 実キーボードの Enter で入力を確定したときに action を実行する (検索欄用)。
+        /// Windows / エディタ向けで、モバイルのソフトキーボードでは何もしない。
+        /// 「Enter を押した状態でフォーカスが外れた」ことを監視するため、
+        /// 日本語入力の変換確定 (フォーカスが残る) では発火しない。
+        /// </summary>
+        public static void OnSubmit(InputField input, System.Action action)
+        {
+            var watcher = input.gameObject.AddComponent<SubmitOnEnter>();
+            watcher.Input = input;
+            watcher.Action = action;
+        }
+
+        class SubmitOnEnter : MonoBehaviour
+        {
+            public InputField Input;
+            public System.Action Action;
+            bool _wasFocused;
+
+            void Update()
+            {
+                bool focused = Input.isFocused;
+                var keyboard = UnityEngine.InputSystem.Keyboard.current;
+                if (_wasFocused && !focused && keyboard != null
+                    && (keyboard.enterKey.isPressed || keyboard.enterKey.wasPressedThisFrame
+                        || keyboard.numpadEnterKey.isPressed || keyboard.numpadEnterKey.wasPressedThisFrame))
+                {
+                    Action?.Invoke();
+                }
+                _wasFocused = focused;
+            }
+        }
+
+        /// <summary>ラベルが枠に入りきらないときに自動で縮小させる (タブ・小さいボタン用)。</summary>
+        public static void FitLabel(Text text, int minSize = 16)
+        {
+            text.resizeTextForBestFit = true;
+            text.resizeTextMaxSize = text.fontSize;
+            text.resizeTextMinSize = minSize;
+        }
+
+        /// <summary>
+        /// 横スクロールの右にまだ続きがあるときだけ「›」のしるしを出す (チップ行用)。
+        /// </summary>
+        public static void AddHorizontalMoreIndicator(ScrollRect scroll)
+        {
+            var go = new GameObject("MoreIndicator");
+            go.transform.SetParent(scroll.transform, false);
+            go.transform.SetAsLastSibling(); // マスク付き viewport より前面に出す
+            var bg = go.AddComponent<Image>();
+            bg.sprite = CircleSprite;
+            bg.color = Primary;
+            bg.raycastTarget = false;
+            AddShadow(go, 3f);
+            var rect = bg.rectTransform;
+            rect.anchorMin = rect.anchorMax = new Vector2(1f, 0.5f);
+            rect.pivot = new Vector2(1f, 0.5f);
+            rect.anchoredPosition = new Vector2(-4f, 0f);
+            rect.sizeDelta = new Vector2(52f, 52f);
+            var arrow = CreateText(go.transform, "Arrow", "›", 36, Color.white);
+            arrow.fontStyle = FontStyle.Bold;
+            StretchFull(arrow.rectTransform);
+            go.SetActive(false);
+
+            var watcher = scroll.gameObject.AddComponent<ScrollMoreIndicator>();
+            watcher.Scroll = scroll;
+            watcher.Indicator = go;
+        }
+
+        class ScrollMoreIndicator : MonoBehaviour
+        {
+            public ScrollRect Scroll;
+            public GameObject Indicator;
+
+            void Update()
+            {
+                var viewport = Scroll.viewport != null ? Scroll.viewport : (RectTransform)Scroll.transform;
+                bool more = false;
+                if (Scroll.content != null)
+                {
+                    // content の x はスクロールにつれて 0 → -(はみ出し幅) へ動く
+                    float overflow = Scroll.content.rect.width - viewport.rect.width;
+                    more = overflow > 4f && Scroll.content.anchoredPosition.x > -(overflow - 4f);
+                }
+                if (Indicator.activeSelf != more)
+                {
+                    Indicator.SetActive(more);
+                }
+            }
         }
 
         /// <summary>横スライダー (音量調整等)。位置とサイズは戻り値の RectTransform で調整する。</summary>

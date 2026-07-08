@@ -295,7 +295,7 @@ namespace YukaNavi.UI
         float AddWrapped(RectTransform card, string label, float y, int fontSize, Color color)
         {
             int lines = UiFactory.EstimateWrapLines(label, fontSize, 960f);
-            float height = lines * (fontSize + 12f) + 4f;
+            float height = lines * UiFactory.LineHeight(fontSize) + 4f;
             var text = UiFactory.CreateText(card, "Text", UiFactory.NoWordWrap(label),
                 fontSize, color, TextAnchor.UpperLeft);
             var rect = text.rectTransform;

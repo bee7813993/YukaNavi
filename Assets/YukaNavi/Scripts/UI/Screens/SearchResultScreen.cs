@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.UI;
@@ -153,6 +153,7 @@ namespace YukaNavi.UI
             searchBtnRect.anchoredPosition = new Vector2(-20f, -122f);
             searchBtnRect.sizeDelta = new Vector2(220f, 84f);
             searchButton.onClick.AddListener(RunKeywordSearch);
+            UiFactory.OnSubmit(_searchInput, RunKeywordSearch); // Enter でも検索
 
             _statusText = UiFactory.CreateText(transform, "Status", "", 26, UiFactory.TextDark);
             var statusRect = _statusText.rectTransform;
@@ -505,7 +506,7 @@ namespace YukaNavi.UI
 
                 // ファイル名は文章ではないので半角スペースで折り返さず、行数に合わせて全文表示する
                 int nameLines = UiFactory.EstimateWrapLines(item.Name, 28, 990f);
-                float nameHeight = nameLines * 38f + 4f;
+                float nameHeight = nameLines * UiFactory.LineHeight(28) + 4f;
                 le.preferredHeight = Mathf.Max(nameHeight + 28f, 112f);
 
                 var nameText = UiFactory.CreateText(rowGo.transform, "Name",
@@ -640,7 +641,7 @@ namespace YukaNavi.UI
         float AddWrappedText(RectTransform card, string label, float y, int fontSize, Color color)
         {
             int lines = WrapLines(label, fontSize, CardTextWidth);
-            float height = lines * (fontSize + 12f) + 4f;
+            float height = lines * UiFactory.LineHeight(fontSize) + 4f;
             var text = UiFactory.CreateText(card, "Text", UiFactory.NoWordWrap(label),
                 fontSize, color, TextAnchor.UpperLeft);
             var rect = text.rectTransform;
@@ -659,7 +660,7 @@ namespace YukaNavi.UI
         float AddLinkRow(RectTransform card, string label, float y, int fontSize, System.Action onTap)
         {
             int lines = WrapLines(label, fontSize, CardTextWidth);
-            float height = lines * (fontSize + 12f) + 4f;
+            float height = lines * UiFactory.LineHeight(fontSize) + 4f;
             var text = UiFactory.CreateText(card, "Link", UiFactory.NoWordWrap(label), fontSize,
                 UiFactory.Primary, TextAnchor.UpperLeft);
             var rect = text.rectTransform;

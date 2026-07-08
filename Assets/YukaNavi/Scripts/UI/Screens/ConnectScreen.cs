@@ -40,20 +40,29 @@ namespace YukaNavi.UI
                 fitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
             }
 
+            // 行の高さと縦位置は文字の大きさ設定 (FontScale) に合わせて積み上げる
+            float labelH = UiFactory.LineHeight(30);
+            float y = -60f;
+
             // タイトル
             var title = UiFactory.CreateText(transform, "Title", "接続設定", 52, UiFactory.PrimaryDark);
-            SetTopRect(title.rectTransform, -80f, 70f);
+            float titleH = UiFactory.ScaledFontSize(52) + 18f;
+            SetTopRect(title.rectTransform, y, titleH);
+            y -= titleH + 8f;
 
             var caption = UiFactory.CreateText(transform, "Caption",
                 "ゆかりサーバーの URL を入力してください\n(ykr.moe はポート番号だけでもOK)", 28, UiFactory.TextDark);
-            SetTopRect(caption.rectTransform, -160f, 76f);
+            float captionH = UiFactory.LineHeight(28) * 2f;
+            SetTopRect(caption.rectTransform, y, captionH);
+            y -= captionH + 28f;
 
             // URL 入力
             var urlLabel = UiFactory.CreateText(transform, "UrlLabel", "サーバー URL", 30,
                 UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
-            SetTopRect(urlLabel.rectTransform, -260f, 40f);
+            SetTopRect(urlLabel.rectTransform, y, labelH);
+            y -= labelH + 8f;
             _urlInput = UiFactory.CreateInputField(transform, "UrlInput", "http://192.168.x.x/ か ポート番号");
-            SetTopRect(_urlInput.GetComponent<RectTransform>(), -310f, 84f);
+            SetTopRect(_urlInput.GetComponent<RectTransform>(), y, 84f);
             // URL 欄の右に QR 読み取りボタンを置く
             var urlRect = _urlInput.GetComponent<RectTransform>();
             urlRect.offsetMax = new Vector2(-310f, urlRect.offsetMax.y);
@@ -62,36 +71,77 @@ namespace YukaNavi.UI
             var qrRect = qrButton.GetComponent<RectTransform>();
             qrRect.anchorMin = qrRect.anchorMax = new Vector2(1f, 1f);
             qrRect.pivot = new Vector2(1f, 1f);
-            qrRect.anchoredPosition = new Vector2(-90f, -310f);
+            qrRect.anchoredPosition = new Vector2(-90f, y);
             qrRect.sizeDelta = new Vector2(200f, 84f);
+            UiFactory.FitLabel(qrButton.GetComponentInChildren<Text>());
             qrButton.onClick.AddListener(() =>
             {
                 Se.Play(Se.Transition);
                 Manager.Show<QrScanScreen>();
             });
+            y -= 84f + 20f;
 
             // easyauth パスワード入力
             var passLabel = UiFactory.CreateText(transform, "PassLabel",
                 "かんたん認証パスワード (不要なら空欄)", 30, UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
-            SetTopRect(passLabel.rectTransform, -430f, 40f);
+            SetTopRect(passLabel.rectTransform, y, labelH);
+            y -= labelH + 8f;
             _passInput = UiFactory.CreateInputField(transform, "PassInput", "");
-            SetTopRect(_passInput.GetComponent<RectTransform>(), -480f, 84f);
+            SetTopRect(_passInput.GetComponent<RectTransform>(), y, 84f);
+            y -= 84f + 44f;
 
             // 接続テスト
             var testButton = UiFactory.CreateButton(transform, "TestButton", "接続テスト",
                 UiFactory.Primary, Color.white, 38);
-            SetTopRect(testButton.GetComponent<RectTransform>(), -610f, 96f);
+            SetTopRect(testButton.GetComponent<RectTransform>(), y, 96f);
             testButton.onClick.AddListener(() => _ = TestAsync());
+            UiFactory.OnSubmit(_urlInput, () => _ = TestAsync()); // Enter でも接続テスト
+            UiFactory.OnSubmit(_passInput, () => _ = TestAsync());
+            y -= 96f + 20f;
 
             // 結果表示
             _resultText = UiFactory.CreateText(transform, "Result", "", 30, UiFactory.TextDark);
-            SetTopRect(_resultText.rectTransform, -730f, 120f);
+            float resultH = UiFactory.LineHeight(30) * 2f;
+            SetTopRect(_resultText.rectTransform, y, resultH);
+            y -= resultH + 24f;
 
             // 保存して戻る
             _saveButton = UiFactory.CreateButton(transform, "SaveButton", "保存して戻る",
                 UiFactory.PrimaryDark, Color.white, 38);
-            SetTopRect(_saveButton.GetComponent<RectTransform>(), -880f, 96f);
+            SetTopRect(_saveButton.GetComponent<RectTransform>(), y, 96f);
             _saveButton.onClick.AddListener(SaveAndBack);
+            y -= 96f + 44f;
+
+            // 文字の大きさ (全画面共通。変更すると即時反映して端末に保存される)
+            var fontLabel = UiFactory.CreateText(transform, "FontLabel", "文字の大きさ", 30,
+                UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
+            SetTopRect(fontLabel.rectTransform, y, labelH);
+            y -= labelH + 8f;
+            var fontBar = UiFactory.CreatePanel(transform, "FontTabs");
+            SetTopRect(fontBar, y, 84f);
+            var fontTabs = UiFactory.CreateSegmentTabs(fontBar,
+                new[] { "100%", "115%", "130%", "145%", "160%" }, 24);
+            float[] scales = { 1f, 1.15f, 1.3f, 1.45f, 1.6f };
+            int selected = 1;
+            for (int i = 0; i < scales.Length; i++)
+            {
+                if (Mathf.Abs(UiFactory.FontScale - scales[i]) < 0.05f)
+                {
+                    selected = i;
+                }
+                float scale = scales[i];
+                fontTabs[i].onClick.AddListener(() =>
+                {
+                    Se.Play(Se.Tap);
+                    if (Mathf.Abs(UiFactory.FontScale - scale) < 0.01f)
+                    {
+                        return;
+                    }
+                    UiFactory.FontScale = scale;
+                    Manager.RebuildAll(); // 全画面を作り直して反映 (この画面も含む)
+                });
+            }
+            UiFactory.SetSegmentSelected(fontTabs, selected);
         }
 
         /// <summary>上端基準・左右 90px マージンの行配置。</summary>

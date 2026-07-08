@@ -94,6 +94,7 @@ namespace YukaNavi.UI
             searchBtnRect.anchoredPosition = new Vector2(-20f, -134f);
             searchBtnRect.sizeDelta = new Vector2(220f, 92f);
             searchButton.onClick.AddListener(RunSearch);
+            UiFactory.OnSubmit(_searchInput, RunSearch); // Enter でも検索
 
             _statusText = UiFactory.CreateText(transform, "Status", "", 26, UiFactory.TextMuted);
             var statusRect = _statusText.rectTransform;
