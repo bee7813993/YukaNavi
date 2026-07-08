@@ -697,7 +697,7 @@ namespace YukaNavi.UI
             scrollRect.content = content;
             scrollRect.viewport = viewportRect;
             scrollRect.horizontal = false;
-            scrollRect.movementType = ScrollRect.MovementType.Clamped;
+            scrollRect.movementType = ScrollRect.MovementType.Elastic; // 端で少しバウンス
             scrollRect.scrollSensitivity = 30f;
             return scrollRectT;
         }
@@ -770,6 +770,97 @@ namespace YukaNavi.UI
             text.resizeTextForBestFit = true;
             text.resizeTextMaxSize = text.fontSize;
             text.resizeTextMinSize = minSize;
+        }
+
+        /// <summary>トーストの親 (Canvas)。AppRoot が起動時に設定する。</summary>
+        public static Transform ToastRoot;
+        static GameObject _activeToast;
+
+        /// <summary>
+        /// 画面下部にトースト (操作結果の短い通知) を出す。数秒表示して自動で消える。
+        /// 連続して呼ばれたら前のトーストは置き換わる。
+        /// </summary>
+        public static void ShowToast(string message, bool isError = false)
+        {
+            if (ToastRoot == null || string.IsNullOrEmpty(message))
+            {
+                return;
+            }
+            if (_activeToast != null)
+            {
+                Object.Destroy(_activeToast);
+            }
+            var go = new GameObject("Toast");
+            _activeToast = go;
+            go.transform.SetParent(ToastRoot, false);
+            var rect = go.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0f);
+            rect.anchorMax = new Vector2(0.5f, 0f);
+            rect.pivot = new Vector2(0.5f, 0f);
+            const float maxWidth = 1000f;
+            float width = Mathf.Min(EstimateTextWidth(message, 26) + 72f, maxWidth);
+            int lines = EstimateWrapLines(message, 26, maxWidth - 72f);
+            rect.sizeDelta = new Vector2(width, lines * LineHeight(26) + 28f);
+            rect.anchoredPosition = new Vector2(0f, GlobalNav.BarHeight + 28f);
+            var img = go.AddComponent<Image>();
+            img.color = isError
+                ? new Color(0.72f, 0.25f, 0.32f, 0.95f)
+                : new Color(0.27f, 0.22f, 0.38f, 0.92f);
+            Roundify(img);
+            img.raycastTarget = false;
+            AddShadow(go, 4f);
+            var text = CreateText(go.transform, "Message", message, 26, Color.white);
+            StretchFull(text.rectTransform);
+            text.rectTransform.offsetMin = new Vector2(28f, 4f);
+            text.rectTransform.offsetMax = new Vector2(-28f, -4f);
+            text.raycastTarget = false;
+            go.AddComponent<ToastView>();
+        }
+
+        /// <summary>トーストの出現・待機・退場を自前で駆動する (どの画面からでも出せる)。</summary>
+        class ToastView : MonoBehaviour
+        {
+            const float InDuration = 0.18f;
+            const float HoldDuration = 2.2f;
+            const float OutDuration = 0.35f;
+
+            CanvasGroup _group;
+            RectTransform _rect;
+            float _baseY;
+            float _elapsed;
+
+            void Awake()
+            {
+                _group = gameObject.AddComponent<CanvasGroup>();
+                _rect = (RectTransform)transform;
+                _baseY = _rect.anchoredPosition.y;
+                _group.alpha = 0f;
+            }
+
+            void Update()
+            {
+                _elapsed += Time.deltaTime;
+                if (_elapsed < InDuration)
+                {
+                    float k = _elapsed / InDuration;
+                    k = 1f - (1f - k) * (1f - k); // easeOut
+                    _group.alpha = k;
+                    _rect.anchoredPosition = new Vector2(0f, _baseY - 24f * (1f - k));
+                }
+                else if (_elapsed < InDuration + HoldDuration)
+                {
+                    _group.alpha = 1f;
+                    _rect.anchoredPosition = new Vector2(0f, _baseY);
+                }
+                else if (_elapsed < InDuration + HoldDuration + OutDuration)
+                {
+                    _group.alpha = 1f - (_elapsed - InDuration - HoldDuration) / OutDuration;
+                }
+                else
+                {
+                    Destroy(gameObject);
+                }
+            }
         }
 
         /// <summary>

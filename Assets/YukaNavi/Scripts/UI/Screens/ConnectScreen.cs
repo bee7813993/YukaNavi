@@ -66,7 +66,7 @@ namespace YukaNavi.UI
             scroll.content = content;
             scroll.viewport = viewportRect;
             scroll.horizontal = false;
-            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.movementType = ScrollRect.MovementType.Elastic;
             scroll.scrollSensitivity = 30f;
 
             // 行の高さと縦位置は文字の大きさ設定 (FontScale) に合わせて積み上げる

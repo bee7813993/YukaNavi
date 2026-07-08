@@ -307,7 +307,7 @@ namespace YukaNavi.UI
             modalScroll.content = card;
             modalScroll.viewport = viewportRect;
             modalScroll.horizontal = false;
-            modalScroll.movementType = ScrollRect.MovementType.Clamped;
+            modalScroll.movementType = ScrollRect.MovementType.Elastic;
             modalScroll.scrollSensitivity = 30f;
 
             // 各行の縦位置・高さは文字の大きさ設定 (FontScale) に合わせて積み上げる
@@ -921,7 +921,7 @@ namespace YukaNavi.UI
             string id = SkinManager.ImportSkin(path);
             if (id == null)
             {
-                SetMessage("取り込めませんでした (skin.json 入りの zip を選んでください)");
+                SetMessage("取り込めませんでした (skin.json 入りの zip を選んでください)", true);
                 Se.Play(Se.Error);
                 return;
             }
@@ -943,7 +943,7 @@ namespace YukaNavi.UI
             string zipPath = SkinManager.ExportSkin(skin);
             if (zipPath == null)
             {
-                SetMessage("書き出しに失敗しました");
+                SetMessage("書き出しに失敗しました", true);
                 Se.Play(Se.Error);
                 return;
             }
@@ -960,9 +960,9 @@ namespace YukaNavi.UI
             Se.Play(Se.Confirm);
         }
 
-        void SetMessage(string message)
+        void SetMessage(string message, bool isError = false)
         {
-            _pathText.text = message;
+            UiFactory.ShowToast(message, isError);
         }
 
         /// <summary>端末のファイルピッカーで BGM (音声ファイル) を選ぶ。</summary>

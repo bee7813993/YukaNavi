@@ -178,7 +178,7 @@ namespace YukaNavi.UI
             }
             catch (System.Exception e)
             {
-                SetStatus("再生状況の変更に失敗: " + e.Message);
+                UiFactory.ShowToast("再生状況の変更に失敗: " + e.Message, true);
                 Se.Play(Se.Error);
             }
         }
@@ -207,12 +207,12 @@ namespace YukaNavi.UI
             {
                 await AppConfig.CreateClient().PlayerActionAsync("next");
                 Se.Play(Se.Confirm);
-                SetStatus("次の曲へ送りました");
+                UiFactory.ShowToast("次の曲へ送りました");
                 await RefreshAsync();
             }
             catch (System.Exception e)
             {
-                SetStatus("曲の終了に失敗: " + e.Message);
+                UiFactory.ShowToast("曲の終了に失敗: " + e.Message, true);
                 Se.Play(Se.Error);
                 _endArmed = false;
                 _warikomiLabel.text = "曲を終了";
@@ -469,7 +469,7 @@ namespace YukaNavi.UI
             }
             catch (System.Exception e)
             {
-                SetStatus("コメントの追記に失敗: " + e.Message);
+                UiFactory.ShowToast("コメントの追記に失敗: " + e.Message, true);
                 Se.Play(Se.Error);
             }
         }
@@ -484,7 +484,6 @@ namespace YukaNavi.UI
             try
             {
                 string message = await AppConfig.CreateClient().MoveRequestAsync(_item.Id, action);
-                SetStatus(message); // 「すでに一番上です。」等 (空 = 成功)
                 if (string.IsNullOrEmpty(message))
                 {
                     Se.Play(Se.Confirm);
@@ -492,11 +491,12 @@ namespace YukaNavi.UI
                     QueueScreen.OpenAndFocus(Manager, _item.Id);
                     return;
                 }
+                UiFactory.ShowToast(message); // 「すでに一番上です。」等
                 _ = RefreshAsync();
             }
             catch (System.Exception e)
             {
-                SetStatus("操作に失敗: " + e.Message);
+                UiFactory.ShowToast("操作に失敗: " + e.Message, true);
                 Se.Play(Se.Error);
             }
         }
@@ -523,7 +523,7 @@ namespace YukaNavi.UI
             }
             catch (System.Exception e)
             {
-                SetStatus("削除に失敗: " + e.Message);
+                UiFactory.ShowToast("削除に失敗: " + e.Message, true);
                 Se.Play(Se.Error);
                 ResetDeleteButton();
             }

@@ -21,9 +21,12 @@ namespace YukaNavi.UI
         ScreenManager _screens;
         GameObject _menuPanel;
         RectTransform _menuContent;
+        CanvasGroup _menuGroup;
         Image _menuButtonIcon;
         Sprite _menuSprite;
         Sprite _closeSprite;
+        bool _menuOpen;
+        Coroutine _menuAnim;
 
         public static GlobalNav Instance { get; private set; }
 
@@ -43,6 +46,12 @@ namespace YukaNavi.UI
         /// <summary>UI を作り直す (テーマ色の変更時)。</summary>
         public void Rebuild()
         {
+            if (_menuAnim != null)
+            {
+                StopCoroutine(_menuAnim); // 破棄済みの UI を触らないよう開閉アニメを止める
+                _menuAnim = null;
+            }
+            _menuOpen = false;
             for (int i = transform.childCount - 1; i >= 0; i--)
             {
                 Destroy(transform.GetChild(i).gameObject);
@@ -87,6 +96,7 @@ namespace YukaNavi.UI
             _menuPanel.transform.SetParent(transform, false);
             var panelRect = _menuPanel.AddComponent<RectTransform>();
             UiFactory.StretchFull(panelRect);
+            _menuGroup = _menuPanel.AddComponent<CanvasGroup>(); // 開閉フェード用
             // ホームが透けるオーバーレイ (リンクラ風に透過多め)
             var overlay = _menuPanel.AddComponent<Image>();
             overlay.color = new Color(0.95f, 0.93f, 0.99f, 0.55f);
@@ -250,7 +260,7 @@ namespace YukaNavi.UI
         void ToggleMenu()
         {
             Se.Play(Se.Tap);
-            if (_menuPanel.activeSelf)
+            if (_menuOpen)
             {
                 CloseMenu();
             }
@@ -262,35 +272,64 @@ namespace YukaNavi.UI
 
         void OpenMenu()
         {
+            _menuOpen = true;
             _menuPanel.SetActive(true);
             if (_closeSprite != null)
             {
                 _menuButtonIcon.sprite = _closeSprite;
             }
-            StartCoroutine(PopRoutine());
+            if (_menuAnim != null)
+            {
+                StopCoroutine(_menuAnim);
+            }
+            _menuAnim = StartCoroutine(MenuRoutine(true));
         }
 
         void CloseMenu()
         {
-            _menuPanel.SetActive(false);
+            if (!_menuOpen && !_menuPanel.activeSelf)
+            {
+                return;
+            }
+            _menuOpen = false;
             if (_menuSprite != null)
             {
                 _menuButtonIcon.sprite = _menuSprite;
             }
+            if (_menuAnim != null)
+            {
+                StopCoroutine(_menuAnim);
+            }
+            _menuAnim = StartCoroutine(MenuRoutine(false));
         }
 
-        /// <summary>メニューをふわっと出す (0.96 → 1.0)。</summary>
-        IEnumerator PopRoutine()
+        /// <summary>
+        /// メニューの開閉アニメ。フェード+コンテンツが下からふわっと上がる (閉じは逆再生)。
+        /// 開閉を連打しても、そのときの表示状態から続きが再生される。
+        /// </summary>
+        IEnumerator MenuRoutine(bool open)
         {
-            const float duration = 0.16f;
+            const float duration = 0.18f;
+            float from = _menuGroup.alpha;
+            float to = open ? 1f : 0f;
             for (float e = 0f; e < duration; e += Time.deltaTime)
             {
-                float k = e / duration;
-                float scale = Mathf.Lerp(0.96f, 1f, 1f - (1f - k) * (1f - k));
+                float k = 1f - Mathf.Pow(1f - Mathf.Clamp01(e / duration), 2f); // easeOut
+                float a = Mathf.Lerp(from, to, k);
+                _menuGroup.alpha = a;
+                _menuContent.anchoredPosition = new Vector2(0f, -50f * (1f - a));
+                float scale = Mathf.Lerp(0.97f, 1f, a);
                 _menuContent.localScale = new Vector3(scale, scale, 1f);
                 yield return null;
             }
-            _menuContent.localScale = Vector3.one;
+            _menuGroup.alpha = to;
+            _menuContent.anchoredPosition = new Vector2(0f, -50f * (1f - to));
+            _menuContent.localScale = open ? Vector3.one : new Vector3(0.97f, 0.97f, 1f);
+            if (!open)
+            {
+                _menuPanel.SetActive(false);
+            }
+            _menuAnim = null;
         }
 
         void Update()
@@ -306,7 +345,7 @@ namespace YukaNavi.UI
         void OnBack()
         {
             // メニュー展開中は閉じるだけ
-            if (_menuPanel.activeSelf)
+            if (_menuOpen)
             {
                 CloseMenu();
                 Se.Play(Se.Tap);

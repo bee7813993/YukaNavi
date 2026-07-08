@@ -160,12 +160,12 @@ namespace YukaNavi.UI
                 await AppConfig.CreateClient().PostRequestAsync(
                     "小休止", "", AppConfig.Username, "", "小休止");
                 Se.Play(Se.Confirm);
-                SetStatus("小休止を入れました", false);
+                UiFactory.ShowToast("小休止を入れました");
                 _ = RefreshAsync();
             }
             catch (System.Exception e)
             {
-                SetStatus("小休止の挿入に失敗: " + e.Message, true);
+                UiFactory.ShowToast("小休止の挿入に失敗: " + e.Message, true);
                 Se.Play(Se.Error);
             }
         }
@@ -447,7 +447,7 @@ namespace YukaNavi.UI
                     }
                     catch (System.Exception e)
                     {
-                        SetStatus("曲の終了に失敗: " + e.Message, true);
+                        UiFactory.ShowToast("曲の終了に失敗: " + e.Message, true);
                         Se.Play(Se.Error);
                     }
                 });

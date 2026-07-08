@@ -109,6 +109,9 @@ namespace YukaNavi
             // 下部の常時表示ナビゲーションバー (戻る / メニュー / ホーム)
             GlobalNav.Create(canvasGo.transform, _screens);
 
+            // トースト (操作結果の通知) の親。生成時に最後の子になるので常に最前面
+            UiFactory.ToastRoot = canvasGo.transform;
+
             if (AppConfig.IsConfigured)
             {
                 _screens.ShowAsRoot<HomeScreen>();
