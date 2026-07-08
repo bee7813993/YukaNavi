@@ -213,6 +213,27 @@ namespace YukaNavi.UI
             _enterTransition = null;
         }
 
+        GameObject _loadingNotes;
+
+        /// <summary>
+        /// 音符が跳ねるローディング表示を画面中央に出す。
+        /// 結果の表示時に HideLoading で消す (各画面の SetStatus に仕込むと消し漏れがない)。
+        /// </summary>
+        protected void ShowLoading(string message = "読み込み中...")
+        {
+            HideLoading();
+            _loadingNotes = UiFactory.CreateLoadingNotes(transform, message);
+        }
+
+        protected void HideLoading()
+        {
+            if (_loadingNotes != null)
+            {
+                Destroy(_loadingNotes);
+                _loadingNotes = null;
+            }
+        }
+
         /// <summary>表示された直後に呼ばれる。</summary>
         public virtual void OnShow() { }
 

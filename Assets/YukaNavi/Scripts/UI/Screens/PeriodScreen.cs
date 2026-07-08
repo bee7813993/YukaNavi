@@ -209,6 +209,7 @@ namespace YukaNavi.UI
 
         void SetStatus(string message, bool isError)
         {
+            HideLoading(); // 結果・エラーの表示 = ローディング終了
             _statusText.text = message;
             _statusText.color = isError ? UiFactory.Danger : UiFactory.TextDark;
         }
@@ -249,7 +250,8 @@ namespace YukaNavi.UI
             _breadcrumbText.text = "リリース年をえらんでください";
             _quarterNav.SetActive(false);
             int serial = ++_loadSerial;
-            SetStatus("読み込み中...", false);
+            SetStatus("", false);
+            ShowLoading();
             ClearRows();
             ListerYearsDto data;
             try
@@ -298,7 +300,8 @@ namespace YukaNavi.UI
             _breadcrumbText.text = $"期別 ＞ {year} 年";
             _quarterNav.SetActive(false);
             int serial = ++_loadSerial;
-            SetStatus("読み込み中...", false);
+            SetStatus("", false);
+            ShowLoading();
             ClearRows();
             ListerQuartersDto data;
             try
@@ -347,7 +350,8 @@ namespace YukaNavi.UI
             _prevButton.GetComponentInChildren<Text>().text = quarter == 0 ? "◀ 前の年" : "◀ 前の期";
             _nextButton.GetComponentInChildren<Text>().text = quarter == 0 ? "次の年 ▶" : "次の期 ▶";
             int serial = ++_loadSerial;
-            SetStatus("読み込み中...", false);
+            SetStatus("", false);
+            ShowLoading();
             ClearRows();
             ListerProgramsDto data;
             try

@@ -88,11 +88,11 @@ namespace YukaNavi.UI
 
             // 最上部の白帯 (リンクラ風のステータスバー)。壁紙の対象外として不透明の白にする。
             // 左から 時刻・バッテリー / NAME (自分の名前) / 部屋名 (タップで部屋移動)。
-            // 高さは NAME/ROOM ボックス (文字の大きさ設定に追従) に合わせて広げる
-            float capH = UiFactory.ScaledFontSize(18) + 6f;
+            // 高さは NAME/ROOM ボックス (文字の大きさ設定に追従) + ゆとりのある上下余白
+            float capH = UiFactory.ScaledFontSize(14) + 6f;
             float valueH = UiFactory.LineHeight(25);
             float boxH = 8f + capH + valueH + 8f;
-            float statusBarH = Mathf.Max(110f, boxH + 24f);
+            float statusBarH = Mathf.Max(110f, boxH + 64f);
             var statusBar = UiFactory.CreatePanel(transform, "StatusBar", Color.white);
             statusBar.anchorMin = new Vector2(0f, 1f);
             statusBar.anchorMax = new Vector2(1f, 1f);
@@ -163,14 +163,14 @@ namespace YukaNavi.UI
             // リンクラ風の「灰色の縁 + 白地、上にキャプション・下に黒文字」ボックス
             var namePlate = CreateOutlinedBox(statusBar, "NamePlate", new Vector2(190f, 0f),
                 new Vector2(400f, boxH), false);
-            var nameCaption = UiFactory.CreateText(namePlate, "Caption", "NAME", 18,
+            var nameCaption = UiFactory.CreateText(namePlate, "Caption", "NAME", 14,
                 UiFactory.Primary, TextAnchor.UpperLeft);
             nameCaption.fontStyle = FontStyle.Bold;
             SetBoxCaption(nameCaption.rectTransform, 22f, capH);
             _nameText = UiFactory.CreateText(namePlate, "Name", "", 25,
                 UiFactory.TextDark, TextAnchor.LowerLeft);
             SetBoxValue(_nameText.rectTransform, 22f, valueH);
-            UiFactory.FitLabel(_nameText, 18); // 枠に入らないときは縮めて必ず見せる
+            UiFactory.FitLabel(_nameText, 16); // 枠に入らないときは縮めて必ず見せる
 
             // 部屋名 (タップで部屋移動モーダル。Web 版の部屋ドロップダウンと同じ動作)。
             // 左にドアアイコン、右に「ROOM」キャプション + 黒文字の部屋名
@@ -189,14 +189,14 @@ namespace YukaNavi.UI
             roomIconRect.pivot = new Vector2(0f, 0.5f);
             roomIconRect.anchoredPosition = new Vector2(16f, 0f);
             roomIconRect.sizeDelta = new Vector2(40f, 40f);
-            var roomCaption = UiFactory.CreateText(roomPill, "Caption", "ROOM", 18,
+            var roomCaption = UiFactory.CreateText(roomPill, "Caption", "ROOM", 14,
                 UiFactory.Primary, TextAnchor.UpperLeft);
             roomCaption.fontStyle = FontStyle.Bold;
             SetBoxCaption(roomCaption.rectTransform, 70f, capH);
             _roomNameText = UiFactory.CreateText(roomPill, "Text", "", 25,
                 UiFactory.TextDark, TextAnchor.LowerLeft);
             SetBoxValue(_roomNameText.rectTransform, 70f, valueH);
-            UiFactory.FitLabel(_roomNameText, 18); // 枠に入らないときは縮めて必ず見せる
+            UiFactory.FitLabel(_roomNameText, 16); // 枠に入らないときは縮めて必ず見せる
             _roomNameGo = roomPill.gameObject;
             _roomNameGo.SetActive(false); // 部屋名 (または URL) が取れたら表示
 
@@ -374,28 +374,40 @@ namespace YukaNavi.UI
             rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
         }
 
-        /// <summary>白帯用の「灰色の縁 + 白地」の角丸ボックス。anchorRight=true で右寄せ配置。</summary>
+        /// <summary>
+        /// 白帯用の「外側にふわっとぼける縁 + 白地」の角丸ボックス。anchorRight=true で右寄せ配置。
+        /// </summary>
         static RectTransform CreateOutlinedBox(RectTransform parent, string name,
                                                Vector2 position, Vector2 size, bool anchorRight)
         {
-            var frame = UiFactory.CreatePanel(parent, name, new Color(0.78f, 0.77f, 0.82f));
+            // 透明コンテナ (タップ判定用の Image 付き)
+            var box = UiFactory.CreatePanel(parent, name, new Color(1f, 1f, 1f, 0f));
             float ax = anchorRight ? 1f : 0f;
-            frame.anchorMin = frame.anchorMax = new Vector2(ax, 0.5f);
-            frame.pivot = new Vector2(ax, 0.5f);
-            frame.anchoredPosition = position;
-            frame.sizeDelta = size;
-            UiFactory.Roundify(frame.GetComponent<Image>());
+            box.anchorMin = box.anchorMax = new Vector2(ax, 0.5f);
+            box.pivot = new Vector2(ax, 0.5f);
+            box.anchoredPosition = position;
+            box.sizeDelta = size;
+
+            // 外側にぼけるグロー (箱より一回り大きく敷く)
+            var glowGo = new GameObject("Glow");
+            glowGo.transform.SetParent(box, false);
+            var glow = glowGo.AddComponent<Image>();
+            glow.sprite = UiFactory.SoftGlowSprite;
+            glow.type = Image.Type.Sliced;
+            glow.color = new Color(0.72f, 0.70f, 0.80f, 0.8f);
+            glow.raycastTarget = false;
+            UiFactory.StretchFull(glow.rectTransform);
+            glow.rectTransform.offsetMin = new Vector2(-14f, -14f);
+            glow.rectTransform.offsetMax = new Vector2(14f, 14f);
 
             var innerGo = new GameObject("Inner");
-            innerGo.transform.SetParent(frame, false);
+            innerGo.transform.SetParent(box, false);
             var inner = innerGo.AddComponent<Image>();
             inner.color = Color.white;
             UiFactory.Roundify(inner);
             inner.raycastTarget = false;
             UiFactory.StretchFull(inner.rectTransform);
-            inner.rectTransform.offsetMin = new Vector2(2f, 2f);
-            inner.rectTransform.offsetMax = new Vector2(-2f, -2f);
-            return frame;
+            return box;
         }
 
         static void SetModalRow(RectTransform rect, float y, float height)

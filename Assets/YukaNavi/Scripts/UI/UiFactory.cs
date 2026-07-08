@@ -90,6 +90,47 @@ namespace YukaNavi.UI
             }
         }
 
+        static Sprite _softGlowSprite;
+
+        /// <summary>
+        /// 外側に向かってふわっと透明にぼける角丸矩形の 9-slice スプライト
+        /// (実行時生成、白。色は Image.color で乗せる)。枠のグロー表現用。
+        /// </summary>
+        public static Sprite SoftGlowSprite
+        {
+            get
+            {
+                if (_softGlowSprite == null)
+                {
+                    const int size = 96;
+                    const float blur = 20f;   // 外側のぼかし幅
+                    const float radius = 12f; // 中心矩形の角丸
+                    var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+                    for (int y = 0; y < size; y++)
+                    {
+                        for (int x = 0; x < size; x++)
+                        {
+                            // 中心の角丸矩形からの距離で alpha を落とす (内側は不透明)
+                            float cx = Mathf.Clamp(x + 0.5f, blur + radius, size - blur - radius);
+                            float cy = Mathf.Clamp(y + 0.5f, blur + radius, size - blur - radius);
+                            float dx = x + 0.5f - cx;
+                            float dy = y + 0.5f - cy;
+                            float dist = Mathf.Sqrt(dx * dx + dy * dy) - radius;
+                            float a = Mathf.Clamp01(1f - dist / blur);
+                            a *= a; // 外側ほど早く薄く
+                            tex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+                        }
+                    }
+                    tex.Apply();
+                    tex.wrapMode = TextureWrapMode.Clamp;
+                    _softGlowSprite = Sprite.Create(tex, new Rect(0f, 0f, size, size),
+                        new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect,
+                        new Vector4(40f, 40f, 40f, 40f));
+                }
+                return _softGlowSprite;
+            }
+        }
+
         /// <summary>上が明るく下が濃い縦グラデーション (ヘッダーバー用)。</summary>
         public static Sprite GradientSprite
         {
@@ -815,6 +856,75 @@ namespace YukaNavi.UI
             text.rectTransform.offsetMax = new Vector2(-28f, -4f);
             text.raycastTarget = false;
             go.AddComponent<ToastView>();
+        }
+
+        /// <summary>
+        /// 音符が順に跳ねるローディング表示 (♪♪♪ + メッセージ)。不要になったら Destroy する。
+        /// </summary>
+        public static GameObject CreateLoadingNotes(Transform parent, string message)
+        {
+            var go = new GameObject("Loading");
+            go.transform.SetParent(parent, false);
+            var rect = go.AddComponent<RectTransform>();
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = new Vector2(0f, 60f);
+            rect.sizeDelta = new Vector2(600f, 200f);
+            go.AddComponent<LoadingNotesView>().Init(message);
+            return go;
+        }
+
+        /// <summary>ローディング表示のアニメ駆動 (3つの音符が波打つように跳ねる)。</summary>
+        class LoadingNotesView : MonoBehaviour
+        {
+            readonly Text[] _notes = new Text[3];
+            float _elapsed;
+
+            public void Init(string message)
+            {
+                for (int i = 0; i < _notes.Length; i++)
+                {
+                    var note = CreateText(transform, "Note" + i, "♪", 56, Primary);
+                    var rect = note.rectTransform;
+                    rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+                    rect.pivot = new Vector2(0.5f, 0.5f);
+                    rect.anchoredPosition = new Vector2((i - 1) * 72f, 30f);
+                    rect.sizeDelta = new Vector2(90f, 110f);
+                    note.raycastTarget = false;
+                    AddShadow(note.gameObject, 2f);
+                    _notes[i] = note;
+                }
+                if (!string.IsNullOrEmpty(message))
+                {
+                    var text = CreateText(transform, "Message", message, 26, TextMuted);
+                    var rect = text.rectTransform;
+                    rect.anchorMin = new Vector2(0f, 0.5f);
+                    rect.anchorMax = new Vector2(1f, 0.5f);
+                    rect.pivot = new Vector2(0.5f, 0.5f);
+                    rect.anchoredPosition = new Vector2(0f, -56f);
+                    rect.sizeDelta = new Vector2(0f, LineHeight(26));
+                    text.raycastTarget = false;
+                }
+            }
+
+            void Update()
+            {
+                _elapsed += Time.deltaTime;
+                for (int i = 0; i < _notes.Length; i++)
+                {
+                    if (_notes[i] == null)
+                    {
+                        continue;
+                    }
+                    float phase = _elapsed * 5f - i * 0.9f;
+                    float wave = Mathf.Clamp01(Mathf.Sin(phase));
+                    _notes[i].rectTransform.anchoredPosition =
+                        new Vector2((i - 1) * 72f, 30f + wave * 26f);
+                    var c = _notes[i].color;
+                    c.a = 0.4f + 0.6f * wave;
+                    _notes[i].color = c;
+                }
+            }
         }
 
         /// <summary>トーストの出現・待機・退場を自前で駆動する (どの画面からでも出せる)。</summary>

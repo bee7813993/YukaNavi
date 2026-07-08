@@ -152,6 +152,7 @@ namespace YukaNavi.UI
 
         void SetStatus(string message, bool isError)
         {
+            HideLoading(); // 結果・エラーの表示 = ローディング終了
             _statusText.text = message;
             _statusText.color = isError ? UiFactory.Danger : UiFactory.TextMuted;
         }
@@ -171,7 +172,8 @@ namespace YukaNavi.UI
         {
             _level = Level.Initials;
             int serial = ++_loadSerial;
-            SetStatus("読み込み中...", false);
+            SetStatus("", false);
+            ShowLoading();
             ClearRows();
             ListerInitialsDto data;
             try
@@ -294,7 +296,8 @@ namespace YukaNavi.UI
         {
             _level = Level.Names;
             int serial = ++_loadSerial;
-            SetStatus("読み込み中...", false);
+            SetStatus("", false);
+            ShowLoading();
             ClearRows();
             ListerNamesDto data;
             try

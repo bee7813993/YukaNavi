@@ -102,17 +102,18 @@ namespace YukaNavi.UI
             gridLayout.spacing = new Vector2(16f, 16f);
             gridLayout.childAlignment = TextAnchor.UpperCenter;
 
+            // 使用頻度が高い順 (2列で1行ずつ)。
             // 履歴・お気に入り曲はマイページ (ナビから常時行ける) にあるためここには置かない
+            AddWayCard(grid, "期別リスト", "アニメの期ごとに\n作品からさがす",
+                () => PeriodScreen.Open(Manager));
+            AddWayCard(grid, "年代別リスト", "1年ごとにまとめて\n作品からさがす",
+                () => PeriodScreen.OpenYearly(Manager));
             AddWayCard(grid, "作品名で探す", "頭文字インデックス\nから作品をさがす",
                 () => NameIndexScreen.Open(Manager, "program"));
             AddWayCard(grid, "歌手名で探す", "頭文字インデックス\nから歌手をさがす",
                 () => NameIndexScreen.Open(Manager, "artist"));
             AddWayCard(grid, "シリーズ名で探す", "シリーズから作品を\nたどってさがす",
                 () => NameIndexScreen.Open(Manager, "group"));
-            AddWayCard(grid, "期別リスト", "アニメの期ごとに\n作品からさがす",
-                () => PeriodScreen.Open(Manager));
-            AddWayCard(grid, "年代別リスト", "1年ごとにまとめて\n作品からさがす",
-                () => PeriodScreen.OpenYearly(Manager));
             AddWayCard(grid, "お気に入り検索", "☆保存した歌手・\n作品・ワードから",
                 () => MypageScreen.Open(Manager, 3));
             _urlCard = AddWayCard(grid, "URLでリクエスト", "YouTube等のURLを\n直接再生する",

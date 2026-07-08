@@ -132,7 +132,7 @@ namespace YukaNavi.UI
             // 枠の内側に収める (左の border はしっぽ込みの値のため、見た目に合わせて詰める)
             _bubbleText.rectTransform.offsetMin = new Vector2(68f, 85f);
             _bubbleText.rectTransform.offsetMax = new Vector2(-45f, -50f);
-            _bubbleText.horizontalOverflow = HorizontalWrapMode.Overflow;
+            _bubbleText.verticalOverflow = VerticalWrapMode.Overflow;
 
             _bubble.SetActive(false);
         }
@@ -152,9 +152,12 @@ namespace YukaNavi.UI
             _bubbleText.text = line;
             _bubble.SetActive(true);
             var rect = _bubble.GetComponent<RectTransform>();
-            // セリフの長さに合わせて吹き出しの横幅を調整する (左右の余白 + テキスト幅)
+            // セリフの長さに合わせて吹き出しの横幅を調整する (左右の余白 + テキスト幅)。
+            // 最大幅を超える長さや大きい文字サイズでは折り返し、行数分だけ縦に伸ばす
             float width = Mathf.Clamp(_bubbleText.preferredWidth + 68f + 45f + 14f, 250f, 640f);
-            rect.sizeDelta = new Vector2(width, 190f);
+            int lines = UiFactory.EstimateWrapLines(line, 30, width - 68f - 45f);
+            float height = Mathf.Max(190f, lines * UiFactory.LineHeight(30) + 85f + 50f + 8f);
+            rect.sizeDelta = new Vector2(width, height);
             const float popDuration = 0.18f;
             for (float e = 0f; e < popDuration; e += Time.deltaTime)
             {
@@ -171,10 +174,14 @@ namespace YukaNavi.UI
 
         void Update()
         {
-            // ふわふわ浮遊 (静止画でも生きてる感を出す)
-            float y = _baseY + Mathf.Sin(Time.time * 1.6f) * 12f;
-            var p = _rect.anchoredPosition;
-            _rect.anchoredPosition = new Vector2(p.x, y);
+            // 足を着けたまま呼吸で上体がゆっくり伸び縮みする (pivot が下端なので足元は動かない)。
+            // ごく僅かな傾きで体重移動も乗せる。タップのスクイーズ中はそちらを優先
+            if (_squash == null)
+            {
+                float breath = Mathf.Sin(Time.time * 1.6f);
+                _rect.localScale = new Vector3(1f - 0.005f * breath, 1f + 0.009f * breath, 1f);
+                _rect.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(Time.time * 0.45f) * 0.5f);
+            }
 
             // 通常表情のときだけランダム間隔でまばたき
             if (_expressionIndex == 0 && !_blinking && _eyesClosed != null && Time.time >= _nextBlinkTime)
@@ -222,6 +229,7 @@ namespace YukaNavi.UI
                 yield return null;
             }
             _rect.localScale = Vector3.one;
+            _squash = null; // 呼吸アニメ (Update) に戻す
         }
 
         /// <summary>一瞬目を閉じて戻す。</summary>

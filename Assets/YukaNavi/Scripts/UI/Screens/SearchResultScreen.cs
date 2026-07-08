@@ -388,6 +388,7 @@ namespace YukaNavi.UI
 
         void SetStatus(string message, bool isError)
         {
+            HideLoading(); // 結果・エラーの表示 = ローディング終了
             _statusText.text = message;
             _statusText.color = isError ? UiFactory.Danger : UiFactory.TextDark;
         }
@@ -412,7 +413,8 @@ namespace YukaNavi.UI
             _titleText.text = (ReserveScreen.EditSession != null ? "差しかえ｜" : "") + query.Label;
             _searchInput.text = query.Keyword ?? ""; // 完全一致検索中は空 (プレースホルダー表示)
             UpdateSaveButton(query);
-            SetStatus("検索中...", false);
+            SetStatus("", false);
+            ShowLoading("検索中...");
             ClearRows();
 
             // 並び順は曲一覧にだけ効く
