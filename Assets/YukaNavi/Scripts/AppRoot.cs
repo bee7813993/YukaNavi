@@ -99,6 +99,7 @@ namespace YukaNavi
             _screens.Register<QrScanScreen>();
             _screens.Register<SkinScreen>();
             _screens.Register<MypageScreen>();
+            _screens.Register<MypageLinkScreen>();
             _screens.Register<ReserveScreen>();
             _screens.Register<SearchResultScreen>();
             _screens.Register<NameIndexScreen>();

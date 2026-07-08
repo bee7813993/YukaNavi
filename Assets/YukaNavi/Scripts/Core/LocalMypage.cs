@@ -40,6 +40,13 @@ namespace YukaNavi.Core
             /// <summary>チップ表示用ラベル</summary>
             [JsonProperty("label")] public string Label;
             [JsonProperty("added_at")] public long AddedAt;
+            /// <summary>
+            /// サーバー (Web 版) 由来の元の検索種別・パラメータ。サーバーへ送り返すときに
+            /// そのまま使う (アプリ形式への丸めが非可逆なため、保持しないと再統合で重複する)。
+            /// アプリ発の保存では空。
+            /// </summary>
+            [JsonProperty("server_type")] public string ServerType;
+            [JsonProperty("server_params")] public string ServerParams;
 
             public bool SameCondition(SavedSearch other)
             {
@@ -232,6 +239,29 @@ namespace YukaNavi.Core
             }
             Save();
             return added;
+        }
+
+        // ---- サーバー同期用のミラー置き換え (MypageService が使う) ----
+
+        /// <summary>あとで歌うをサーバーの内容で置き換える。</summary>
+        public static void ReplaceLater(List<Item> items)
+        {
+            GetStore().Later = items ?? new List<Item>();
+            Save();
+        }
+
+        /// <summary>お気に入り曲をサーバーの内容で置き換える。</summary>
+        public static void ReplaceFavorite(List<Item> items)
+        {
+            GetStore().Favorite = items ?? new List<Item>();
+            Save();
+        }
+
+        /// <summary>保存した検索をサーバーの内容で置き換える。</summary>
+        public static void ReplaceSavedSearches(List<SavedSearch> items)
+        {
+            GetStore().Searches = items ?? new List<SavedSearch>();
+            Save();
         }
 
         static bool Toggle(List<Item> list, string fullpath, string songfile, string kind)

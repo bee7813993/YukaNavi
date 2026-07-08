@@ -336,10 +336,18 @@ namespace YukaNavi.UI
             favRect.pivot = new Vector2(0f, 0.5f);
             favRect.anchoredPosition = new Vector2(24f, 0f);
             favRect.sizeDelta = new Vector2(460f, 76f);
-            _favoriteButton.onClick.AddListener(() =>
+            _favoriteButton.onClick.AddListener(async () =>
             {
-                bool added = LocalMypage.ToggleFavorite(_entry.FullPath, _entry.Line1, "動画");
-                Se.Play(added ? Se.Confirm : Se.Tap);
+                try
+                {
+                    bool added = await MypageService.ToggleFavoriteAsync(
+                        _entry.FullPath, _entry.Line1, "動画");
+                    Se.Play(added ? Se.Confirm : Se.Tap);
+                }
+                catch (System.Exception e)
+                {
+                    UiFactory.ShowToast("同期に失敗: " + e.Message, true);
+                }
                 UpdateMypageButtons();
             });
             _laterButton = UiFactory.CreateButton(mypagePanel, "Later", "あとで歌う",
@@ -350,10 +358,18 @@ namespace YukaNavi.UI
             laterRect.pivot = new Vector2(1f, 0.5f);
             laterRect.anchoredPosition = new Vector2(-24f, 0f);
             laterRect.sizeDelta = new Vector2(460f, 76f);
-            _laterButton.onClick.AddListener(() =>
+            _laterButton.onClick.AddListener(async () =>
             {
-                bool added = LocalMypage.ToggleLater(_entry.FullPath, _entry.Line1, "動画");
-                Se.Play(added ? Se.Confirm : Se.Tap);
+                try
+                {
+                    bool added = await MypageService.ToggleLaterAsync(
+                        _entry.FullPath, _entry.Line1, "動画");
+                    Se.Play(added ? Se.Confirm : Se.Tap);
+                }
+                catch (System.Exception e)
+                {
+                    UiFactory.ShowToast("同期に失敗: " + e.Message, true);
+                }
                 UpdateMypageButtons();
             });
 

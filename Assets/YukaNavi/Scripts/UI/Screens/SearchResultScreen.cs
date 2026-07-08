@@ -212,15 +212,22 @@ namespace YukaNavi.UI
         }
 
         /// <summary>いまの検索条件を保存/解除する。保存はチップとして検索トップに並ぶ。</summary>
-        void ToggleSaveSearch()
+        async void ToggleSaveSearch()
         {
             if (_queryStack.Count == 0)
             {
                 return;
             }
             var query = _queryStack[_queryStack.Count - 1];
-            bool added = LocalMypage.ToggleSavedSearch(ToSavedSearch(query));
-            Se.Play(added ? Se.Confirm : Se.Tap);
+            try
+            {
+                bool added = await MypageService.ToggleSavedSearchAsync(ToSavedSearch(query));
+                Se.Play(added ? Se.Confirm : Se.Tap);
+            }
+            catch (System.Exception e)
+            {
+                UiFactory.ShowToast("保存の同期に失敗: " + e.Message, true);
+            }
             UpdateSaveButton(query);
         }
 
