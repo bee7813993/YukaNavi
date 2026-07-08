@@ -55,7 +55,9 @@ namespace YukaNavi.UI
         GameObject _editOverlay;
         GameObject _editHint;
         Button _bgmButton;
-        Text _bgmButtonLabel;
+        Image _bgmIcon;
+        Sprite _speakerOnSprite;
+        Sprite _speakerMuteSprite;
         SkinDef _currentSkin;
         int _editingSiblingIndex; // 移動モード中に最前面へ出す前の描画順
         int _lastClockMinute = -1;
@@ -85,23 +87,30 @@ namespace YukaNavi.UI
             NoteParticles.Create(transform);
 
             // 最上部の白帯 (リンクラ風のステータスバー)。壁紙の対象外として不透明の白にする。
-            // 左から 時刻・バッテリー / NAME (自分の名前) / 部屋名 (タップで部屋移動)
+            // 左から 時刻・バッテリー / NAME (自分の名前) / 部屋名 (タップで部屋移動)。
+            // 高さは NAME/ROOM ボックス (文字の大きさ設定に追従) に合わせて広げる
+            float capH = UiFactory.ScaledFontSize(18) + 6f;
+            float valueH = UiFactory.LineHeight(25);
+            float boxH = 8f + capH + valueH + 8f;
+            float statusBarH = Mathf.Max(110f, boxH + 24f);
             var statusBar = UiFactory.CreatePanel(transform, "StatusBar", Color.white);
             statusBar.anchorMin = new Vector2(0f, 1f);
             statusBar.anchorMax = new Vector2(1f, 1f);
             statusBar.pivot = new Vector2(0.5f, 1f);
-            statusBar.sizeDelta = new Vector2(0f, 110f);
+            statusBar.sizeDelta = new Vector2(0f, statusBarH);
             UiFactory.AddShadow(statusBar.gameObject, 4f);
+            UiFactory.ExtendBarIntoSafeArea(statusBar, Color.white); // ノッチの裏まで白を敷く
 
-            // 時刻 (上) + バッテリー (下) の縦2段
+            // 時刻 (上) + バッテリー (下) の縦2段 (帯の縦中央に揃える)
             _statusClockText = UiFactory.CreateText(statusBar, "Clock", "", 30,
                 UiFactory.TextDark, TextAnchor.MiddleLeft);
             _statusClockText.fontStyle = FontStyle.Bold;
+            UiFactory.FitLabel(_statusClockText); // 大きい文字サイズ設定でも枠内で1行に収める
             var scRect = _statusClockText.rectTransform;
-            scRect.anchorMin = new Vector2(0f, 1f);
-            scRect.anchorMax = new Vector2(0f, 1f);
-            scRect.pivot = new Vector2(0f, 1f);
-            scRect.anchoredPosition = new Vector2(28f, -14f);
+            scRect.anchorMin = new Vector2(0f, 0.5f);
+            scRect.anchorMax = new Vector2(0f, 0.5f);
+            scRect.pivot = new Vector2(0f, 0.5f);
+            scRect.anchoredPosition = new Vector2(28f, 21f);
             scRect.sizeDelta = new Vector2(140f, 40f);
 
             // バッテリー (枠 + 塗り + 先端の凸)。残量が取れない環境 (エディタ等) では非表示
@@ -112,9 +121,9 @@ namespace YukaNavi.UI
             UiFactory.Roundify(batteryFrame);
             batteryFrame.raycastTarget = false;
             var batteryRect = (RectTransform)batteryGo.transform;
-            batteryRect.anchorMin = batteryRect.anchorMax = new Vector2(0f, 1f);
-            batteryRect.pivot = new Vector2(0f, 1f);
-            batteryRect.anchoredPosition = new Vector2(28f, -62f);
+            batteryRect.anchorMin = batteryRect.anchorMax = new Vector2(0f, 0.5f);
+            batteryRect.pivot = new Vector2(0f, 0.5f);
+            batteryRect.anchoredPosition = new Vector2(28f, -22f);
             batteryRect.sizeDelta = new Vector2(64f, 30f);
             var batteryInner = new GameObject("Inner");
             batteryInner.transform.SetParent(batteryGo.transform, false);
@@ -151,11 +160,7 @@ namespace YukaNavi.UI
             _batteryGo.SetActive(false);
 
             // NAME プレート (自分の名前。予約時の名前が入る)。
-            // リンクラ風の「灰色の縁 + 白地、上にキャプション・下に黒文字」ボックス。
-            // 高さは文字の大きさ設定 (FontScale) に追従させ、縦 Truncate で行が消えないようにする
-            float capH = UiFactory.ScaledFontSize(18) + 6f;
-            float valueH = UiFactory.LineHeight(25);
-            float boxH = 8f + capH + valueH + 8f;
+            // リンクラ風の「灰色の縁 + 白地、上にキャプション・下に黒文字」ボックス
             var namePlate = CreateOutlinedBox(statusBar, "NamePlate", new Vector2(190f, 0f),
                 new Vector2(400f, boxH), false);
             var nameCaption = UiFactory.CreateText(namePlate, "Caption", "NAME", 18,
@@ -255,6 +260,7 @@ namespace YukaNavi.UI
             clockGroup.sizeDelta = new Vector2(420f, 164f);
 
             _clockText = UiFactory.CreateText(clockGroup, "Clock", "", 96, Color.white, TextAnchor.MiddleRight);
+            UiFactory.FitLabel(_clockText); // 飾りの大時計は文字サイズ設定によらず枠内に収める
             var clockRect = _clockText.rectTransform;
             clockRect.anchorMin = new Vector2(0f, 1f);
             clockRect.anchorMax = new Vector2(1f, 1f);
@@ -264,6 +270,7 @@ namespace YukaNavi.UI
             UiFactory.AddShadow(_clockText.gameObject, 3f);
             _dateText = UiFactory.CreateText(clockGroup, "Date", "", 30, new Color(1f, 1f, 1f, 0.92f),
                 TextAnchor.MiddleRight);
+            UiFactory.FitLabel(_dateText);
             var dateRect = _dateText.rectTransform;
             dateRect.anchorMin = new Vector2(0f, 1f);
             dateRect.anchorMax = new Vector2(1f, 1f);
@@ -302,10 +309,20 @@ namespace YukaNavi.UI
             });
 
             // サウンド (BGM+操作音) ミュート切替ボタン (右上)。カラオケ用アプリなので既定はミュート
-            _bgmButton = UiFactory.CreateButton(transform, "BgmToggle", "音\nOFF",
+            _bgmButton = UiFactory.CreateButton(transform, "BgmToggle", "",
                 new Color(1f, 1f, 1f, 0.55f), UiFactory.PrimaryDark, 22);
             _bgmButton.image.pixelsPerUnitMultiplier = 0.55f; // ほぼ円形に
-            _bgmButtonLabel = _bgmButton.GetComponentInChildren<Text>();
+            _speakerOnSprite = UiFactory.LoadSprite("Art/UI/Icons/yukanavi_icon_speaker_256");
+            _speakerMuteSprite = UiFactory.LoadSprite("Art/UI/Icons/yukanavi_icon_speaker_mute_256");
+            _bgmIcon = UiFactory.CreateImage(_bgmButton.transform, "Icon",
+                "Art/UI/Icons/yukanavi_icon_speaker_mute_256");
+            _bgmIcon.preserveAspect = true;
+            _bgmIcon.raycastTarget = false;
+            var bgmIconRect = _bgmIcon.rectTransform;
+            bgmIconRect.anchorMin = bgmIconRect.anchorMax = new Vector2(0.5f, 0.5f);
+            bgmIconRect.pivot = new Vector2(0.5f, 0.5f);
+            bgmIconRect.anchoredPosition = Vector2.zero;
+            bgmIconRect.sizeDelta = new Vector2(52f, 52f);
             var bgmRect = _bgmButton.GetComponent<RectTransform>();
             bgmRect.anchorMin = bgmRect.anchorMax = new Vector2(1f, 1f);
             bgmRect.pivot = new Vector2(1f, 1f);
@@ -396,8 +413,8 @@ namespace YukaNavi.UI
         {
             bool on = !Bgm.Muted;
             _bgmButton.image.color = on ? UiFactory.Primary : new Color(1f, 1f, 1f, 0.55f);
-            _bgmButtonLabel.text = on ? "音\nON" : "音\nOFF";
-            _bgmButtonLabel.color = on ? Color.white : UiFactory.PrimaryDark;
+            _bgmIcon.sprite = on ? _speakerOnSprite : _speakerMuteSprite;
+            _bgmIcon.color = on ? Color.white : UiFactory.PrimaryDark;
         }
 
         // ---- 長押し移動モード ----

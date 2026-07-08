@@ -49,6 +49,7 @@ namespace YukaNavi.UI
         Entry _entry;
         /// <summary>変更対象の予約 id (負なら新規予約)。</summary>
         int _editId = -1;
+        int _completedId = -1; // 直前に予約 (新規・変更) した id。完了画面から一覧の該当カードへ飛ぶ
         /// <summary>変更対象の予約 (曲えらびなおしに渡すため保持)。</summary>
         RequestItemDto _editSource;
         GameObject _changeSongRow;
@@ -303,20 +304,27 @@ namespace YukaNavi.UI
 
             AddSectionHeader(form, "きほん");
 
+            // ラベル・入力欄の高さは文字の大きさ設定に追従させる (固定だと大きい設定で重なる)
+            float panelLabelH = UiFactory.LineHeight(24);
+            float inputH = Mathf.Max(78f, UiFactory.LineHeight(34) + 20f);
+
             // 名前
-            var namePanel = AddPanel(form, 140f);
+            var namePanel = AddPanel(form, 12f + inputH + 8f + panelLabelH + 8f);
             AddPanelLabel(namePanel, "歌う人の名前");
             _nameInput = UiFactory.CreateInputField(namePanel, "NameInput", "名前 (必須)");
-            SetPanelControl(_nameInput.GetComponent<RectTransform>());
+            SetPanelControl(_nameInput.GetComponent<RectTransform>(), inputH);
 
             // 予約中の歌う人チップ (横スクロール)
             BuildSingerChips(form);
 
-            // コメント
-            var commentPanel = AddPanel(form, 140f);
+            // コメント (Enter で改行して複数行書ける)
+            float commentInputH = inputH + UiFactory.LineHeight(34);
+            var commentPanel = AddPanel(form, 12f + commentInputH + 8f + panelLabelH + 8f);
             AddPanelLabel(commentPanel, "コメント (任意)");
             _commentInput = UiFactory.CreateInputField(commentPanel, "CommentInput", "");
-            SetPanelControl(_commentInput.GetComponent<RectTransform>());
+            _commentInput.lineType = InputField.LineType.MultiLineNewline;
+            _commentInput.textComponent.alignment = TextAnchor.UpperLeft;
+            SetPanelControl(_commentInput.GetComponent<RectTransform>(), commentInputH);
 
             // お気に入り / あとで歌う
             var mypagePanel = AddPanel(form, 104f);
@@ -531,13 +539,18 @@ namespace YukaNavi.UI
         void AddPanelLabel(RectTransform panel, string label)
         {
             var text = UiFactory.CreateText(panel, "Label", label, 24,
-                UiFactory.PrimaryDark, TextAnchor.UpperLeft);
-            UiFactory.StretchFull(text.rectTransform);
-            text.rectTransform.offsetMin = new Vector2(24f, 92f);
-            text.rectTransform.offsetMax = new Vector2(-24f, -8f);
+                UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
+            var rect = text.rectTransform;
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, -8f);
+            rect.offsetMin = new Vector2(24f, rect.offsetMin.y);
+            rect.offsetMax = new Vector2(-24f, rect.offsetMax.y);
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, UiFactory.LineHeight(24));
         }
 
-        static void SetPanelControl(RectTransform rect)
+        static void SetPanelControl(RectTransform rect, float height)
         {
             rect.anchorMin = new Vector2(0f, 0f);
             rect.anchorMax = new Vector2(1f, 0f);
@@ -545,7 +558,7 @@ namespace YukaNavi.UI
             rect.anchoredPosition = new Vector2(0f, 12f);
             rect.offsetMin = new Vector2(24f, rect.offsetMin.y);
             rect.offsetMax = new Vector2(-24f, rect.offsetMax.y);
-            rect.sizeDelta = new Vector2(rect.sizeDelta.x, 78f);
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
         }
 
         /// <summary>「ラベル [−] 値 [＋]」の1行を作り、値表示 Text を返す。</summary>
@@ -1010,9 +1023,10 @@ namespace YukaNavi.UI
             string kind = string.IsNullOrEmpty(_entry.Kind) ? "動画" : _entry.Kind;
             try
             {
-                await AppConfig.CreateClient().PostRequestAsync(
+                int newId = await AppConfig.CreateClient().PostRequestAsync(
                     _entry.Filename, _entry.FullPath, name,
                     (_commentInput.text ?? "").Trim(), kind, options);
+                _completedId = newId > 0 ? newId : _editId;
                 if (_editId < 0)
                 {
                     LocalMypage.AddHistory(_entry.FullPath, _entry.Line1, kind);
@@ -1089,13 +1103,14 @@ namespace YukaNavi.UI
             {
                 Se.Play(Se.Tap);
                 _completeOverlay.SetActive(false);
-                if (_editId >= 0)
+                // 新規・変更とも予約一覧へ遷移し、いま予約したカードの位置を見せる
+                if (_completedId >= 0)
                 {
-                    Manager.BackTo<QueueScreen>(); // 変更は予約一覧へ戻る (検索経由でも)
+                    QueueScreen.OpenAndFocus(Manager, _completedId);
                 }
                 else
                 {
-                    Manager.Back(); // 新規予約は検索/マイページへ戻る
+                    Manager.BackTo<QueueScreen>();
                 }
             });
 

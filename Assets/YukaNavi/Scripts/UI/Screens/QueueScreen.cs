@@ -34,6 +34,17 @@ namespace YukaNavi.UI
         GameObject _pauseButtonGo;
         Text _pauseLabel;
         float _pauseArmedAt = -100f;
+        static int _focusId = -1;
+
+        /// <summary>
+        /// 予約一覧を開き、指定 id のカードへスクロールして光らせる
+        /// (予約完了・変更・並べ替え後に「どこに入ったか」を見せるための遷移)。
+        /// </summary>
+        public static void OpenAndFocus(ScreenManager manager, int id)
+        {
+            _focusId = id;
+            manager.BackTo<QueueScreen>(); // 履歴に無くても最後に必ず予約一覧が表示される
+        }
 
         public override void BuildUi()
         {
@@ -198,6 +209,12 @@ namespace YukaNavi.UI
                       + (data.RemainingSeconds > 0 ? $" (約 {minutes} 分)" : "");
                 SetStatus(data.Total > 0 ? "タップで詳細 / 長押しで並べ替え" : "", false);
                 RebuildIfChanged(data.Items);
+                if (_focusId >= 0)
+                {
+                    int focusId = _focusId;
+                    _focusId = -1;
+                    FocusRequest(focusId);
+                }
             }
             catch (System.Exception e)
             {
@@ -466,7 +483,17 @@ namespace YukaNavi.UI
                     target = child; // 上から走査して最後に残った未再生 = 次に再生される曲
                 }
             }
-            if (target == null || _scrollRect == null)
+            if (target == null)
+            {
+                return;
+            }
+            ScrollToRow((RectTransform)target);
+        }
+
+        /// <summary>指定の行が画面の上 1/4 あたりに来る位置へスクロールする。</summary>
+        void ScrollToRow(RectTransform target)
+        {
+            if (_scrollRect == null)
             {
                 return;
             }
@@ -474,10 +501,47 @@ namespace YukaNavi.UI
             float viewportHeight = _scrollRect.viewport != null
                 ? _scrollRect.viewport.rect.height : ((RectTransform)_scrollRect.transform).rect.height;
             float scrollable = Mathf.Max(contentHeight - viewportHeight, 1f);
-            // ターゲットが画面の上 1/4 あたりに来る位置へ
-            float targetTop = -((RectTransform)target).anchoredPosition.y;
+            float targetTop = -target.anchoredPosition.y;
             float normalized = 1f - Mathf.Clamp01((targetTop - viewportHeight * 0.25f) / scrollable);
             _scrollRect.verticalNormalizedPosition = normalized;
+        }
+
+        /// <summary>指定 id の行へスクロールし、色をふわっと往復させて位置を示す。</summary>
+        void FocusRequest(int id)
+        {
+            Canvas.ForceUpdateCanvases(); // 直前に作り直した行のレイアウトを確定させる
+            foreach (Transform child in _listContent)
+            {
+                var rowDrag = child.GetComponent<RowDrag>();
+                if (rowDrag == null || rowDrag.Item.Id != id)
+                {
+                    continue;
+                }
+                ScrollToRow((RectTransform)child);
+                var img = child.GetComponent<Image>();
+                if (img != null)
+                {
+                    StartCoroutine(FlashRowRoutine(img, img.color));
+                }
+                return;
+            }
+        }
+
+        IEnumerator FlashRowRoutine(Image img, Color baseColor)
+        {
+            var flash = Color.Lerp(baseColor, UiFactory.Primary, 0.38f);
+            float t = 0f;
+            while (t < 1.6f)
+            {
+                if (img == null)
+                {
+                    yield break; // ポーリングで行が作り直されたら終了
+                }
+                img.color = Color.Lerp(baseColor, flash, Mathf.PingPong(t * 1.25f, 1f));
+                t += Time.deltaTime;
+                yield return null;
+            }
+            img.color = baseColor;
         }
 
         /// <summary>

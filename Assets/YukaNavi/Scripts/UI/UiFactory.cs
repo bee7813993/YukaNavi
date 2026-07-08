@@ -469,6 +469,32 @@ namespace YukaNavi.UI
         /// 画面上部の共通ヘッダーバー (白帯 + タイトル)。
         /// リンクラ風に、壁紙 (ホーム透過) の対象外となる不透明の白にしている。
         /// </summary>
+        /// <summary>
+        /// セーフエリア (ノッチ・パンチホールカメラ・下部ホームバー) の上下インセット
+        /// (Canvas 単位)。AppRoot が起動時に Screen.safeArea から設定する。エディタ等では 0。
+        /// 画面 (Screens レイヤー) は上インセット分下がり、ノッチ裏はバーの背景が受け持つ。
+        /// </summary>
+        public static float SafeTop;
+        public static float SafeBottom;
+
+        /// <summary>
+        /// バーの白背景をセーフエリア外 (ノッチの裏) まで上に伸ばす。
+        /// 中身はバー本体 (セーフエリア内) のままなので座標系は変わらない。
+        /// </summary>
+        public static void ExtendBarIntoSafeArea(RectTransform bar, Color color)
+        {
+            if (SafeTop <= 0f)
+            {
+                return;
+            }
+            var ext = CreatePanel(bar, "SafeAreaExtension", color);
+            ext.anchorMin = new Vector2(0f, 1f);
+            ext.anchorMax = new Vector2(1f, 1f);
+            ext.pivot = new Vector2(0.5f, 0f);
+            ext.anchoredPosition = Vector2.zero;
+            ext.sizeDelta = new Vector2(0f, SafeTop);
+        }
+
         public static RectTransform CreateTopBar(Transform parent, string title)
         {
             var bar = CreatePanel(parent, "TopBar", Color.white);
@@ -477,6 +503,7 @@ namespace YukaNavi.UI
             bar.pivot = new Vector2(0.5f, 1f);
             bar.sizeDelta = new Vector2(0f, 110f);
             AddShadow(bar.gameObject, 4f);
+            ExtendBarIntoSafeArea(bar, Color.white);
             var text = CreateText(bar, "Title", title, 40, PrimaryDark);
             text.fontStyle = FontStyle.Bold;
             StretchFull(text.rectTransform);
@@ -547,9 +574,9 @@ namespace YukaNavi.UI
         static bool _fontScaleLoaded;
 
         /// <summary>
-        /// 全テキスト共通の拡大率 (スマホでの視認性向上。既定 1.15)。
+        /// 全テキスト共通の拡大率 (スマホでの視認性向上。既定 1.3)。
         /// 各所の指定サイズは公称値のまま、実描画・幅見積もり・行高をこの係数で揃える。
-        /// 接続設定画面から変更でき端末に保存される。変更後は ScreenManager.RebuildAll() で反映。
+        /// 設定画面から変更でき端末に保存される。変更後は ScreenManager.RebuildAll() で反映。
         /// </summary>
         public static float FontScale
         {
@@ -557,14 +584,14 @@ namespace YukaNavi.UI
             {
                 if (!_fontScaleLoaded)
                 {
-                    _fontScale = PlayerPrefs.GetFloat(FontScaleKey, 1.15f);
+                    _fontScale = PlayerPrefs.GetFloat(FontScaleKey, 1.3f);
                     _fontScaleLoaded = true;
                 }
                 return _fontScale;
             }
             set
             {
-                _fontScale = Mathf.Clamp(value, 1f, 1.6f);
+                _fontScale = Mathf.Clamp(value, 1f, 1.9f);
                 _fontScaleLoaded = true;
                 PlayerPrefs.SetFloat(FontScaleKey, _fontScale);
                 PlayerPrefs.Save();
@@ -743,6 +770,21 @@ namespace YukaNavi.UI
             text.resizeTextForBestFit = true;
             text.resizeTextMaxSize = text.fontSize;
             text.resizeTextMinSize = minSize;
+        }
+
+        /// <summary>
+        /// ラベルを1行に固定し、幅に収まらないときは縮小する。FitLabel だけだと
+        /// 2行に折り返して収まった時点で縮小が止まるため、枠の高さを1行分に制限する。
+        /// </summary>
+        public static void FitLabelOneLine(Text text, int minSize = 16)
+        {
+            FitLabel(text, minSize);
+            var rect = text.rectTransform;
+            rect.anchorMin = new Vector2(rect.anchorMin.x, 0.5f);
+            rect.anchorMax = new Vector2(rect.anchorMax.x, 0.5f);
+            rect.pivot = new Vector2(rect.pivot.x, 0.5f);
+            rect.anchoredPosition = new Vector2(rect.anchoredPosition.x, 0f);
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, text.fontSize * 1.45f);
         }
 
         /// <summary>

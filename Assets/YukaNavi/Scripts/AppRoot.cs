@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -27,6 +28,9 @@ namespace YukaNavi
 
         ScreenManager _screens;
         AudioSource _bgmSource;
+        RectTransform _screenLayer;
+        float _appliedSafeTop = -1f;
+        float _appliedSafeBottom = -1f;
 
         void Start()
         {
@@ -57,6 +61,13 @@ namespace YukaNavi
             scaler.matchWidthOrHeight = 0f;
             canvasGo.AddComponent<GraphicRaycaster>();
 
+            // セーフエリア (ノッチ・パンチホールカメラ・下部ホームバー) を Canvas 単位に換算
+            ReadSafeInsets(out float safeTop, out float safeBottom);
+            UiFactory.SafeTop = safeTop;
+            UiFactory.SafeBottom = safeBottom;
+            _appliedSafeTop = safeTop;
+            _appliedSafeBottom = safeBottom;
+
             // SE / BGM
             var seSource = gameObject.AddComponent<AudioSource>();
             Se.Init(seSource);
@@ -73,8 +84,12 @@ namespace YukaNavi
             UiFactory.StretchFull(canvasBg);
 
             // 画面登録 (専用レイヤーに置き、後から作るナビバーが常に前面になるようにする)
+            // 上のセーフエリア分は下げる (ノッチ裏は各バーの背景が受け持つ。
+            // 下はナビバーの高さ [GlobalNav.BarHeight] に含める)
             var screenLayer = UiFactory.CreatePanel(canvasGo.transform, "Screens");
             UiFactory.StretchFull(screenLayer);
+            screenLayer.offsetMax = new Vector2(0f, -UiFactory.SafeTop);
+            _screenLayer = screenLayer;
             _screens = new ScreenManager(screenLayer);
             _screens.Register<HomeScreen>();
             _screens.Register<ConnectScreen>();
@@ -103,8 +118,107 @@ namespace YukaNavi
                 _screens.ShowAsRoot<ConnectScreen>();
             }
 
+            // 起動スプラッシュ (最前面。スキンに splash.png があればそれ、なければ標準)
+            ShowSplash(canvasGo.transform);
+
             // 共有メニュー経由で起動された場合は URL リクエスト画面を開く
             HandleSharedUrl();
+        }
+
+        /// <summary>
+        /// アプリ内スプラッシュ。しばらく表示してフェードアウトする。
+        /// スキンフォルダに splash.png を置くときせかえで差し替えられる。
+        /// </summary>
+        void ShowSplash(Transform canvas)
+        {
+            Sprite sprite = null;
+            var skinTex = SkinManager.LoadTexture(SkinManager.Current(), "splash.png");
+            if (skinTex != null)
+            {
+                sprite = Sprite.Create(skinTex,
+                    new Rect(0f, 0f, skinTex.width, skinTex.height), new Vector2(0.5f, 0.5f), 100f);
+            }
+            else
+            {
+                sprite = UiFactory.LoadSprite("Art/ScreenArt/yukanavi_splash_portrait");
+            }
+            if (sprite == null)
+            {
+                return;
+            }
+
+            var go = new GameObject("Splash");
+            go.transform.SetParent(canvas, false);
+            var bg = go.AddComponent<Image>();
+            bg.color = Color.white; // 画像が画面比と合わないときの下地
+            UiFactory.StretchFull(bg.rectTransform);
+
+            var imgGo = new GameObject("Image");
+            imgGo.transform.SetParent(go.transform, false);
+            var img = imgGo.AddComponent<Image>();
+            img.sprite = sprite;
+            img.raycastTarget = false;
+            UiFactory.StretchFull(img.rectTransform);
+            var fitter = imgGo.AddComponent<AspectRatioFitter>();
+            fitter.aspectRatio = sprite.rect.width / sprite.rect.height;
+            fitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+
+            StartCoroutine(SplashRoutine(go, sprite, skinTex));
+        }
+
+        IEnumerator SplashRoutine(GameObject splash, Sprite sprite, Texture2D skinTex)
+        {
+            yield return new WaitForSeconds(1.4f);
+            var images = splash.GetComponentsInChildren<Image>();
+            float t = 0f;
+            const float fade = 0.4f;
+            while (t < fade)
+            {
+                t += Time.deltaTime;
+                foreach (var image in images)
+                {
+                    var c = image.color;
+                    c.a = 1f - Mathf.Clamp01(t / fade);
+                    image.color = c;
+                }
+                yield return null;
+            }
+            Destroy(splash);
+            Destroy(sprite);
+            if (skinTex != null)
+            {
+                Destroy(skinTex);
+            }
+        }
+
+        /// <summary>Screen.safeArea を Canvas 単位 (幅 1080 基準) の上下インセットに換算する。</summary>
+        static void ReadSafeInsets(out float top, out float bottom)
+        {
+            var safe = Screen.safeArea;
+            float toCanvas = 1080f / Screen.width; // 幅基準スケール (matchWidthOrHeight = 0)
+            top = Mathf.Max(0f, (Screen.height - safe.yMax) * toCanvas);
+            bottom = Mathf.Max(0f, safe.yMin * toCanvas);
+        }
+
+        void Update()
+        {
+            // エディタの Simulator 切り替え等でセーフエリアが変わったら UI を作り直して追従する
+            // (UI は生成時にインセットを焼き込むため)
+            ReadSafeInsets(out float top, out float bottom);
+            if (Mathf.Abs(top - _appliedSafeTop) < 0.5f && Mathf.Abs(bottom - _appliedSafeBottom) < 0.5f)
+            {
+                return;
+            }
+            _appliedSafeTop = top;
+            _appliedSafeBottom = bottom;
+            UiFactory.SafeTop = top;
+            UiFactory.SafeBottom = bottom;
+            _screenLayer.offsetMax = new Vector2(0f, -top);
+            _screens.RebuildAll();
+            if (GlobalNav.Instance != null)
+            {
+                GlobalNav.Instance.Rebuild();
+            }
         }
 
         /// <summary>起動中に共有された場合も、アプリ復帰のタイミングで受け取る。</summary>

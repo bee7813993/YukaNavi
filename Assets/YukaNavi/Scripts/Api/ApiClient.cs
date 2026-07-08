@@ -420,6 +420,18 @@ namespace YukaNavi.Api
             await GetApiAsync<DeleteResult>("api/request_delete.php?id=" + id);
         }
 
+        /// <summary>予約1件の再生状況変更 (「未再生」「再生済」等。/api/playstatus.php)。</summary>
+        public async Task SetPlayStatusAsync(int id, string nowplaying)
+        {
+            await GetApiAsync<PlayStatusResult>("api/playstatus.php?id=" + id
+                + "&nowplaying=" + UnityWebRequest.EscapeURL(nowplaying));
+        }
+
+        class PlayStatusResult
+        {
+            [JsonProperty("nowplaying")] public string Nowplaying;
+        }
+
         /// <summary>
         /// 予約へのコメント追記 (commentedit.php)。Web 版と同じく既存コメントの末尾に
         /// 「>> コメント by 名前」の形式で追記される (再生中の曲ならニコ風コメントにも流れる)。
