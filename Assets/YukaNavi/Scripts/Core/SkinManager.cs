@@ -12,8 +12,19 @@ namespace YukaNavi.Core
         [JsonProperty("name")] public string Name;
         [JsonProperty("background")] public SkinLayer Background;
         [JsonProperty("character")] public SkinLayer Character;
+        /// <summary>
+        /// 背景 (複数。ホームの背景タップで切替)。単数 background と併用可 (単数が先頭)。
+        /// 配布スキン用の拡張で、アプリの編集モーダルでは単数のみ扱う。
+        /// </summary>
+        [JsonProperty("backgrounds")] public List<SkinLayer> Backgrounds;
+        /// <summary>キャラ画像 (複数。マスコットのタップで切替)。単数 character と併用可</summary>
+        [JsonProperty("characters")] public List<SkinLayer> Characters;
         /// <summary>スキン専用 BGM (type="audio")。null = アプリのデフォルト BGM</summary>
         [JsonProperty("bgm")] public SkinLayer Bgm;
+        /// <summary>昼 (6:00〜18:00) の BGM。あれば bgm より優先</summary>
+        [JsonProperty("bgm_day")] public SkinLayer BgmDay;
+        /// <summary>夜 (18:00〜翌6:00) の BGM。あれば bgm より優先</summary>
+        [JsonProperty("bgm_night")] public SkinLayer BgmNight;
         /// <summary>リモコンのレコード盤画像 (type="image")。null = アプリ標準の盤</summary>
         [JsonProperty("record")] public SkinLayer Record;
         /// <summary>マスコットをタップしたときのセリフ (1要素=1つ、ランダム表示)。null = 標準</summary>
@@ -27,6 +38,8 @@ namespace YukaNavi.Core
         [JsonIgnore] public string Folder;
         /// <summary>フォルダ名 (保存キー)。"" = 組み込みデフォルト</summary>
         [JsonIgnore] public string Id = "";
+        /// <summary>skin.json の読み込みエラー (null = 正常)。一覧で「壊れている」と示す用</summary>
+        [JsonIgnore] public string Error;
     }
 
     /// <summary>スキンのテーマ色。基準色1色から UI の派生色 (濃色・淡色・背景) を自動で作る。</summary>
@@ -58,6 +71,11 @@ namespace YukaNavi.Core
         [JsonProperty("type")] public string Type;
         [JsonProperty("file")] public string File;
         [JsonProperty("scale")] public float Scale = 1f;
+        /// <summary>
+        /// このキャラ専用のセリフ (characters の要素で使う。1要素=1つ、タップでランダム表示)。
+        /// null ならスキン全体の talk にフォールバック。
+        /// </summary>
+        [JsonProperty("talk")] public List<string> Talk;
         /// <summary>背景の回転 (度、90単位)</summary>
         [JsonProperty("rotation")] public float Rotation = 0f;
         /// <summary>背景のズーム (1 = 画面を覆うちょうどの大きさ)</summary>
@@ -151,7 +169,21 @@ namespace YukaNavi.Core
                 "- talk は任意。キャラをタップしたときのセリフ (ランダムで1つ表示)\r\n" +
                 "- splash.png は任意 (skin.json への記載は不要)。フォルダに置くと\r\n" +
                 "  スキン適用中の起動画面が差し替わります\r\n" +
-                "- ファイルが見つからない場合はデフォルトに戻ります\r\n";
+                "- ファイルが見つからない場合はデフォルトに戻ります\r\n" +
+                "\r\n" +
+                "配布スキン向けの拡張 (skin.json に追記):\r\n" +
+                "  \"backgrounds\": [ {\"type\":\"video\",\"file\":\"bg1.mp4\"},\r\n" +
+                "                    {\"type\":\"image\",\"file\":\"bg2.png\"} ],\r\n" +
+                "  \"characters\":  [ {\"type\":\"image\",\"file\":\"chara1.png\",\r\n" +
+                "                     \"talk\":[\"キャラ1のセリフ\"]},\r\n" +
+                "                    {\"type\":\"image\",\"file\":\"chara2.png\"} ],\r\n" +
+                "  \"bgm_day\":   {\"type\":\"audio\",\"file\":\"bgm_day.ogg\"},\r\n" +
+                "  \"bgm_night\": {\"type\":\"audio\",\"file\":\"bgm_night.ogg\"}\r\n" +
+                "- backgrounds: 複数の背景。ホームの背景 (何もないところ) をタップで切替\r\n" +
+                "- characters: 複数のキャラ。マスコットをタップで切替。各キャラに talk を\r\n" +
+                "  書くとそのキャラ専用のセリフになる (無ければスキン全体の talk)\r\n" +
+                "- bgm_day / bgm_night: 昼 (6時〜18時) と夜で BGM を自動で切替\r\n" +
+                "- いずれも従来の単数指定 (background / character / bgm) と併用できます\r\n";
         }
 
         /// <summary>デフォルト + skins/ 配下の有効なスキンを列挙する。</summary>
@@ -183,9 +215,16 @@ namespace YukaNavi.Core
                         }
                         list.Add(def);
                     }
-                    catch
+                    catch (System.Exception e)
                     {
-                        // 壊れた skin.json はスキップ
+                        // 壊れた skin.json も一覧に出し、理由を確認できるようにする (手書き編集の支援)
+                        list.Add(new SkinDef
+                        {
+                            Name = new DirectoryInfo(dir).Name,
+                            Folder = dir,
+                            Id = new DirectoryInfo(dir).Name,
+                            Error = e.Message,
+                        });
                     }
                 }
             }
@@ -195,7 +234,140 @@ namespace YukaNavi.Core
             return list;
         }
 
-        /// <summary>保存されている選択スキンを解決する (見つからなければデフォルト)。</summary>
+        /// <summary>
+        /// スキン定義の書式チェック。問題点のリストを返す (空 = OK)。
+        /// skin.json を手書きする配布スキン制作の支援用で、きせかえ一覧に ⚠ として出る。
+        /// </summary>
+        public static List<string> ValidateSkin(SkinDef skin)
+        {
+            var problems = new List<string>();
+            if (skin.Folder == null)
+            {
+                return problems; // 組み込みデフォルトは常に正常
+            }
+            if (!string.IsNullOrEmpty(skin.Error))
+            {
+                problems.Add("skin.json が壊れています: " + skin.Error);
+                return problems;
+            }
+            CheckLayer(skin, skin.Background, "background", "image/video", problems);
+            CheckLayers(skin, skin.Backgrounds, "backgrounds", "image/video", problems);
+            CheckLayer(skin, skin.Character, "character", "image/none", problems);
+            CheckLayers(skin, skin.Characters, "characters", "image", problems);
+            CheckLayer(skin, skin.Bgm, "bgm", "audio", problems);
+            CheckLayer(skin, skin.BgmDay, "bgm_day", "audio", problems);
+            CheckLayer(skin, skin.BgmNight, "bgm_night", "audio", problems);
+            CheckLayer(skin, skin.Record, "record", "image", problems);
+            return problems;
+        }
+
+        static void CheckLayers(SkinDef skin, List<SkinLayer> layers, string label,
+                                string validTypes, List<string> problems)
+        {
+            if (layers == null)
+            {
+                return;
+            }
+            for (int i = 0; i < layers.Count; i++)
+            {
+                CheckLayer(skin, layers[i], label + "[" + i + "]", validTypes, problems);
+            }
+        }
+
+        static void CheckLayer(SkinDef skin, SkinLayer layer, string label,
+                               string validTypes, List<string> problems)
+        {
+            if (layer == null)
+            {
+                return;
+            }
+            if (layer.Type == "none")
+            {
+                return; // キャラなし指定 (file 不要)
+            }
+            if (string.IsNullOrEmpty(layer.Type) || !("/" + validTypes + "/").Contains("/" + layer.Type + "/"))
+            {
+                problems.Add(label + ": type「" + layer.Type + "」は使えません (" + validTypes + ")");
+            }
+            if (string.IsNullOrEmpty(layer.File))
+            {
+                problems.Add(label + ": file がありません");
+                return;
+            }
+            if (GetFilePath(skin, layer.File) == null)
+            {
+                problems.Add(label + ": ファイルが見つかりません (" + layer.File + ")");
+                return;
+            }
+            string ext = Path.GetExtension(layer.File).ToLowerInvariant();
+            // Unity のランタイム読み込みが非対応の音声形式
+            if (label.StartsWith("bgm") && (ext == ".m4a" || ext == ".aac"))
+            {
+                problems.Add(label + ": m4a/aac は再生できません (mp3/ogg/wav に変換してください)");
+            }
+            // type と拡張子の食い違い (画像 type に動画ファイル等)
+            bool looksVideo = ext == ".mp4" || ext == ".mov" || ext == ".webm";
+            bool looksImage = ext == ".png" || ext == ".jpg" || ext == ".jpeg"
+                || ext == ".webp" || ext == ".gif";
+            if (layer.Type == "image" && looksVideo)
+            {
+                problems.Add(label + ": type が image ですが動画ファイルです (video にしてください)");
+            }
+            else if (layer.Type == "video" && looksImage)
+            {
+                problems.Add(label + ": type が video ですが画像ファイルです (image にしてください)");
+            }
+        }
+
+        /// <summary>背景リスト (単数 background と backgrounds の合成。ファイル指定のあるものだけ)。</summary>
+        public static List<SkinLayer> GetBackgrounds(SkinDef skin)
+        {
+            return MergeLayers(skin.Background, skin.Backgrounds);
+        }
+
+        /// <summary>キャラ画像リスト (単数 character と characters の合成)。type="none" は含めない。</summary>
+        public static List<SkinLayer> GetCharacters(SkinDef skin)
+        {
+            var list = MergeLayers(skin.Character, skin.Characters);
+            list.RemoveAll(layer => layer.Type == "none");
+            return list;
+        }
+
+        static List<SkinLayer> MergeLayers(SkinLayer single, List<SkinLayer> multiple)
+        {
+            var list = new List<SkinLayer>();
+            if (single != null && (!string.IsNullOrEmpty(single.File) || single.Type == "none"))
+            {
+                list.Add(single);
+            }
+            if (multiple != null)
+            {
+                foreach (var layer in multiple)
+                {
+                    if (layer != null && !string.IsNullOrEmpty(layer.File))
+                    {
+                        list.Add(layer);
+                    }
+                }
+            }
+            return list;
+        }
+
+        /// <summary>
+        /// 現在時刻に合った BGM レイヤー。昼 (6:00〜18:00) は bgm_day、夜は bgm_night を優先し、
+        /// 未指定なら従来の bgm (null = アプリのデフォルト BGM)。
+        /// </summary>
+        public static SkinLayer GetBgmForNow(SkinDef skin)
+        {
+            int hour = System.DateTime.Now.Hour;
+            var timed = (hour >= 6 && hour < 18) ? skin.BgmDay : skin.BgmNight;
+            if (timed != null && !string.IsNullOrEmpty(timed.File))
+            {
+                return timed;
+            }
+            return skin.Bgm;
+        }
+
         public static SkinDef Current()
         {
             string id = AppConfig.SkinId;

@@ -42,6 +42,12 @@ namespace YukaNavi.UI
         /// </summary>
         public string[] CustomLines;
 
+        /// <summary>
+        /// キャラ画像ごとのセリフ (customSprites と同じ並び)。表示中のキャラの要素が
+        /// null/空のときは CustomLines へフォールバックする。
+        /// </summary>
+        public string[][] CustomLinesPerCharacter;
+
         Image _image;
         RectTransform _rect;
         Sprite[] _expressions;
@@ -59,23 +65,24 @@ namespace YukaNavi.UI
 
         /// <summary>
         /// 下端中央アンカーで立ち絵を生成する。
-        /// customSprite を渡すとスキンのカスタムキャラ (表情切替・まばたき・セリフなし) になる。
+        /// customSprites を渡すとスキンのカスタムキャラ (まばたきなし。複数枚ならタップで切替) になる。
         /// </summary>
-        public static MascotView Create(Transform parent, Vector2 size, float baseY, Sprite customSprite = null)
+        public static MascotView Create(Transform parent, Vector2 size, float baseY,
+                                        Sprite[] customSprites = null)
         {
             var go = new GameObject("Mascot");
             go.transform.SetParent(parent, false);
             var view = go.AddComponent<MascotView>();
-            view.Build(size, baseY, customSprite);
+            view.Build(size, baseY, customSprites);
             return view;
         }
 
-        void Build(Vector2 size, float baseY, Sprite customSprite)
+        void Build(Vector2 size, float baseY, Sprite[] customSprites)
         {
-            if (customSprite != null)
+            if (customSprites != null && customSprites.Length > 0)
             {
                 _isCustom = true;
-                _expressions = new[] { customSprite };
+                _expressions = customSprites;
                 _eyesClosed = null;
             }
             else
@@ -207,11 +214,19 @@ namespace YukaNavi.UI
                 StopCoroutine(_squash);
             }
             _squash = StartCoroutine(SquashRoutine());
-            // スキンにセリフがあればそれを、無ければデフォルト (カスタムキャラはセリフなし)
-            string[] lines = (CustomLines != null && CustomLines.Length > 0)
-                ? CustomLines
-                : (_isCustom ? null : SpeechLines);
-            if (lines != null)
+            // セリフの優先順: 表示中キャラ専用 → スキン全体 → デフォルト (カスタムキャラはなし)
+            string[] lines = null;
+            if (CustomLinesPerCharacter != null && _expressionIndex < CustomLinesPerCharacter.Length)
+            {
+                lines = CustomLinesPerCharacter[_expressionIndex];
+            }
+            if (lines == null || lines.Length == 0)
+            {
+                lines = (CustomLines != null && CustomLines.Length > 0)
+                    ? CustomLines
+                    : (_isCustom ? null : SpeechLines);
+            }
+            if (lines != null && lines.Length > 0)
             {
                 Say(lines[Random.Range(0, lines.Length)]);
             }

@@ -40,11 +40,26 @@ namespace YukaNavi.Core
             }
         }
 
+        const string VolumeKey = "bgm.volume";
+
+        /// <summary>BGM の音量 (0〜1、既定 0.35)。変更は即反映され保存される。</summary>
+        public static float Volume
+        {
+            get { return PlayerPrefs.GetFloat(VolumeKey, 0.35f); }
+            set
+            {
+                PlayerPrefs.SetFloat(VolumeKey, Mathf.Clamp01(value));
+                PlayerPrefs.Save();
+                Apply();
+            }
+        }
+
         static void Apply()
         {
             if (_source != null)
             {
                 _source.mute = Muted;
+                _source.volume = Volume;
             }
         }
 
@@ -60,6 +75,8 @@ namespace YukaNavi.Core
 
         /// <summary>
         /// 現在のスキンの BGM を反映する。スキンの適用・作成・編集・取り込み・削除の後に呼ぶ。
+        /// 昼夜 BGM (bgm_day / bgm_night) があれば時間帯で選ぶ。時間帯またぎの自動切替は
+        /// ホーム画面の分針更新がこのメソッドを呼ぶことで行われる (パス不変なら何もしない)。
         /// スキンに BGM が無ければデフォルト BGM に戻す。
         /// </summary>
         public static async void RefreshForCurrentSkin()
@@ -70,9 +87,10 @@ namespace YukaNavi.Core
             }
             var skin = SkinManager.Current();
             string path = null;
-            if (skin.Folder != null && skin.Bgm != null && !string.IsNullOrEmpty(skin.Bgm.File))
+            var bgm = SkinManager.GetBgmForNow(skin);
+            if (skin.Folder != null && bgm != null && !string.IsNullOrEmpty(bgm.File))
             {
-                path = SkinManager.GetFilePath(skin, skin.Bgm.File);
+                path = SkinManager.GetFilePath(skin, bgm.File);
             }
             if (path == _loadedPath)
             {
