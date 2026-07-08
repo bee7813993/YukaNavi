@@ -82,11 +82,43 @@ namespace YukaNavi.Core
             }
         }
 
+        /// <summary>
+        /// 現在のサーバーにデバイスリンクしたマイページ userid ("" = 未リンク)。
+        /// サーバー (部屋) ごとに保存し、リンク済みサーバーでは Web 版と同じユーザーとして振る舞う。
+        /// </summary>
+        public static string LinkedMypageUserId
+        {
+            get { return PlayerPrefs.GetString(LinkedMypageKey(), ""); }
+            set
+            {
+                PlayerPrefs.SetString(LinkedMypageKey(), value ?? "");
+                PlayerPrefs.Save();
+            }
+        }
+
+        static string LinkedMypageKey()
+        {
+            return "yukanavi.mypage_link." + ServerUrl.Trim().TrimEnd('/');
+        }
+
+        /// <summary>
+        /// サーバーへ送る実効ユーザー ID。リンク済みならリンク先 (Web 版と同じユーザー)、
+        /// 未リンクなら端末固有 ID。exec.php の予約履歴もこの ID に記録される。
+        /// </summary>
+        public static string EffectiveMypageUserId
+        {
+            get
+            {
+                string linked = LinkedMypageUserId;
+                return string.IsNullOrEmpty(linked) ? MypageUserId : linked;
+            }
+        }
+
         /// <summary>現在の設定で ApiClient を作る。</summary>
         public static ApiClient CreateClient()
         {
             var client = new ApiClient(ServerUrl, EasyPass);
-            client.UserId = MypageUserId;
+            client.UserId = EffectiveMypageUserId;
             client.Username = Username;
             return client;
         }

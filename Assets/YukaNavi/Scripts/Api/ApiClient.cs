@@ -166,6 +166,10 @@ namespace YukaNavi.Api
             {
                 return;
             }
+            // Unity 内蔵のクッキーエンジンが Set-Cookie (exec.php の YkariUsername 等) を
+            // 記憶して自動付与し、明示指定の Cookie ヘッダーとカンマ結合されて
+            // 「ゆーふ, YkariUserID=...」のような壊れた名前になるため、毎回クリアする
+            UnityWebRequest.ClearCookieCache(new System.Uri(BaseUrl));
             string cookie = "YkariUserID=" + UserId;
             if (!string.IsNullOrEmpty(Username))
             {
@@ -420,6 +424,108 @@ namespace YukaNavi.Api
             await GetApiAsync<DeleteResult>("api/request_delete.php?id=" + id);
         }
 
+        // ---- マイページ連携 (/api/mypage.php) ----
+
+        static string Esc(string value)
+        {
+            return UnityWebRequest.EscapeURL(value ?? "");
+        }
+
+        /// <summary>デバイスリンクのペアコードを適用し、Web 版のマイページ userid を得る。</summary>
+        public async Task<string> MypagePairApplyAsync(string code)
+        {
+            var data = await GetApiAsync<MypagePairDto>(
+                "api/mypage.php?action=pair_apply&code=" + Esc(code));
+            return data.UserId;
+        }
+
+        /// <summary>マイページの件数と Google 連携有無。</summary>
+        public Task<MypageSummaryDto> MypageSummaryAsync(string userid)
+            => GetApiAsync<MypageSummaryDto>(
+                "api/mypage.php?action=summary&userid=" + Esc(userid));
+
+        /// <summary>一覧取得。list は "history" / "later" / "favorite"。</summary>
+        public Task<MypageItemsDto> MypageListAsync(string userid, string list)
+            => GetApiAsync<MypageItemsDto>(
+                $"api/mypage.php?action={list}&userid=" + Esc(userid));
+
+        /// <summary>曲の追加。list は "history" / "later" / "favorite"。</summary>
+        public Task MypageAddAsync(string userid, string list, string fullpath,
+                                   string songfile, string kind)
+            => GetApiAsync<object>($"api/mypage.php?action={list}_add&userid=" + Esc(userid)
+                + "&fullpath=" + Esc(fullpath) + "&songfile=" + Esc(songfile)
+                + "&kind=" + Esc(kind));
+
+        /// <summary>曲の削除。list は "history" / "later" / "favorite"。</summary>
+        public Task MypageRemoveAsync(string userid, string list, string fullpath)
+            => GetApiAsync<object>($"api/mypage.php?action={list}_remove&userid=" + Esc(userid)
+                + "&fullpath=" + Esc(fullpath));
+
+        /// <summary>お気に入り検索の一覧。</summary>
+        public Task<MypageKeywordsDto> MypageKeywordsAsync(string userid)
+            => GetApiAsync<MypageKeywordsDto>(
+                "api/mypage.php?action=keyword&userid=" + Esc(userid));
+
+        /// <summary>お気に入り検索の追加。</summary>
+        public Task MypageKeywordAddAsync(string userid, string keyword,
+                                          string searchType, string searchParams)
+            => GetApiAsync<object>("api/mypage.php?action=keyword_add&userid=" + Esc(userid)
+                + "&keyword=" + Esc(keyword) + "&search_type=" + Esc(searchType)
+                + "&search_params=" + Esc(searchParams));
+
+        /// <summary>お気に入り検索の削除 (条件一致)。</summary>
+        public Task MypageKeywordRemoveAsync(string userid, string keyword,
+                                             string searchType, string searchParams)
+            => GetApiAsync<object>("api/mypage.php?action=keyword_remove&userid=" + Esc(userid)
+                + "&keyword=" + Esc(keyword) + "&search_type=" + Esc(searchType)
+                + "&search_params=" + Esc(searchParams));
+
+        /// <summary>
+        /// 端末内データの一括統合 (Web 版エクスポート形式 version 1 の JSON を送る)。
+        /// サーバー側で重複はスキップされるため何度実行しても安全。
+        /// </summary>
+        public Task MypageImportAsync(string userid, string json)
+        {
+            var form = new UnityEngine.WWWForm();
+            form.AddField("action", "import");
+            form.AddField("userid", userid);
+            form.AddField("data", json);
+            return PostApiAsync<object>("api/mypage.php", form);
+        }
+
+        /// <summary>Google 連携状態。</summary>
+        public Task<MypageGoogleStatusDto> MypageGoogleStatusAsync(string userid)
+            => GetApiAsync<MypageGoogleStatusDto>(
+                "api/mypage.php?action=google_status&userid=" + Esc(userid));
+
+        /// <summary>Google Drive と同期する。direction は "to_drive" / "from_drive"。</summary>
+        public Task<MypageGoogleSyncDto> MypageGoogleSyncAsync(string userid, string direction)
+            => GetApiAsync<MypageGoogleSyncDto>(
+                "api/mypage.php?action=google_sync&userid=" + Esc(userid)
+                + "&direction=" + Esc(direction));
+
+        /// <summary>Google トークン一式の取得 (同期の持ち歩き用)。未連携は 404。</summary>
+        public Task<MypageGoogleTokenDto> MypageGoogleTokenGetAsync(string userid)
+            => GetApiAsync<MypageGoogleTokenDto>(
+                "api/mypage.php?action=google_token_get&userid=" + Esc(userid));
+
+        /// <summary>
+        /// 持ち歩きトークンでこの部屋に Google ユーザーを用意し、Drive から復元する。
+        /// Google 同期未設定の部屋は 503、トークン無効は 401。
+        /// </summary>
+        public Task<MypageGoogleRegisterDto> MypageGoogleRegisterAsync(MypageGoogleTokenDto token)
+        {
+            var form = new UnityEngine.WWWForm();
+            form.AddField("action", "google_register");
+            form.AddField("google_sub", token.GoogleSub ?? "");
+            form.AddField("google_email", token.GoogleEmail ?? "");
+            form.AddField("access_token", token.AccessToken ?? "");
+            form.AddField("refresh_token", token.RefreshToken ?? "");
+            form.AddField("token_expires_at", token.TokenExpiresAt.ToString());
+            form.AddField("client_id", token.ClientId ?? "");
+            return PostApiAsync<MypageGoogleRegisterDto>("api/mypage.php", form);
+        }
+
         /// <summary>予約1件の再生状況変更 (「未再生」「再生済」等。/api/playstatus.php)。</summary>
         public async Task SetPlayStatusAsync(int id, string nowplaying)
         {
@@ -509,6 +615,11 @@ namespace YukaNavi.Api
         async Task<T> GetApiAsync<T>(string path, bool withAuth = true)
         {
             string json = await GetTextAsync(path, withAuth);
+            return ParseEnvelope<T>(json);
+        }
+
+        static T ParseEnvelope<T>(string json)
+        {
             ApiEnvelope<T> env;
             try
             {
@@ -523,6 +634,32 @@ namespace YukaNavi.Api
                 throw new ApiException(string.IsNullOrEmpty(env?.Error) ? "サーバーがエラー応答 (詳細なし)" : env.Error);
             }
             return env.Data;
+        }
+
+        /// <summary>POST してエンベロープを解釈する (大きなデータの送信用)。</summary>
+        async Task<T> PostApiAsync<T>(string path, UnityEngine.WWWForm form)
+        {
+            string url = BaseUrl.TrimEnd('/') + "/" + path;
+            if (!string.IsNullOrEmpty(EasyPass))
+            {
+                url += (url.IndexOf('?') >= 0 ? "&" : "?")
+                    + "easypass=" + UnityWebRequest.EscapeURL(EasyPass);
+            }
+            using (var req = UnityWebRequest.Post(url, form))
+            {
+                req.timeout = TimeoutSeconds;
+                ApplyCookies(req);
+                var op = req.SendWebRequest();
+                while (!op.isDone)
+                {
+                    await Task.Yield();
+                }
+                if (req.result != UnityWebRequest.Result.Success)
+                {
+                    throw new ApiException($"{req.error} ({url})", (int)req.responseCode);
+                }
+                return ParseEnvelope<T>(req.downloadHandler.text);
+            }
         }
 
         /// <summary>GET してテキストを返す。エディタ/実行時どちらでも動くよう Task.Yield でポーリングする。</summary>
