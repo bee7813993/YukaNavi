@@ -34,6 +34,17 @@ namespace YukaNavi.UI
         GameObject _pauseButtonGo;
         Text _pauseLabel;
         float _pauseArmedAt = -100f;
+        static int _focusId = -1;
+
+        /// <summary>
+        /// 予約一覧を開き、指定 id のカードへスクロールして光らせる
+        /// (予約完了・変更・並べ替え後に「どこに入ったか」を見せるための遷移)。
+        /// </summary>
+        public static void OpenAndFocus(ScreenManager manager, int id)
+        {
+            _focusId = id;
+            manager.BackTo<QueueScreen>(); // 履歴に無くても最後に必ず予約一覧が表示される
+        }
 
         public override void BuildUi()
         {
@@ -118,7 +129,7 @@ namespace YukaNavi.UI
         {
             try
             {
-                var caps = await AppConfig.CreateClient().GetCapabilitiesAsync();
+                var caps = await AppState.EnsureCapabilitiesAsync();
                 _pauseButtonGo.SetActive(caps.Features != null && caps.Features.Userpause);
             }
             catch (System.Exception)
@@ -149,12 +160,12 @@ namespace YukaNavi.UI
                 await AppConfig.CreateClient().PostRequestAsync(
                     "小休止", "", AppConfig.Username, "", "小休止");
                 Se.Play(Se.Confirm);
-                SetStatus("小休止を入れました", false);
+                UiFactory.ShowToast("小休止を入れました");
                 _ = RefreshAsync();
             }
             catch (System.Exception e)
             {
-                SetStatus("小休止の挿入に失敗: " + e.Message, true);
+                UiFactory.ShowToast("小休止の挿入に失敗: " + e.Message, true);
                 Se.Play(Se.Error);
             }
         }
@@ -198,6 +209,12 @@ namespace YukaNavi.UI
                       + (data.RemainingSeconds > 0 ? $" (約 {minutes} 分)" : "");
                 SetStatus(data.Total > 0 ? "タップで詳細 / 長押しで並べ替え" : "", false);
                 RebuildIfChanged(data.Items);
+                if (_focusId >= 0)
+                {
+                    int focusId = _focusId;
+                    _focusId = -1;
+                    FocusRequest(focusId);
+                }
             }
             catch (System.Exception e)
             {
@@ -271,15 +288,15 @@ namespace YukaNavi.UI
             // 各行とも折り返して全文表示し、行の高さは内容に合わせて伸ばす (縦は広めに使う)
             // (テキスト幅 ≈ リスト幅 1040 - バッジ 118 - 右余白 24)
             int nameLines = UiFactory.EstimateWrapLines(title, 30, 870f);
-            float nameHeight = nameLines * 42f;
+            float nameHeight = nameLines * UiFactory.LineHeight(30);
             float artistHeight = artistLine != ""
-                ? UiFactory.EstimateWrapLines(artistLine, 24, 870f) * 32f + 4f : 0f;
+                ? UiFactory.EstimateWrapLines(artistLine, 24, 870f) * UiFactory.LineHeight(24) + 4f : 0f;
             float workHeight = workLine != ""
-                ? UiFactory.EstimateWrapLines(workLine, 24, 870f) * 32f + 4f : 0f;
+                ? UiFactory.EstimateWrapLines(workLine, 24, 870f) * UiFactory.LineHeight(24) + 4f : 0f;
             // コメント (みんなで追記できる) は全文見せる
             string comment = masked ? "" : (item.Comment ?? "").Trim();
             float commentHeight = comment != ""
-                ? UiFactory.EstimateWrapLines(comment, 22, 870f) * 30f + 10f : 0f;
+                ? UiFactory.EstimateWrapLines(comment, 22, 870f) * UiFactory.LineHeight(22) + 10f : 0f;
             float rowHeight = Mathf.Max(
                 20f + nameHeight + 6f + artistHeight + workHeight + commentHeight + 12f + 62f + 16f,
                 DefaultRowHeight);
@@ -430,7 +447,7 @@ namespace YukaNavi.UI
                     }
                     catch (System.Exception e)
                     {
-                        SetStatus("曲の終了に失敗: " + e.Message, true);
+                        UiFactory.ShowToast("曲の終了に失敗: " + e.Message, true);
                         Se.Play(Se.Error);
                     }
                 });
@@ -466,7 +483,17 @@ namespace YukaNavi.UI
                     target = child; // 上から走査して最後に残った未再生 = 次に再生される曲
                 }
             }
-            if (target == null || _scrollRect == null)
+            if (target == null)
+            {
+                return;
+            }
+            ScrollToRow((RectTransform)target);
+        }
+
+        /// <summary>指定の行が画面の上 1/4 あたりに来る位置へスクロールする。</summary>
+        void ScrollToRow(RectTransform target)
+        {
+            if (_scrollRect == null)
             {
                 return;
             }
@@ -474,10 +501,47 @@ namespace YukaNavi.UI
             float viewportHeight = _scrollRect.viewport != null
                 ? _scrollRect.viewport.rect.height : ((RectTransform)_scrollRect.transform).rect.height;
             float scrollable = Mathf.Max(contentHeight - viewportHeight, 1f);
-            // ターゲットが画面の上 1/4 あたりに来る位置へ
-            float targetTop = -((RectTransform)target).anchoredPosition.y;
+            float targetTop = -target.anchoredPosition.y;
             float normalized = 1f - Mathf.Clamp01((targetTop - viewportHeight * 0.25f) / scrollable);
             _scrollRect.verticalNormalizedPosition = normalized;
+        }
+
+        /// <summary>指定 id の行へスクロールし、色をふわっと往復させて位置を示す。</summary>
+        void FocusRequest(int id)
+        {
+            Canvas.ForceUpdateCanvases(); // 直前に作り直した行のレイアウトを確定させる
+            foreach (Transform child in _listContent)
+            {
+                var rowDrag = child.GetComponent<RowDrag>();
+                if (rowDrag == null || rowDrag.Item.Id != id)
+                {
+                    continue;
+                }
+                ScrollToRow((RectTransform)child);
+                var img = child.GetComponent<Image>();
+                if (img != null)
+                {
+                    StartCoroutine(FlashRowRoutine(img, img.color));
+                }
+                return;
+            }
+        }
+
+        IEnumerator FlashRowRoutine(Image img, Color baseColor)
+        {
+            var flash = Color.Lerp(baseColor, UiFactory.Primary, 0.38f);
+            float t = 0f;
+            while (t < 1.6f)
+            {
+                if (img == null)
+                {
+                    yield break; // ポーリングで行が作り直されたら終了
+                }
+                img.color = Color.Lerp(baseColor, flash, Mathf.PingPong(t * 1.25f, 1f));
+                t += Time.deltaTime;
+                yield return null;
+            }
+            img.color = baseColor;
         }
 
         /// <summary>

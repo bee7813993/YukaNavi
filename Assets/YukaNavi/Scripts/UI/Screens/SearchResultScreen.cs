@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.UI;
@@ -153,6 +153,7 @@ namespace YukaNavi.UI
             searchBtnRect.anchoredPosition = new Vector2(-20f, -122f);
             searchBtnRect.sizeDelta = new Vector2(220f, 84f);
             searchButton.onClick.AddListener(RunKeywordSearch);
+            UiFactory.OnSubmit(_searchInput, RunKeywordSearch); // Enter でも検索
 
             _statusText = UiFactory.CreateText(transform, "Status", "", 26, UiFactory.TextDark);
             var statusRect = _statusText.rectTransform;
@@ -387,6 +388,7 @@ namespace YukaNavi.UI
 
         void SetStatus(string message, bool isError)
         {
+            HideLoading(); // 結果・エラーの表示 = ローディング終了
             _statusText.text = message;
             _statusText.color = isError ? UiFactory.Danger : UiFactory.TextDark;
         }
@@ -411,7 +413,8 @@ namespace YukaNavi.UI
             _titleText.text = (ReserveScreen.EditSession != null ? "差しかえ｜" : "") + query.Label;
             _searchInput.text = query.Keyword ?? ""; // 完全一致検索中は空 (プレースホルダー表示)
             UpdateSaveButton(query);
-            SetStatus("検索中...", false);
+            SetStatus("", false);
+            ShowLoading("検索中...");
             ClearRows();
 
             // 並び順は曲一覧にだけ効く
@@ -505,16 +508,38 @@ namespace YukaNavi.UI
 
                 // ファイル名は文章ではないので半角スペースで折り返さず、行数に合わせて全文表示する
                 int nameLines = UiFactory.EstimateWrapLines(item.Name, 28, 990f);
-                float nameHeight = nameLines * 38f + 4f;
-                le.preferredHeight = Mathf.Max(nameHeight + 28f, 112f);
+                float nameHeight = nameLines * UiFactory.LineHeight(28) + 4f;
+                bool hasWorker = !string.IsNullOrEmpty(item.Worker);
+                float workerHeight = hasWorker ? UiFactory.LineHeight(26) + 6f : 0f;
+                le.preferredHeight = Mathf.Max(nameHeight + workerHeight + 28f, 112f);
 
                 var nameText = UiFactory.CreateText(rowGo.transform, "Name",
                     UiFactory.NoWordWrap(item.Name), 28,
                     UiFactory.TextDark, TextAnchor.MiddleLeft);
                 UiFactory.StretchFull(nameText.rectTransform);
-                nameText.rectTransform.offsetMin = new Vector2(24f, 6f);
+                nameText.rectTransform.offsetMin = new Vector2(24f, 6f + workerHeight);
                 nameText.rectTransform.offsetMax = new Vector2(-24f, -6f);
                 nameText.verticalOverflow = VerticalWrapMode.Overflow;
+
+                // 動画制作者 (ListerDB 照会結果)。タップで制作者の再検索へ
+                if (hasWorker)
+                {
+                    string worker = item.Worker;
+                    string label = "制作: " + worker;
+                    var link = UiFactory.CreateText(rowGo.transform, "Worker",
+                        label, 26, UiFactory.Primary, TextAnchor.MiddleLeft);
+                    var linkRect = link.rectTransform;
+                    linkRect.anchorMin = linkRect.anchorMax = new Vector2(0f, 0f);
+                    linkRect.pivot = new Vector2(0f, 0f);
+                    linkRect.anchoredPosition = new Vector2(24f, 10f);
+                    linkRect.sizeDelta = new Vector2(
+                        Mathf.Min(EstimateWidth(label, 26) + 10f, 900f), UiFactory.LineHeight(26));
+                    link.verticalOverflow = VerticalWrapMode.Truncate;
+                    link.raycastTarget = true;
+                    var linkButton = link.gameObject.AddComponent<Button>();
+                    linkButton.transition = Selectable.Transition.None;
+                    linkButton.onClick.AddListener(() => PushExact("worker", worker));
+                }
 
                 _rows.Add(rowGo);
             }
@@ -640,7 +665,7 @@ namespace YukaNavi.UI
         float AddWrappedText(RectTransform card, string label, float y, int fontSize, Color color)
         {
             int lines = WrapLines(label, fontSize, CardTextWidth);
-            float height = lines * (fontSize + 12f) + 4f;
+            float height = lines * UiFactory.LineHeight(fontSize) + 4f;
             var text = UiFactory.CreateText(card, "Text", UiFactory.NoWordWrap(label),
                 fontSize, color, TextAnchor.UpperLeft);
             var rect = text.rectTransform;
@@ -659,7 +684,7 @@ namespace YukaNavi.UI
         float AddLinkRow(RectTransform card, string label, float y, int fontSize, System.Action onTap)
         {
             int lines = WrapLines(label, fontSize, CardTextWidth);
-            float height = lines * (fontSize + 12f) + 4f;
+            float height = lines * UiFactory.LineHeight(fontSize) + 4f;
             var text = UiFactory.CreateText(card, "Link", UiFactory.NoWordWrap(label), fontSize,
                 UiFactory.Primary, TextAnchor.UpperLeft);
             var rect = text.rectTransform;
@@ -694,20 +719,22 @@ namespace YukaNavi.UI
         /// <summary>ファイルブロック内テキストの折り返し幅 (概算)。</summary>
         const float BlockTextWidth = 950f;
         const int FileNameFontSize = 24;
-        const float FileNameLineHeight = 34f;
 
+        // 各行の高さは文字の大きさ設定 (FontScale) に追従させる
+        // (固定値だと 130% 以上で縦 Truncate になり行が消える・はみ出す)
         static float FileBlockHeight(ListerFileDto file)
         {
             float height = 12f;
             if (!string.IsNullOrEmpty(file.Comment))
             {
-                height += 40f;
+                height += UiFactory.LineHeight(26) + 4f;
             }
             string name = ReserveScreen.BaseName(file.FoundPath);
-            height += WrapLines(name, FileNameFontSize, BlockTextWidth) * FileNameLineHeight + 4f;
+            height += WrapLines(name, FileNameFontSize, BlockTextWidth)
+                * UiFactory.LineHeight(FileNameFontSize) + 4f;
             if (!string.IsNullOrEmpty(file.Worker))
             {
-                height += 42f;
+                height += UiFactory.LineHeight(26) + 4f;
             }
             return height + 12f;
         }
@@ -751,17 +778,18 @@ namespace YukaNavi.UI
             float cy = 12f;
             if (!string.IsNullOrEmpty(file.Comment))
             {
+                float commentH = UiFactory.LineHeight(26);
                 var commentText = UiFactory.CreateText(blockGo.transform, "Comment",
                     "【" + file.Comment + "】", 26, UiFactory.TextDark, TextAnchor.MiddleLeft);
-                SetBlockRow(commentText.rectTransform, -cy, 36f);
+                SetBlockRow(commentText.rectTransform, -cy, commentH);
                 commentText.verticalOverflow = VerticalWrapMode.Truncate;
-                cy += 40f;
+                cy += commentH + 4f;
             }
 
             // ファイル名 (折り返して全文表示。単語折り返しはしない)
             string fileName = ReserveScreen.BaseName(file.FoundPath);
             float nameHeight = WrapLines(fileName, FileNameFontSize, BlockTextWidth)
-                * FileNameLineHeight + 4f;
+                * UiFactory.LineHeight(FileNameFontSize) + 4f;
             var fileText = UiFactory.CreateText(blockGo.transform, "Name",
                 UiFactory.NoWordWrap(fileName), FileNameFontSize, UiFactory.TextMuted,
                 TextAnchor.UpperLeft);
@@ -780,7 +808,8 @@ namespace YukaNavi.UI
                 linkRect.anchorMin = linkRect.anchorMax = new Vector2(0f, 1f);
                 linkRect.pivot = new Vector2(0f, 1f);
                 linkRect.anchoredPosition = new Vector2(16f, -cy);
-                linkRect.sizeDelta = new Vector2(Mathf.Min(EstimateWidth(label, 26) + 10f, 900f), 38f);
+                linkRect.sizeDelta = new Vector2(Mathf.Min(EstimateWidth(label, 26) + 10f, 900f),
+                    UiFactory.LineHeight(26));
                 link.verticalOverflow = VerticalWrapMode.Truncate;
                 link.raycastTarget = true;
                 var linkButton = link.gameObject.AddComponent<Button>();

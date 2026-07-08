@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using YukaNavi.Core;
 
@@ -12,15 +13,20 @@ namespace YukaNavi.UI
     /// </summary>
     public class GlobalNav : MonoBehaviour
     {
-        /// <summary>バーの高さ。各画面はこの分だけ下部を空けてレイアウトする。</summary>
-        public const float BarHeight = 140f;
+        /// <summary>
+        /// バーの高さ (下のセーフエリア込み)。各画面はこの分だけ下部を空けてレイアウトする。
+        /// </summary>
+        public static float BarHeight => 140f + UiFactory.SafeBottom;
 
         ScreenManager _screens;
         GameObject _menuPanel;
         RectTransform _menuContent;
+        CanvasGroup _menuGroup;
         Image _menuButtonIcon;
         Sprite _menuSprite;
         Sprite _closeSprite;
+        bool _menuOpen;
+        Coroutine _menuAnim;
 
         public static GlobalNav Instance { get; private set; }
 
@@ -40,6 +46,12 @@ namespace YukaNavi.UI
         /// <summary>UI を作り直す (テーマ色の変更時)。</summary>
         public void Rebuild()
         {
+            if (_menuAnim != null)
+            {
+                StopCoroutine(_menuAnim); // 破棄済みの UI を触らないよう開閉アニメを止める
+                _menuAnim = null;
+            }
+            _menuOpen = false;
             for (int i = transform.childCount - 1; i >= 0; i--)
             {
                 Destroy(transform.GetChild(i).gameObject);
@@ -66,7 +78,8 @@ namespace YukaNavi.UI
             layout.childForceExpandWidth = true;
             layout.childForceExpandHeight = true;
             layout.spacing = 4f;
-            layout.padding = new RectOffset(8, 8, 8, 8);
+            // ボタンはホームバー (下のセーフエリア) を避けた上側に置く
+            layout.padding = new RectOffset(8, 8, 8, 8 + Mathf.RoundToInt(UiFactory.SafeBottom));
 
             AddBarButton(bar, "Back", "Art/UI/Icons/yukanavi_icon_back_256", OnBack, out _);
             AddBarButton(bar, "Menu", "Art/UI/Icons/yukanavi_icon_menu_256", ToggleMenu,
@@ -83,6 +96,7 @@ namespace YukaNavi.UI
             _menuPanel.transform.SetParent(transform, false);
             var panelRect = _menuPanel.AddComponent<RectTransform>();
             UiFactory.StretchFull(panelRect);
+            _menuGroup = _menuPanel.AddComponent<CanvasGroup>(); // 開閉フェード用
             // ホームが透けるオーバーレイ (リンクラ風に透過多め)
             var overlay = _menuPanel.AddComponent<Image>();
             overlay.color = new Color(0.95f, 0.93f, 0.99f, 0.55f);
@@ -92,7 +106,7 @@ namespace YukaNavi.UI
             _menuContent.anchorMin = new Vector2(0f, 0f);
             _menuContent.anchorMax = new Vector2(1f, 1f);
             _menuContent.offsetMin = new Vector2(40f, BarHeight + 30f);
-            _menuContent.offsetMax = new Vector2(-40f, -70f);
+            _menuContent.offsetMax = new Vector2(-40f, -70f - UiFactory.SafeTop);
 
             // 大バナー: 主要2機能 (専用のバナー画像)
             AddBigBanner(_menuContent, 0, "曲をさがす",
@@ -108,13 +122,16 @@ namespace YukaNavi.UI
             grid.anchorMax = new Vector2(1f, 0f);
             grid.pivot = new Vector2(0.5f, 0f);
             grid.anchoredPosition = new Vector2(0f, 20f);
-            grid.sizeDelta = new Vector2(0f, 380f);
             var gridLayout = grid.gameObject.AddComponent<GridLayoutGroup>();
             gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
             gridLayout.constraintCount = 2;
-            gridLayout.cellSize = new Vector2(486f, 175f);
+            // セルの高さはラベル+キャプション (文字の大きさ設定に追従) が収まる分を確保する
+            float cellH = Mathf.Max(175f,
+                16f + UiFactory.LineHeight(34) + 4f + UiFactory.LineHeight(22) + 16f);
+            gridLayout.cellSize = new Vector2(486f, cellH);
             gridLayout.spacing = new Vector2(24f, 24f);
             gridLayout.childAlignment = TextAnchor.LowerCenter;
+            grid.sizeDelta = new Vector2(0f, cellH * 3f + 24f * 2f); // 3行分
 
             AddGridItem(grid, "マイページ", "履歴・お気に入り",
                 "Art/UI/Icons/yukanavi_icon_mypage_256", () => _screens.Show<MypageScreen>());
@@ -122,8 +139,10 @@ namespace YukaNavi.UI
                 "Art/UI/Icons/yukanavi_icon_remote_256", () => _screens.Show<PlayerScreen>());
             AddGridItem(grid, "きせかえ", "背景とキャラの変更",
                 "Art/UI/Icons/yukanavi_icon_skin_256", () => _screens.Show<SkinScreen>());
-            AddGridItem(grid, "接続設定", "サーバーとの接続",
+            AddGridItem(grid, "設定", "接続と文字の大きさ",
                 "Art/UI/Icons/yukanavi_icon_settings_256", () => _screens.Show<ConnectScreen>());
+            AddGridItem(grid, "Web版を開く", "ブラウザで表示",
+                "Art/UI/Icons/yukanavi_icon_room_door_256", OpenWebVersion);
 
             _menuPanel.SetActive(false);
         }
@@ -172,22 +191,50 @@ namespace YukaNavi.UI
             iconRect.anchoredPosition = new Vector2(28f, 0f);
             iconRect.sizeDelta = new Vector2(72f, 72f);
 
+            // ラベル (上) + キャプション (下)。高さは文字の大きさ設定に追従し、
+            // 収まらない文言は枠内で自動縮小する (固定配置だと大きい設定で重なる)
+            float labelH = UiFactory.LineHeight(34);
             var labelText = UiFactory.CreateText(button.transform, "Label", label, 34,
                 UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
-            UiFactory.StretchFull(labelText.rectTransform);
-            labelText.rectTransform.offsetMin = new Vector2(124f, 56f);
-            labelText.rectTransform.offsetMax = new Vector2(-12f, -32f);
+            var labelRect = labelText.rectTransform;
+            labelRect.anchorMin = new Vector2(0f, 1f);
+            labelRect.anchorMax = new Vector2(1f, 1f);
+            labelRect.pivot = new Vector2(0.5f, 1f);
+            labelRect.anchoredPosition = new Vector2(0f, -16f);
+            labelRect.offsetMin = new Vector2(124f, labelRect.offsetMin.y);
+            labelRect.offsetMax = new Vector2(-12f, labelRect.offsetMax.y);
+            labelRect.sizeDelta = new Vector2(labelRect.sizeDelta.x, labelH);
+            UiFactory.FitLabel(labelText);
+
             var captionText = UiFactory.CreateText(button.transform, "Caption", caption, 22,
                 UiFactory.TextMuted, TextAnchor.MiddleLeft);
-            UiFactory.StretchFull(captionText.rectTransform);
-            captionText.rectTransform.offsetMin = new Vector2(124f, 28f);
-            captionText.rectTransform.offsetMax = new Vector2(-12f, -104f);
+            var captionRect = captionText.rectTransform;
+            captionRect.anchorMin = new Vector2(0f, 1f);
+            captionRect.anchorMax = new Vector2(1f, 1f);
+            captionRect.pivot = new Vector2(0.5f, 1f);
+            captionRect.anchoredPosition = new Vector2(0f, -16f - labelH - 4f);
+            captionRect.offsetMin = new Vector2(124f, captionRect.offsetMin.y);
+            captionRect.offsetMax = new Vector2(-12f, captionRect.offsetMax.y);
+            captionRect.sizeDelta = new Vector2(captionRect.sizeDelta.x, UiFactory.LineHeight(22));
+            UiFactory.FitLabel(captionText);
             button.onClick.AddListener(() =>
             {
                 CloseMenu();
                 Se.Play(Se.Transition);
                 onClick();
             });
+        }
+
+        /// <summary>Web 版をブラウザで開く (かんたん認証があればパス付き URL で認証を通す)。</summary>
+        static void OpenWebVersion()
+        {
+            string url = AppConfig.ServerUrl;
+            if (!string.IsNullOrEmpty(AppConfig.EasyPass))
+            {
+                url = url.TrimEnd('/') + "/?easypass="
+                    + System.Uri.EscapeDataString(AppConfig.EasyPass);
+            }
+            Application.OpenURL(url);
         }
 
         /// <summary>ナビバーのボタン (アイコンのみ)。</summary>
@@ -213,7 +260,7 @@ namespace YukaNavi.UI
         void ToggleMenu()
         {
             Se.Play(Se.Tap);
-            if (_menuPanel.activeSelf)
+            if (_menuOpen)
             {
                 CloseMenu();
             }
@@ -225,41 +272,80 @@ namespace YukaNavi.UI
 
         void OpenMenu()
         {
+            _menuOpen = true;
             _menuPanel.SetActive(true);
             if (_closeSprite != null)
             {
                 _menuButtonIcon.sprite = _closeSprite;
             }
-            StartCoroutine(PopRoutine());
+            if (_menuAnim != null)
+            {
+                StopCoroutine(_menuAnim);
+            }
+            _menuAnim = StartCoroutine(MenuRoutine(true));
         }
 
         void CloseMenu()
         {
-            _menuPanel.SetActive(false);
+            if (!_menuOpen && !_menuPanel.activeSelf)
+            {
+                return;
+            }
+            _menuOpen = false;
             if (_menuSprite != null)
             {
                 _menuButtonIcon.sprite = _menuSprite;
             }
+            if (_menuAnim != null)
+            {
+                StopCoroutine(_menuAnim);
+            }
+            _menuAnim = StartCoroutine(MenuRoutine(false));
         }
 
-        /// <summary>メニューをふわっと出す (0.96 → 1.0)。</summary>
-        IEnumerator PopRoutine()
+        /// <summary>
+        /// メニューの開閉アニメ。フェード+コンテンツが下からふわっと上がる (閉じは逆再生)。
+        /// 開閉を連打しても、そのときの表示状態から続きが再生される。
+        /// </summary>
+        IEnumerator MenuRoutine(bool open)
         {
-            const float duration = 0.16f;
+            const float duration = 0.18f;
+            float from = _menuGroup.alpha;
+            float to = open ? 1f : 0f;
             for (float e = 0f; e < duration; e += Time.deltaTime)
             {
-                float k = e / duration;
-                float scale = Mathf.Lerp(0.96f, 1f, 1f - (1f - k) * (1f - k));
+                float k = 1f - Mathf.Pow(1f - Mathf.Clamp01(e / duration), 2f); // easeOut
+                float a = Mathf.Lerp(from, to, k);
+                _menuGroup.alpha = a;
+                _menuContent.anchoredPosition = new Vector2(0f, -50f * (1f - a));
+                float scale = Mathf.Lerp(0.97f, 1f, a);
                 _menuContent.localScale = new Vector3(scale, scale, 1f);
                 yield return null;
             }
-            _menuContent.localScale = Vector3.one;
+            _menuGroup.alpha = to;
+            _menuContent.anchoredPosition = new Vector2(0f, -50f * (1f - to));
+            _menuContent.localScale = open ? Vector3.one : new Vector3(0.97f, 0.97f, 1f);
+            if (!open)
+            {
+                _menuPanel.SetActive(false);
+            }
+            _menuAnim = null;
+        }
+
+        void Update()
+        {
+            // Android の戻るボタン / 戻るジェスチャ (Input System では Escape として届く)。
+            // ナビの「戻る」ボタンと同じ動作にする。エディタでも Esc キーで確認できる
+            if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+            {
+                OnBack();
+            }
         }
 
         void OnBack()
         {
             // メニュー展開中は閉じるだけ
-            if (_menuPanel.activeSelf)
+            if (_menuOpen)
             {
                 CloseMenu();
                 Se.Play(Se.Tap);

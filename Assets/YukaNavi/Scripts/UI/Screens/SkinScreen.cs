@@ -107,42 +107,54 @@ namespace YukaNavi.UI
 
             UiFactory.CreateTopBar(transform, "きせかえ");
 
-            var caption = UiFactory.CreateText(transform, "Caption",
-                "手持ちの画像や動画で、背景とキャラをカスタマイズできます", 26, UiFactory.TextDark);
+            // 上部は文字の大きさ設定 (FontScale) に合わせて積み上げる (固定座標だと重なる)
+            float y = 122f;
+
+            const string captionLabel = "手持ちの画像や動画で、背景とキャラをカスタマイズできます";
+            var caption = UiFactory.CreateText(transform, "Caption", captionLabel, 26,
+                UiFactory.TextDark);
+            float captionH = UiFactory.EstimateWrapLines(captionLabel, 26, 1040f)
+                * UiFactory.LineHeight(26);
             var captionRect = caption.rectTransform;
             captionRect.anchorMin = new Vector2(0f, 1f);
             captionRect.anchorMax = new Vector2(1f, 1f);
             captionRect.pivot = new Vector2(0.5f, 1f);
-            captionRect.anchoredPosition = new Vector2(0f, -122f);
-            captionRect.sizeDelta = new Vector2(-40f, 40f);
+            captionRect.anchoredPosition = new Vector2(0f, -y);
+            captionRect.sizeDelta = new Vector2(-40f, captionH);
+            y += captionH + 8f;
 
             // 操作ボタン行 (スキンを作る / 取り込む / フォルダを開く)
+            float rowH = Mathf.Max(80f, UiFactory.LineHeight(28) + 24f);
             var buttonBar = UiFactory.CreatePanel(transform, "Buttons");
             buttonBar.anchorMin = new Vector2(0f, 1f);
             buttonBar.anchorMax = new Vector2(1f, 1f);
             buttonBar.pivot = new Vector2(0.5f, 1f);
-            buttonBar.anchoredPosition = new Vector2(0f, -170f);
+            buttonBar.anchoredPosition = new Vector2(0f, -y);
             buttonBar.offsetMin = new Vector2(20f, buttonBar.offsetMin.y);
             buttonBar.offsetMax = new Vector2(-20f, buttonBar.offsetMax.y);
-            buttonBar.sizeDelta = new Vector2(buttonBar.sizeDelta.x, 80f);
+            buttonBar.sizeDelta = new Vector2(buttonBar.sizeDelta.x, rowH);
             var buttonLayout = buttonBar.gameObject.AddComponent<HorizontalLayoutGroup>();
             buttonLayout.childForceExpandWidth = true;
             buttonLayout.childForceExpandHeight = true;
             buttonLayout.spacing = 10f;
+            y += rowH + 14f;
 
             var createButton = UiFactory.CreateButton(buttonBar, "Create", "＋ 作る",
                 UiFactory.Primary, Color.white, 28);
+            UiFactory.FitLabel(createButton.GetComponentInChildren<Text>());
             createButton.onClick.AddListener(OpenCreateModal);
 
 #if UNITY_ANDROID || UNITY_IOS || UNITY_EDITOR
             var importButton = UiFactory.CreateButton(buttonBar, "Import", "取り込む (zip)",
                 UiFactory.Primary, Color.white, 28);
+            UiFactory.FitLabel(importButton.GetComponentInChildren<Text>());
             importButton.onClick.AddListener(ImportSkinFlow);
 #endif
 
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR
             var openButton = UiFactory.CreateButton(buttonBar, "OpenFolder", "フォルダを開く",
                 UiFactory.PrimaryDark, Color.white, 28);
+            UiFactory.FitLabel(openButton.GetComponentInChildren<Text>());
             openButton.onClick.AddListener(() =>
             {
                 Se.Play(Se.Tap);
@@ -152,30 +164,34 @@ namespace YukaNavi.UI
 #endif
 
             // ホームの表示 (きせかえに統合したホーム設定)
-            var homeLabel = UiFactory.CreateText(transform, "HomeLabel",
-                "ホーム画面の表示 (ホームで長押しすると移動・拡縮できます)", 22, UiFactory.TextMuted,
-                TextAnchor.MiddleLeft);
+            const string homeLabelText = "ホーム画面の表示 (ホームで長押しすると移動・拡縮できます)";
+            var homeLabel = UiFactory.CreateText(transform, "HomeLabel", homeLabelText, 22,
+                UiFactory.TextMuted, TextAnchor.MiddleLeft);
+            float homeLabelH = UiFactory.EstimateWrapLines(homeLabelText, 22, 1030f)
+                * UiFactory.LineHeight(22);
             var homeLabelRect = homeLabel.rectTransform;
             homeLabelRect.anchorMin = new Vector2(0f, 1f);
             homeLabelRect.anchorMax = new Vector2(1f, 1f);
             homeLabelRect.pivot = new Vector2(0.5f, 1f);
-            homeLabelRect.anchoredPosition = new Vector2(0f, -264f);
+            homeLabelRect.anchoredPosition = new Vector2(0f, -y);
             homeLabelRect.offsetMin = new Vector2(24f, homeLabelRect.offsetMin.y);
             homeLabelRect.offsetMax = new Vector2(-24f, homeLabelRect.offsetMax.y);
-            homeLabelRect.sizeDelta = new Vector2(homeLabelRect.sizeDelta.x, 32f);
+            homeLabelRect.sizeDelta = new Vector2(homeLabelRect.sizeDelta.x, homeLabelH);
+            y += homeLabelH + 4f;
 
             var homeBar = UiFactory.CreatePanel(transform, "HomeToggles");
             homeBar.anchorMin = new Vector2(0f, 1f);
             homeBar.anchorMax = new Vector2(1f, 1f);
             homeBar.pivot = new Vector2(0.5f, 1f);
-            homeBar.anchoredPosition = new Vector2(0f, -300f);
+            homeBar.anchoredPosition = new Vector2(0f, -y);
             homeBar.offsetMin = new Vector2(20f, homeBar.offsetMin.y);
             homeBar.offsetMax = new Vector2(-20f, homeBar.offsetMax.y);
-            homeBar.sizeDelta = new Vector2(homeBar.sizeDelta.x, 80f);
+            homeBar.sizeDelta = new Vector2(homeBar.sizeDelta.x, rowH);
             var homeLayoutGroup = homeBar.gameObject.AddComponent<HorizontalLayoutGroup>();
             homeLayoutGroup.childForceExpandWidth = true;
             homeLayoutGroup.childForceExpandHeight = true;
             homeLayoutGroup.spacing = 10f;
+            y += rowH + 12f;
 
             _clockToggle = AddHomeToggle(homeBar, "時計", HomeLayoutStore.Clock);
             _tickerToggle = AddHomeToggle(homeBar, "メッセージ", HomeLayoutStore.Ticker);
@@ -183,6 +199,7 @@ namespace YukaNavi.UI
 
             var resetButton = UiFactory.CreateButton(homeBar, "ResetLayout", "配置リセット",
                 UiFactory.PrimaryDark, Color.white, 24);
+            UiFactory.FitLabel(resetButton.GetComponentInChildren<Text>());
             resetButton.onClick.AddListener(() =>
             {
                 Se.Play(Se.Confirm);
@@ -192,18 +209,20 @@ namespace YukaNavi.UI
             });
 
             _pathText = UiFactory.CreateText(transform, "Path", "", 20, new Color(0.5f, 0.47f, 0.6f));
+            float pathH = UiFactory.LineHeight(20) * 2f;
             var pathRect = _pathText.rectTransform;
             pathRect.anchorMin = new Vector2(0f, 1f);
             pathRect.anchorMax = new Vector2(1f, 1f);
             pathRect.pivot = new Vector2(0.5f, 1f);
-            pathRect.anchoredPosition = new Vector2(0f, -392f);
-            pathRect.sizeDelta = new Vector2(-40f, 48f);
+            pathRect.anchoredPosition = new Vector2(0f, -y);
+            pathRect.sizeDelta = new Vector2(-40f, pathH);
+            y += pathH + 8f;
 
             var scrollRectT = UiFactory.CreateScrollList(transform, "SkinList", out _listContent);
             scrollRectT.anchorMin = new Vector2(0f, 0f);
             scrollRectT.anchorMax = new Vector2(1f, 1f);
             scrollRectT.offsetMin = new Vector2(20f, GlobalNav.BarHeight + 16f);
-            scrollRectT.offsetMax = new Vector2(-20f, -448f);
+            scrollRectT.offsetMax = new Vector2(-20f, -y);
 
             BuildCreateModal();
             BuildColorModal();
@@ -213,6 +232,7 @@ namespace YukaNavi.UI
         {
             var button = UiFactory.CreateButton(bar, key, label,
                 new Color(0.75f, 0.73f, 0.80f), Color.white, 24);
+            UiFactory.FitLabel(button.GetComponentInChildren<Text>());
             button.onClick.AddListener(() =>
             {
                 Se.Play(Se.Tap);
@@ -247,42 +267,92 @@ namespace YukaNavi.UI
             var overlay = _createModal.AddComponent<Image>();
             overlay.color = new Color(0f, 0f, 0f, 0.55f);
 
-            var card = UiFactory.CreatePanel(_createModal.transform, "Card", Color.white);
-            card.anchorMin = card.anchorMax = new Vector2(0.5f, 0.5f);
-            card.pivot = new Vector2(0.5f, 0.5f);
-            card.sizeDelta = new Vector2(940f, 1860f);
-            UiFactory.Roundify(card.GetComponent<Image>());
-            UiFactory.AddShadow(card.gameObject, 8f);
+            // 外枠は画面の高さに合わせ、中身 (card) は縦スクロールできるようにする
+            // (項目が増えて 9:16 の画面や大きい文字サイズでは収まらないため)
+            var cardFrame = UiFactory.CreatePanel(_createModal.transform, "Card", Color.white);
+            cardFrame.anchorMin = new Vector2(0.5f, 0f);
+            cardFrame.anchorMax = new Vector2(0.5f, 1f);
+            cardFrame.pivot = new Vector2(0.5f, 0.5f);
+            // 上 40px / 下はナビバー + 20px を空ける (下部の保存ボタンがナビバーに隠れないように)
+            float topMargin = 40f;
+            float bottomMargin = GlobalNav.BarHeight + 20f;
+            cardFrame.anchoredPosition = new Vector2(0f, (bottomMargin - topMargin) / 2f);
+            cardFrame.sizeDelta = new Vector2(940f, -(topMargin + bottomMargin));
+            UiFactory.Roundify(cardFrame.GetComponent<Image>());
+            UiFactory.AddShadow(cardFrame.gameObject, 8f);
             // カード内タップがオーバーレイに抜けないようにする
-            var cardButton = card.gameObject.AddComponent<Button>();
+            var cardButton = cardFrame.gameObject.AddComponent<Button>();
             cardButton.transition = Selectable.Transition.None;
 
+            var modalScroll = cardFrame.gameObject.AddComponent<ScrollRect>();
+            var viewportGo = new GameObject("Viewport");
+            viewportGo.transform.SetParent(cardFrame, false);
+            var viewportRect = viewportGo.AddComponent<RectTransform>();
+            UiFactory.StretchFull(viewportRect);
+            viewportRect.offsetMin = new Vector2(0f, 150f); // 下部の保存/やめるボタン行は固定
+            var viewportImg = viewportGo.AddComponent<Image>();
+            viewportImg.color = Color.white;
+            UiFactory.Roundify(viewportImg);
+            var viewportMask = viewportGo.AddComponent<Mask>();
+            viewportMask.showMaskGraphic = false;
+
+            var contentGo = new GameObject("Content");
+            contentGo.transform.SetParent(viewportGo.transform, false);
+            var card = contentGo.AddComponent<RectTransform>();
+            card.anchorMin = new Vector2(0f, 1f);
+            card.anchorMax = new Vector2(1f, 1f);
+            card.pivot = new Vector2(0.5f, 1f);
+            // 高さは行を積み上げた後に確定する (BuildCreateModal 末尾)
+
+            modalScroll.content = card;
+            modalScroll.viewport = viewportRect;
+            modalScroll.horizontal = false;
+            modalScroll.movementType = ScrollRect.MovementType.Elastic;
+            modalScroll.scrollSensitivity = 30f;
+
+            // 各行の縦位置・高さは文字の大きさ設定 (FontScale) に合わせて積み上げる
+            float y = 22f;
+            float labelH = UiFactory.LineHeight(26);
+            float pickH = UiFactory.LineHeight(22);
+            float btnH = Mathf.Max(80f, UiFactory.LineHeight(28) + 20f);
+            float inputH = Mathf.Max(76f, UiFactory.LineHeight(30) + 20f);
+
             _modalTitleText = UiFactory.CreateText(card, "Title", "スキンを作る", 38, UiFactory.PrimaryDark);
-            SetCardRow(_modalTitleText.rectTransform, -22f, 54f);
+            float titleH = UiFactory.LineHeight(38);
+            SetCardRow(_modalTitleText.rectTransform, -y, titleH);
+            y += titleH + 12f;
 
             var nameLabel = UiFactory.CreateText(card, "NameLabel", "スキンの名前", 26,
                 UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
-            SetCardRow(nameLabel.rectTransform, -88f, 34f);
+            SetCardRow(nameLabel.rectTransform, -y, labelH);
+            y += labelH + 2f;
             _skinNameInput = UiFactory.CreateInputField(card, "NameInput", "例: 夏フェス", 30);
-            SetCardRow(_skinNameInput.GetComponent<RectTransform>(), -124f, 76f);
+            SetCardRow(_skinNameInput.GetComponent<RectTransform>(), -y, inputH);
+            y += inputH + 22f;
 
             var bgButton = UiFactory.CreateButton(card, "PickBg", "背景を選ぶ (画像 / 動画)",
                 UiFactory.Primary, Color.white, 28);
-            SetCardRow(bgButton.GetComponent<RectTransform>(), -222f, 80f);
+            SetCardRow(bgButton.GetComponent<RectTransform>(), -y, btnH);
+            UiFactory.FitLabelOneLine(bgButton.GetComponentInChildren<Text>());
             bgButton.onClick.AddListener(() => PickFile(true));
+            y += btnH + 2f;
             _bgPickText = UiFactory.CreateText(card, "BgPicked", "未選択", 22,
                 new Color(0.5f, 0.47f, 0.6f), TextAnchor.MiddleLeft);
-            SetCardRow(_bgPickText.rectTransform, -304f, 30f);
+            SetCardRow(_bgPickText.rectTransform, -y, pickH);
+            UiFactory.FitLabel(_bgPickText);
+            y += pickH + 6f;
 
-            BuildPreviewArea(card);
+            float previewH = BuildPreviewArea(card, y);
+            y += previewH + 24f;
 
             var charButton = UiFactory.CreateButton(card, "PickChar", "キャラ画像を選ぶ (任意)",
                 UiFactory.Primary, Color.white, 28);
             var charRect = charButton.GetComponent<RectTransform>();
             charRect.anchorMin = charRect.anchorMax = new Vector2(0f, 1f);
             charRect.pivot = new Vector2(0f, 1f);
-            charRect.anchoredPosition = new Vector2(50f, -900f);
-            charRect.sizeDelta = new Vector2(490f, 80f);
+            charRect.anchoredPosition = new Vector2(50f, -y);
+            charRect.sizeDelta = new Vector2(490f, btnH);
+            UiFactory.FitLabelOneLine(charButton.GetComponentInChildren<Text>());
             charButton.onClick.AddListener(() => PickFile(false));
 
             _charNoneButton = UiFactory.CreateButton(card, "CharNone", "キャラなし",
@@ -290,13 +360,17 @@ namespace YukaNavi.UI
             var noneRect = _charNoneButton.GetComponent<RectTransform>();
             noneRect.anchorMin = noneRect.anchorMax = new Vector2(1f, 1f);
             noneRect.pivot = new Vector2(1f, 1f);
-            noneRect.anchoredPosition = new Vector2(-50f, -900f);
-            noneRect.sizeDelta = new Vector2(320f, 80f);
+            noneRect.anchoredPosition = new Vector2(-50f, -y);
+            noneRect.sizeDelta = new Vector2(320f, btnH);
+            UiFactory.FitLabelOneLine(_charNoneButton.GetComponentInChildren<Text>());
             _charNoneButton.onClick.AddListener(ToggleCharNone);
+            y += btnH + 2f;
 
             _charPickText = UiFactory.CreateText(card, "CharPicked", "未選択 (ゆかりちゃんのまま)", 22,
                 new Color(0.5f, 0.47f, 0.6f), TextAnchor.MiddleLeft);
-            SetCardRow(_charPickText.rectTransform, -982f, 30f);
+            SetCardRow(_charPickText.rectTransform, -y, pickH);
+            UiFactory.FitLabel(_charPickText);
+            y += pickH + 18f;
 
             // BGM (任意)。登録するとこのスキン適用中はデフォルト BGM の代わりに流れる
             var bgmButton = UiFactory.CreateButton(card, "PickBgm", "BGM を選ぶ (任意)",
@@ -304,8 +378,9 @@ namespace YukaNavi.UI
             var bgmRect = bgmButton.GetComponent<RectTransform>();
             bgmRect.anchorMin = bgmRect.anchorMax = new Vector2(0f, 1f);
             bgmRect.pivot = new Vector2(0f, 1f);
-            bgmRect.anchoredPosition = new Vector2(50f, -1030f);
-            bgmRect.sizeDelta = new Vector2(490f, 80f);
+            bgmRect.anchoredPosition = new Vector2(50f, -y);
+            bgmRect.sizeDelta = new Vector2(490f, btnH);
+            UiFactory.FitLabelOneLine(bgmButton.GetComponentInChildren<Text>());
             bgmButton.onClick.AddListener(PickBgmFile);
 
             _bgmNoneButton = UiFactory.CreateButton(card, "BgmNone", "BGMなし",
@@ -313,13 +388,17 @@ namespace YukaNavi.UI
             var bgmNoneRect = _bgmNoneButton.GetComponent<RectTransform>();
             bgmNoneRect.anchorMin = bgmNoneRect.anchorMax = new Vector2(1f, 1f);
             bgmNoneRect.pivot = new Vector2(1f, 1f);
-            bgmNoneRect.anchoredPosition = new Vector2(-50f, -1030f);
-            bgmNoneRect.sizeDelta = new Vector2(320f, 80f);
+            bgmNoneRect.anchoredPosition = new Vector2(-50f, -y);
+            bgmNoneRect.sizeDelta = new Vector2(320f, btnH);
+            UiFactory.FitLabelOneLine(_bgmNoneButton.GetComponentInChildren<Text>());
             _bgmNoneButton.onClick.AddListener(ToggleBgmNone);
+            y += btnH + 2f;
 
             _bgmPickText = UiFactory.CreateText(card, "BgmPicked", "未選択 (アプリのBGM)", 22,
                 new Color(0.5f, 0.47f, 0.6f), TextAnchor.MiddleLeft);
-            SetCardRow(_bgmPickText.rectTransform, -1112f, 30f);
+            SetCardRow(_bgmPickText.rectTransform, -y, pickH);
+            UiFactory.FitLabel(_bgmPickText);
+            y += pickH + 18f;
 
             // リモコンのレコード盤 (任意)。円形の透過 PNG を想定
             var recordButton = UiFactory.CreateButton(card, "PickRecord", "レコード盤を選ぶ (任意)",
@@ -327,8 +406,9 @@ namespace YukaNavi.UI
             var recordRect = recordButton.GetComponent<RectTransform>();
             recordRect.anchorMin = recordRect.anchorMax = new Vector2(0f, 1f);
             recordRect.pivot = new Vector2(0f, 1f);
-            recordRect.anchoredPosition = new Vector2(50f, -1160f);
-            recordRect.sizeDelta = new Vector2(490f, 80f);
+            recordRect.anchoredPosition = new Vector2(50f, -y);
+            recordRect.sizeDelta = new Vector2(490f, btnH);
+            UiFactory.FitLabelOneLine(recordButton.GetComponentInChildren<Text>());
             recordButton.onClick.AddListener(PickRecordFile);
 
             _recordDefaultButton = UiFactory.CreateButton(card, "RecordDefault", "標準の盤",
@@ -336,41 +416,59 @@ namespace YukaNavi.UI
             var recordDefaultRect = _recordDefaultButton.GetComponent<RectTransform>();
             recordDefaultRect.anchorMin = recordDefaultRect.anchorMax = new Vector2(1f, 1f);
             recordDefaultRect.pivot = new Vector2(1f, 1f);
-            recordDefaultRect.anchoredPosition = new Vector2(-50f, -1160f);
-            recordDefaultRect.sizeDelta = new Vector2(320f, 80f);
+            recordDefaultRect.anchoredPosition = new Vector2(-50f, -y);
+            recordDefaultRect.sizeDelta = new Vector2(320f, btnH);
+            UiFactory.FitLabelOneLine(_recordDefaultButton.GetComponentInChildren<Text>());
             _recordDefaultButton.onClick.AddListener(ToggleRecordDefault);
+            y += btnH + 2f;
 
             _recordPickText = UiFactory.CreateText(card, "RecordPicked", "未選択 (アプリ標準の盤)", 22,
                 new Color(0.5f, 0.47f, 0.6f), TextAnchor.MiddleLeft);
-            SetCardRow(_recordPickText.rectTransform, -1242f, 30f);
+            SetCardRow(_recordPickText.rectTransform, -y, pickH);
+            UiFactory.FitLabel(_recordPickText);
+            y += pickH + 18f;
 
             // テーマ色 (ボタンや文字の色)。基準色から派生色を自動生成する
             var themeLabel = UiFactory.CreateText(card, "ThemeLabel", "テーマ色 (ボタンや文字の色)", 26,
                 UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
-            SetCardRow(themeLabel.rectTransform, -1282f, 34f);
-            BuildThemeChips(card);
+            SetCardRow(themeLabel.rectTransform, -y, labelH);
+            y += labelH + 6f;
+            BuildThemeChips(card, y);
+            y += 72f + 12f;
 
             // キャラのセリフ (1行に1つ。タップでランダム表示)
-            var talkLabel = UiFactory.CreateText(card, "TalkLabel",
-                "キャラのセリフ (1行に1つ、タップでランダム表示)", 26,
+            const string talkLabelText = "キャラのセリフ (1行に1つ、タップでランダム表示)";
+            var talkLabel = UiFactory.CreateText(card, "TalkLabel", talkLabelText, 26,
                 UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
-            SetCardRow(talkLabel.rectTransform, -1406f, 34f);
+            float talkLabelH = UiFactory.EstimateWrapLines(talkLabelText, 26, 840f)
+                * UiFactory.LineHeight(26);
+            SetCardRow(talkLabel.rectTransform, -y, talkLabelH);
+            y += talkLabelH + 6f;
             _talkInput = UiFactory.CreateInputField(card, "TalkInput",
                 "例: うたっていこ〜♪ (空ならアプリ標準のセリフ)", 26);
             _talkInput.lineType = InputField.LineType.MultiLineNewline;
             ((Text)_talkInput.textComponent).alignment = TextAnchor.UpperLeft;
             ((Text)_talkInput.placeholder).alignment = TextAnchor.UpperLeft;
-            SetCardRow(_talkInput.GetComponent<RectTransform>(), -1446f, 130f);
+            float talkInputH = Mathf.Max(130f, UiFactory.LineHeight(26) * 2f + 30f);
+            SetCardRow(_talkInput.GetComponent<RectTransform>(), -y, talkInputH);
+            y += talkInputH + 14f;
 
             var hint = UiFactory.CreateText(card, "Hint",
                 "※ 選んだファイルはアプリ内にコピーされます", 20, new Color(0.5f, 0.47f, 0.6f));
-            SetCardRow(hint.rectTransform, -1590f, 28f);
+            float hintH = UiFactory.LineHeight(20);
+            SetCardRow(hint.rectTransform, -y, hintH);
+            y += hintH + 6f;
 
             _createErrorText = UiFactory.CreateText(card, "Error", "", 24, UiFactory.Danger);
-            SetCardRow(_createErrorText.rectTransform, -1624f, 36f);
+            float errorH = UiFactory.LineHeight(24);
+            SetCardRow(_createErrorText.rectTransform, -y, errorH);
+            y += errorH;
 
-            var saveButton = UiFactory.CreateButton(card, "Save", "作成する", UiFactory.Primary, Color.white, 34);
+            card.sizeDelta = new Vector2(0f, y + 24f);
+
+            var saveButton = UiFactory.CreateButton(cardFrame, "Save", "作成する", UiFactory.Primary, Color.white, 34);
             _saveButtonLabel = saveButton.GetComponentInChildren<Text>();
+            UiFactory.FitLabelOneLine(_saveButtonLabel);
             var saveRect = saveButton.GetComponent<RectTransform>();
             saveRect.anchorMin = saveRect.anchorMax = new Vector2(0.5f, 0f);
             saveRect.pivot = new Vector2(0.5f, 0f);
@@ -378,7 +476,7 @@ namespace YukaNavi.UI
             saveRect.sizeDelta = new Vector2(340f, 92f);
             saveButton.onClick.AddListener(CreateSkin);
 
-            var cancelButton = UiFactory.CreateSoftButton(card, "Cancel", "やめる", 34);
+            var cancelButton = UiFactory.CreateSoftButton(cardFrame, "Cancel", "やめる", 34);
             var cancelRect = cancelButton.GetComponent<RectTransform>();
             cancelRect.anchorMin = cancelRect.anchorMax = new Vector2(0.5f, 0f);
             cancelRect.pivot = new Vector2(0.5f, 0f);
@@ -393,12 +491,12 @@ namespace YukaNavi.UI
             _createModal.SetActive(false);
         }
 
-        /// <summary>テーマ色の選択チップ列 (丸い色見本。選択中は ✓)。</summary>
-        void BuildThemeChips(RectTransform card)
+        /// <summary>テーマ色の選択チップ列 (丸い色見本。選択中は ✓)。高さは 72px 固定。</summary>
+        void BuildThemeChips(RectTransform card, float y)
         {
             _themeChecks.Clear();
             var row = UiFactory.CreatePanel(card, "ThemeChips");
-            SetCardRow(row, -1322f, 72f);
+            SetCardRow(row, -y, 72f);
             var layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
             layout.childForceExpandWidth = false;
             layout.childForceExpandHeight = false;
@@ -666,13 +764,14 @@ namespace YukaNavi.UI
         }
 
         /// <summary>背景調整プレビュー (枠 + ドラッグ + 回転/ズームボタン)。</summary>
-        void BuildPreviewArea(RectTransform card)
+        /// <summary>背景プレビューと調整ボタン列。使った高さを返す。</summary>
+        float BuildPreviewArea(RectTransform card, float y)
         {
             // プレビュー枠 (左寄せ、9:16)
             var frame = UiFactory.CreatePanel(card, "PreviewFrame", new Color(0.15f, 0.13f, 0.2f));
             frame.anchorMin = frame.anchorMax = new Vector2(0f, 1f);
             frame.pivot = new Vector2(0f, 1f);
-            frame.anchoredPosition = new Vector2(60f, -346f);
+            frame.anchoredPosition = new Vector2(60f, -y);
             frame.sizeDelta = PreviewSize;
 
             _previewView = BackgroundView.Create(frame, "Preview");
@@ -690,12 +789,15 @@ namespace YukaNavi.UI
                 "背景を選ぶと\nプレビューが出ます", 24, new Color(0.8f, 0.78f, 0.88f));
             UiFactory.StretchFull(_previewPlaceholderText.rectTransform);
 
-            // 調整ボタン列 (プレビューの右)
+            // 調整ボタン列 (プレビューの右)。文字サイズ設定によってはプレビューより縦に長くなる
+            float adjBtnH = Mathf.Max(78f, UiFactory.LineHeight(26) + 16f);
+            float dragHintH = UiFactory.LineHeight(22) * 2f;
+            float buttonsH = adjBtnH * 4f + 12f * 4f + dragHintH;
             var buttons = UiFactory.CreatePanel(card, "AdjustButtons");
             buttons.anchorMin = buttons.anchorMax = new Vector2(0f, 1f);
             buttons.pivot = new Vector2(0f, 1f);
-            buttons.anchoredPosition = new Vector2(380f, -346f);
-            buttons.sizeDelta = new Vector2(500f, PreviewSize.y);
+            buttons.anchoredPosition = new Vector2(380f, -y);
+            buttons.sizeDelta = new Vector2(500f, buttonsH);
             var layout = buttons.gameObject.AddComponent<VerticalLayoutGroup>();
             layout.childForceExpandWidth = true;
             layout.childForceExpandHeight = false;
@@ -728,17 +830,19 @@ namespace YukaNavi.UI
             var dragHint = UiFactory.CreateText(buttons, "DragHint",
                 "プレビューをドラッグ\nすると位置を動かせます", 22, new Color(0.5f, 0.47f, 0.6f));
             var dragHintLe = dragHint.gameObject.AddComponent<LayoutElement>();
-            dragHintLe.preferredHeight = 90f;
+            dragHintLe.preferredHeight = dragHintH;
 
             _adjustButtons = buttons.gameObject;
             _adjustButtons.SetActive(false);
+            return Mathf.Max(PreviewSize.y, buttonsH);
         }
 
         void AddAdjustButton(RectTransform parent, string label, System.Action onClick)
         {
             var button = UiFactory.CreateButton(parent, label, label, UiFactory.PrimaryDark, Color.white, 26);
+            UiFactory.FitLabelOneLine(button.GetComponentInChildren<Text>());
             var le = button.gameObject.AddComponent<LayoutElement>();
-            le.preferredHeight = 78f;
+            le.preferredHeight = Mathf.Max(78f, UiFactory.LineHeight(26) + 16f);
             button.onClick.AddListener(() =>
             {
                 Se.Play(Se.Tap);
@@ -817,7 +921,7 @@ namespace YukaNavi.UI
             string id = SkinManager.ImportSkin(path);
             if (id == null)
             {
-                SetMessage("取り込めませんでした (skin.json 入りの zip を選んでください)");
+                SetMessage("取り込めませんでした (skin.json 入りの zip を選んでください)", true);
                 Se.Play(Se.Error);
                 return;
             }
@@ -839,7 +943,7 @@ namespace YukaNavi.UI
             string zipPath = SkinManager.ExportSkin(skin);
             if (zipPath == null)
             {
-                SetMessage("書き出しに失敗しました");
+                SetMessage("書き出しに失敗しました", true);
                 Se.Play(Se.Error);
                 return;
             }
@@ -856,9 +960,9 @@ namespace YukaNavi.UI
             Se.Play(Se.Confirm);
         }
 
-        void SetMessage(string message)
+        void SetMessage(string message, bool isError = false)
         {
-            _pathText.text = message;
+            UiFactory.ShowToast(message, isError);
         }
 
         /// <summary>端末のファイルピッカーで BGM (音声ファイル) を選ぶ。</summary>
@@ -1305,7 +1409,7 @@ namespace YukaNavi.UI
             img.color = selected ? new Color(0.90f, 0.84f, 1.0f) : UiFactory.CardBg;
             UiFactory.Roundify(img);
             var le = rowGo.AddComponent<LayoutElement>();
-            le.preferredHeight = 110f;
+            le.preferredHeight = Mathf.Max(110f, UiFactory.LineHeight(32) + 40f);
             var button = rowGo.AddComponent<Button>();
             string skinId = skin.Id;
             button.onClick.AddListener(() => Apply(skinId));
@@ -1316,6 +1420,7 @@ namespace YukaNavi.UI
             UiFactory.StretchFull(text.rectTransform);
             text.rectTransform.offsetMin = new Vector2(24f, 6f);
             text.rectTransform.offsetMax = new Vector2(-330f, -6f);
+            UiFactory.FitLabelOneLine(text, 20); // 長い名前は1行に収まるよう縮める
 
             // ユーザースキンには編集/共有/削除ボタンを付ける
             if (skin.Folder != null)
@@ -1349,6 +1454,7 @@ namespace YukaNavi.UI
                 delRect.anchoredPosition = new Vector2(-16f, 0f);
                 delRect.sizeDelta = new Vector2(110f, 76f);
                 var delLabel = deleteButton.GetComponentInChildren<Text>();
+                UiFactory.FitLabel(delLabel); // 「本当に？」も枠内に収める
                 bool armed = false;
                 deleteButton.onClick.AddListener(() =>
                 {

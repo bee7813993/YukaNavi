@@ -105,10 +105,12 @@ namespace YukaNavi.Core
                 {
                     Directory.CreateDirectory(SkinsRoot);
                 }
+                // readme は説明の更新 (splash.png の追記など) が届くよう、内容が変わったら書き直す
                 string readme = Path.Combine(SkinsRoot, "readme.txt");
-                if (!File.Exists(readme))
+                string readmeContent = BuildReadme();
+                if (!File.Exists(readme) || File.ReadAllText(readme) != readmeContent)
                 {
-                    File.WriteAllText(readme, BuildReadme(), new UTF8Encoding(true));
+                    File.WriteAllText(readme, readmeContent, new UTF8Encoding(true));
                 }
             }
             catch
@@ -129,7 +131,8 @@ namespace YukaNavi.Core
                 "    ├─ skin.json    ← 設定ファイル (下記)\r\n" +
                 "    ├─ bg.png       ← 背景 (画像 または mp4 動画)\r\n" +
                 "    ├─ chara.png    ← キャラ画像 (透過PNG推奨)\r\n" +
-                "    └─ record.png   ← リモコンのレコード盤 (円形の透過PNG)\r\n" +
+                "    ├─ record.png   ← リモコンのレコード盤 (円形の透過PNG)\r\n" +
+                "    └─ splash.png   ← 起動画面 (縦 1080x1920 推奨)\r\n" +
                 "\r\n" +
                 "skin.json の例:\r\n" +
                 "{\r\n" +
@@ -146,6 +149,8 @@ namespace YukaNavi.Core
                 "- bgm は任意 (mp3 / ogg / wav)。無ければアプリのデフォルト BGM\r\n" +
                 "- record は任意。リモコン画面のレコード盤が差し替わります\r\n" +
                 "- talk は任意。キャラをタップしたときのセリフ (ランダムで1つ表示)\r\n" +
+                "- splash.png は任意 (skin.json への記載は不要)。フォルダに置くと\r\n" +
+                "  スキン適用中の起動画面が差し替わります\r\n" +
                 "- ファイルが見つからない場合はデフォルトに戻ります\r\n";
         }
 

@@ -85,8 +85,8 @@ namespace YukaNavi.UI
 
         void Update()
         {
-            // テーマの淡い紫 (白単色テクスチャに乗せる)
-            var baseColor = new Color(0.62f, 0.52f, 0.88f);
+            // きせかえのテーマ色を淡くして乗せる (毎フレーム参照するのでテーマ変更に即追従)
+            var baseColor = Color.Lerp(UiFactory.Primary, Color.white, 0.3f);
             foreach (var note in _notes)
             {
                 float age = Time.time - note.BornAt;

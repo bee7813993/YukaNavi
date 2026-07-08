@@ -248,7 +248,7 @@ namespace YukaNavi.UI
             // 曲名 (表示名) は折り返して全文表示する。行の高さは行数に合わせて伸ばす
             // テキスト幅 ≈ リスト幅 1040 - バッジ 118 - 削除ボタン 160
             int nameLines = UiFactory.EstimateWrapLines(item.Songfile, 29, 740f);
-            float nameHeight = nameLines * 40f;
+            float nameHeight = nameLines * UiFactory.LineHeight(29);
             float rowHeight = Mathf.Max(20f + nameHeight + 36f + 14f, 136f);
 
             var rowGo = new GameObject("Row");

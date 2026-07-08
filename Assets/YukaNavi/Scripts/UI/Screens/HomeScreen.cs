@@ -55,10 +55,15 @@ namespace YukaNavi.UI
         GameObject _editOverlay;
         GameObject _editHint;
         Button _bgmButton;
-        Text _bgmButtonLabel;
+        Image _bgmIcon;
+        Sprite _speakerOnSprite;
+        Sprite _speakerMuteSprite;
         SkinDef _currentSkin;
         int _editingSiblingIndex; // 移動モード中に最前面へ出す前の描画順
         int _lastClockMinute = -1;
+        RectTransform _tickerBgRect;
+        RectTransform _bannerRect;
+        RectTransform _tickerGroupRect;
         Text _statusClockText;
         Image _batteryFill;
         GameObject _batteryGo;
@@ -82,23 +87,30 @@ namespace YukaNavi.UI
             NoteParticles.Create(transform);
 
             // 最上部の白帯 (リンクラ風のステータスバー)。壁紙の対象外として不透明の白にする。
-            // 左から 時刻・バッテリー / NAME (自分の名前) / 部屋名 (タップで部屋移動)
+            // 左から 時刻・バッテリー / NAME (自分の名前) / 部屋名 (タップで部屋移動)。
+            // 高さは NAME/ROOM ボックス (文字の大きさ設定に追従) + ゆとりのある上下余白
+            float capH = UiFactory.ScaledFontSize(14) + 6f;
+            float valueH = UiFactory.LineHeight(25);
+            float boxH = 8f + capH + valueH + 8f;
+            float statusBarH = Mathf.Max(110f, boxH + 64f);
             var statusBar = UiFactory.CreatePanel(transform, "StatusBar", Color.white);
             statusBar.anchorMin = new Vector2(0f, 1f);
             statusBar.anchorMax = new Vector2(1f, 1f);
             statusBar.pivot = new Vector2(0.5f, 1f);
-            statusBar.sizeDelta = new Vector2(0f, 110f);
+            statusBar.sizeDelta = new Vector2(0f, statusBarH);
             UiFactory.AddShadow(statusBar.gameObject, 4f);
+            UiFactory.ExtendBarIntoSafeArea(statusBar, Color.white); // ノッチの裏まで白を敷く
 
-            // 時刻 (上) + バッテリー (下) の縦2段
+            // 時刻 (上) + バッテリー (下) の縦2段 (帯の縦中央に揃える)
             _statusClockText = UiFactory.CreateText(statusBar, "Clock", "", 30,
                 UiFactory.TextDark, TextAnchor.MiddleLeft);
             _statusClockText.fontStyle = FontStyle.Bold;
+            UiFactory.FitLabel(_statusClockText); // 大きい文字サイズ設定でも枠内で1行に収める
             var scRect = _statusClockText.rectTransform;
-            scRect.anchorMin = new Vector2(0f, 1f);
-            scRect.anchorMax = new Vector2(0f, 1f);
-            scRect.pivot = new Vector2(0f, 1f);
-            scRect.anchoredPosition = new Vector2(28f, -14f);
+            scRect.anchorMin = new Vector2(0f, 0.5f);
+            scRect.anchorMax = new Vector2(0f, 0.5f);
+            scRect.pivot = new Vector2(0f, 0.5f);
+            scRect.anchoredPosition = new Vector2(28f, 21f);
             scRect.sizeDelta = new Vector2(140f, 40f);
 
             // バッテリー (枠 + 塗り + 先端の凸)。残量が取れない環境 (エディタ等) では非表示
@@ -109,9 +121,9 @@ namespace YukaNavi.UI
             UiFactory.Roundify(batteryFrame);
             batteryFrame.raycastTarget = false;
             var batteryRect = (RectTransform)batteryGo.transform;
-            batteryRect.anchorMin = batteryRect.anchorMax = new Vector2(0f, 1f);
-            batteryRect.pivot = new Vector2(0f, 1f);
-            batteryRect.anchoredPosition = new Vector2(28f, -62f);
+            batteryRect.anchorMin = batteryRect.anchorMax = new Vector2(0f, 0.5f);
+            batteryRect.pivot = new Vector2(0f, 0.5f);
+            batteryRect.anchoredPosition = new Vector2(28f, -22f);
             batteryRect.sizeDelta = new Vector2(64f, 30f);
             var batteryInner = new GameObject("Inner");
             batteryInner.transform.SetParent(batteryGo.transform, false);
@@ -150,24 +162,20 @@ namespace YukaNavi.UI
             // NAME プレート (自分の名前。予約時の名前が入る)。
             // リンクラ風の「灰色の縁 + 白地、上にキャプション・下に黒文字」ボックス
             var namePlate = CreateOutlinedBox(statusBar, "NamePlate", new Vector2(190f, 0f),
-                new Vector2(400f, 84f), false);
-            var nameCaption = UiFactory.CreateText(namePlate, "Caption", "NAME", 18,
+                new Vector2(400f, boxH), false);
+            var nameCaption = UiFactory.CreateText(namePlate, "Caption", "NAME", 14,
                 UiFactory.Primary, TextAnchor.UpperLeft);
             nameCaption.fontStyle = FontStyle.Bold;
-            UiFactory.StretchFull(nameCaption.rectTransform);
-            nameCaption.rectTransform.offsetMin = new Vector2(22f, 40f);
-            nameCaption.rectTransform.offsetMax = new Vector2(-16f, -8f);
-            _nameText = UiFactory.CreateText(namePlate, "Name", "", 28,
+            SetBoxCaption(nameCaption.rectTransform, 22f, capH);
+            _nameText = UiFactory.CreateText(namePlate, "Name", "", 25,
                 UiFactory.TextDark, TextAnchor.LowerLeft);
-            UiFactory.StretchFull(_nameText.rectTransform);
-            _nameText.rectTransform.offsetMin = new Vector2(22f, 8f);
-            _nameText.rectTransform.offsetMax = new Vector2(-16f, -34f);
-            _nameText.verticalOverflow = VerticalWrapMode.Truncate;
+            SetBoxValue(_nameText.rectTransform, 22f, valueH);
+            UiFactory.FitLabel(_nameText, 16); // 枠に入らないときは縮めて必ず見せる
 
             // 部屋名 (タップで部屋移動モーダル。Web 版の部屋ドロップダウンと同じ動作)。
             // 左にドアアイコン、右に「ROOM」キャプション + 黒文字の部屋名
             var roomPill = CreateOutlinedBox(statusBar, "RoomName", new Vector2(-20f, 0f),
-                new Vector2(440f, 84f), true);
+                new Vector2(440f, boxH), true);
             var roomPillButton = roomPill.gameObject.AddComponent<Button>();
             roomPill.gameObject.AddComponent<PressEffect>();
             roomPillButton.onClick.AddListener(OpenRoomModal);
@@ -181,18 +189,14 @@ namespace YukaNavi.UI
             roomIconRect.pivot = new Vector2(0f, 0.5f);
             roomIconRect.anchoredPosition = new Vector2(16f, 0f);
             roomIconRect.sizeDelta = new Vector2(40f, 40f);
-            var roomCaption = UiFactory.CreateText(roomPill, "Caption", "ROOM", 18,
+            var roomCaption = UiFactory.CreateText(roomPill, "Caption", "ROOM", 14,
                 UiFactory.Primary, TextAnchor.UpperLeft);
             roomCaption.fontStyle = FontStyle.Bold;
-            UiFactory.StretchFull(roomCaption.rectTransform);
-            roomCaption.rectTransform.offsetMin = new Vector2(70f, 40f);
-            roomCaption.rectTransform.offsetMax = new Vector2(-16f, -8f);
-            _roomNameText = UiFactory.CreateText(roomPill, "Text", "", 26,
+            SetBoxCaption(roomCaption.rectTransform, 70f, capH);
+            _roomNameText = UiFactory.CreateText(roomPill, "Text", "", 25,
                 UiFactory.TextDark, TextAnchor.LowerLeft);
-            UiFactory.StretchFull(_roomNameText.rectTransform);
-            _roomNameText.rectTransform.offsetMin = new Vector2(70f, 8f);
-            _roomNameText.rectTransform.offsetMax = new Vector2(-16f, -34f);
-            _roomNameText.verticalOverflow = VerticalWrapMode.Truncate;
+            SetBoxValue(_roomNameText.rectTransform, 70f, valueH);
+            UiFactory.FitLabel(_roomNameText, 16); // 枠に入らないときは縮めて必ず見せる
             _roomNameGo = roomPill.gameObject;
             _roomNameGo.SetActive(false); // 部屋名 (または URL) が取れたら表示
 
@@ -207,32 +211,38 @@ namespace YukaNavi.UI
             editOverlayButton.onClick.AddListener(() => EndEdit(true));
             _editOverlay.SetActive(false);
 
-            // 再生中ティッカー + 出番バナー (ひとまとまりで長押し移動できる)
+            // 再生中ティッカー + 出番バナー (ひとまとまりで長押し移動できる)。
+            // 高さは文字の大きさ設定 (FontScale) に追従させる
+            float tickerLineH = UiFactory.LineHeight(26) + 6f;
+            float tickerH = tickerLineH * 2f + 10f;
             var tickerGroup = UiFactory.CreatePanel(transform, "TickerGroup");
             tickerGroup.anchorMin = new Vector2(0f, 1f);
             tickerGroup.anchorMax = new Vector2(1f, 1f);
             tickerGroup.pivot = new Vector2(0.5f, 1f);
-            tickerGroup.sizeDelta = new Vector2(-40f, 172f);
+            tickerGroup.sizeDelta = new Vector2(-40f, tickerH + 80f);
 
             var tickerBg = UiFactory.CreatePanel(tickerGroup, "Ticker", new Color(1f, 1f, 1f, 0.78f));
             tickerBg.anchorMin = new Vector2(0f, 1f);
             tickerBg.anchorMax = new Vector2(1f, 1f);
             tickerBg.pivot = new Vector2(0.5f, 1f);
             tickerBg.anchoredPosition = Vector2.zero;
-            tickerBg.sizeDelta = new Vector2(0f, 96f);
+            tickerBg.sizeDelta = new Vector2(0f, tickerH);
             UiFactory.Roundify(tickerBg.GetComponent<Image>());
             tickerBg.GetComponent<Image>().raycastTarget = false;
             UiFactory.AddShadow(tickerBg.gameObject);
-            _tickerNowText = CreateTickerLine(tickerBg, "Now", -6f);
-            _tickerNextText = CreateTickerLine(tickerBg, "Next", -48f);
+            _tickerBgRect = tickerBg;
+            _tickerGroupRect = tickerGroup;
+            _tickerNowText = CreateTickerLine(tickerBg, "Now", -4f);
+            _tickerNextText = CreateTickerLine(tickerBg, "Next", -4f - tickerLineH);
 
             // そろそろ出番バナー (ティッカーの下)
             var banner = UiFactory.CreatePanel(tickerGroup, "Banner", UiFactory.Primary);
             banner.anchorMin = new Vector2(0f, 1f);
             banner.anchorMax = new Vector2(1f, 1f);
             banner.pivot = new Vector2(0.5f, 1f);
-            banner.anchoredPosition = new Vector2(0f, -106f);
+            banner.anchoredPosition = new Vector2(0f, -(tickerH + 10f));
             banner.sizeDelta = new Vector2(-80f, 66f);
+            _bannerRect = banner;
             UiFactory.Roundify(banner.GetComponent<Image>());
             banner.GetComponent<Image>().raycastTarget = false;
             UiFactory.AddShadow(banner.gameObject);
@@ -250,6 +260,7 @@ namespace YukaNavi.UI
             clockGroup.sizeDelta = new Vector2(420f, 164f);
 
             _clockText = UiFactory.CreateText(clockGroup, "Clock", "", 96, Color.white, TextAnchor.MiddleRight);
+            UiFactory.FitLabel(_clockText); // 飾りの大時計は文字サイズ設定によらず枠内に収める
             var clockRect = _clockText.rectTransform;
             clockRect.anchorMin = new Vector2(0f, 1f);
             clockRect.anchorMax = new Vector2(1f, 1f);
@@ -259,6 +270,7 @@ namespace YukaNavi.UI
             UiFactory.AddShadow(_clockText.gameObject, 3f);
             _dateText = UiFactory.CreateText(clockGroup, "Date", "", 30, new Color(1f, 1f, 1f, 0.92f),
                 TextAnchor.MiddleRight);
+            UiFactory.FitLabel(_dateText);
             var dateRect = _dateText.rectTransform;
             dateRect.anchorMin = new Vector2(0f, 1f);
             dateRect.anchorMax = new Vector2(1f, 1f);
@@ -297,10 +309,20 @@ namespace YukaNavi.UI
             });
 
             // サウンド (BGM+操作音) ミュート切替ボタン (右上)。カラオケ用アプリなので既定はミュート
-            _bgmButton = UiFactory.CreateButton(transform, "BgmToggle", "音\nOFF",
+            _bgmButton = UiFactory.CreateButton(transform, "BgmToggle", "",
                 new Color(1f, 1f, 1f, 0.55f), UiFactory.PrimaryDark, 22);
             _bgmButton.image.pixelsPerUnitMultiplier = 0.55f; // ほぼ円形に
-            _bgmButtonLabel = _bgmButton.GetComponentInChildren<Text>();
+            _speakerOnSprite = UiFactory.LoadSprite("Art/UI/Icons/yukanavi_icon_speaker_256");
+            _speakerMuteSprite = UiFactory.LoadSprite("Art/UI/Icons/yukanavi_icon_speaker_mute_256");
+            _bgmIcon = UiFactory.CreateImage(_bgmButton.transform, "Icon",
+                "Art/UI/Icons/yukanavi_icon_speaker_mute_256");
+            _bgmIcon.preserveAspect = true;
+            _bgmIcon.raycastTarget = false;
+            var bgmIconRect = _bgmIcon.rectTransform;
+            bgmIconRect.anchorMin = bgmIconRect.anchorMax = new Vector2(0.5f, 0.5f);
+            bgmIconRect.pivot = new Vector2(0.5f, 0.5f);
+            bgmIconRect.anchoredPosition = Vector2.zero;
+            bgmIconRect.sizeDelta = new Vector2(52f, 52f);
             var bgmRect = _bgmButton.GetComponent<RectTransform>();
             bgmRect.anchorMin = bgmRect.anchorMax = new Vector2(1f, 1f);
             bgmRect.pivot = new Vector2(1f, 1f);
@@ -328,28 +350,64 @@ namespace YukaNavi.UI
             _editHint.SetActive(false);
         }
 
-        /// <summary>白帯用の「灰色の縁 + 白地」の角丸ボックス。anchorRight=true で右寄せ配置。</summary>
+        /// <summary>ボックス上段のキャプション (NAME / ROOM) の配置。</summary>
+        static void SetBoxCaption(RectTransform rect, float left, float height)
+        {
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, -8f);
+            rect.offsetMin = new Vector2(left, rect.offsetMin.y);
+            rect.offsetMax = new Vector2(-16f, rect.offsetMax.y);
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
+        }
+
+        /// <summary>ボックス下段の値 (名前 / 部屋名) の配置。</summary>
+        static void SetBoxValue(RectTransform rect, float left, float height)
+        {
+            rect.anchorMin = new Vector2(0f, 0f);
+            rect.anchorMax = new Vector2(1f, 0f);
+            rect.pivot = new Vector2(0.5f, 0f);
+            rect.anchoredPosition = new Vector2(0f, 8f);
+            rect.offsetMin = new Vector2(left, rect.offsetMin.y);
+            rect.offsetMax = new Vector2(-16f, rect.offsetMax.y);
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
+        }
+
+        /// <summary>
+        /// 白帯用の「外側にふわっとぼける縁 + 白地」の角丸ボックス。anchorRight=true で右寄せ配置。
+        /// </summary>
         static RectTransform CreateOutlinedBox(RectTransform parent, string name,
                                                Vector2 position, Vector2 size, bool anchorRight)
         {
-            var frame = UiFactory.CreatePanel(parent, name, new Color(0.78f, 0.77f, 0.82f));
+            // 透明コンテナ (タップ判定用の Image 付き)
+            var box = UiFactory.CreatePanel(parent, name, new Color(1f, 1f, 1f, 0f));
             float ax = anchorRight ? 1f : 0f;
-            frame.anchorMin = frame.anchorMax = new Vector2(ax, 0.5f);
-            frame.pivot = new Vector2(ax, 0.5f);
-            frame.anchoredPosition = position;
-            frame.sizeDelta = size;
-            UiFactory.Roundify(frame.GetComponent<Image>());
+            box.anchorMin = box.anchorMax = new Vector2(ax, 0.5f);
+            box.pivot = new Vector2(ax, 0.5f);
+            box.anchoredPosition = position;
+            box.sizeDelta = size;
+
+            // 外側にぼけるグロー (箱より一回り大きく敷く)
+            var glowGo = new GameObject("Glow");
+            glowGo.transform.SetParent(box, false);
+            var glow = glowGo.AddComponent<Image>();
+            glow.sprite = UiFactory.SoftGlowSprite;
+            glow.type = Image.Type.Sliced;
+            glow.color = new Color(0.72f, 0.70f, 0.80f, 0.8f);
+            glow.raycastTarget = false;
+            UiFactory.StretchFull(glow.rectTransform);
+            glow.rectTransform.offsetMin = new Vector2(-14f, -14f);
+            glow.rectTransform.offsetMax = new Vector2(14f, 14f);
 
             var innerGo = new GameObject("Inner");
-            innerGo.transform.SetParent(frame, false);
+            innerGo.transform.SetParent(box, false);
             var inner = innerGo.AddComponent<Image>();
             inner.color = Color.white;
             UiFactory.Roundify(inner);
             inner.raycastTarget = false;
             UiFactory.StretchFull(inner.rectTransform);
-            inner.rectTransform.offsetMin = new Vector2(2f, 2f);
-            inner.rectTransform.offsetMax = new Vector2(-2f, -2f);
-            return frame;
+            return box;
         }
 
         static void SetModalRow(RectTransform rect, float y, float height)
@@ -367,8 +425,8 @@ namespace YukaNavi.UI
         {
             bool on = !Bgm.Muted;
             _bgmButton.image.color = on ? UiFactory.Primary : new Color(1f, 1f, 1f, 0.55f);
-            _bgmButtonLabel.text = on ? "音\nON" : "音\nOFF";
-            _bgmButtonLabel.color = on ? Color.white : UiFactory.PrimaryDark;
+            _bgmIcon.sprite = on ? _speakerOnSprite : _speakerMuteSprite;
+            _bgmIcon.color = on ? Color.white : UiFactory.PrimaryDark;
         }
 
         // ---- 長押し移動モード ----
@@ -850,7 +908,8 @@ namespace YukaNavi.UI
         /// <summary>ティッカーの1行分のテキストを作る (長い曲名は行内で切り詰め)。</summary>
         Text CreateTickerLine(RectTransform parent, string name, float y)
         {
-            var text = UiFactory.CreateText(parent, name, "", 28, UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
+            // 高さと位置は SetTickerLines() が内容の行数に合わせて更新する
+            var text = UiFactory.CreateText(parent, name, "", 26, UiFactory.PrimaryDark, TextAnchor.UpperLeft);
             var rect = text.rectTransform;
             rect.anchorMin = new Vector2(0f, 1f);
             rect.anchorMax = new Vector2(1f, 1f);
@@ -858,9 +917,47 @@ namespace YukaNavi.UI
             rect.anchoredPosition = new Vector2(0f, y);
             rect.offsetMin = new Vector2(24f, rect.offsetMin.y);
             rect.offsetMax = new Vector2(-24f, rect.offsetMax.y);
-            rect.sizeDelta = new Vector2(rect.sizeDelta.x, 40f);
-            text.verticalOverflow = VerticalWrapMode.Truncate;
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, UiFactory.LineHeight(26) + 6f);
             return text;
+        }
+
+        /// <summary>
+        /// ティッカーの2行分のテキストを反映し、長い曲名は折り返して全文出す
+        /// (バーとバナーの位置も行数に合わせて動かす)。
+        /// </summary>
+        void SetTickerLines(string nowLine, string nextLine)
+        {
+            _tickerNowText.text = UiFactory.NoWordWrap(nowLine);
+            _tickerNextText.text = UiFactory.NoWordWrap(nextLine);
+
+            float h1 = MeasureTickerLine(_tickerNowText, nowLine);
+            float h2 = MeasureTickerLine(_tickerNextText, nextLine);
+
+            var nowRect = _tickerNowText.rectTransform;
+            nowRect.anchoredPosition = new Vector2(0f, -6f);
+            nowRect.sizeDelta = new Vector2(nowRect.sizeDelta.x, h1);
+
+            var nextRect = _tickerNextText.rectTransform;
+            nextRect.anchoredPosition = new Vector2(0f, -6f - h1);
+            nextRect.sizeDelta = new Vector2(nextRect.sizeDelta.x, h2);
+
+            float tickerH = 6f + h1 + h2 + 8f;
+            _tickerBgRect.sizeDelta = new Vector2(0f, tickerH);
+            _bannerRect.anchoredPosition = new Vector2(0f, -(tickerH + 10f));
+            _tickerGroupRect.sizeDelta = new Vector2(-40f, tickerH + 80f);
+        }
+
+        /// <summary>
+        /// ティッカー1行分の高さ。概算の行数見積もりは大きい文字サイズで1行分ずれるため、
+        /// 実測 (preferredHeight) を使う。幅が未確定の初回だけ概算にフォールバック。
+        /// </summary>
+        static float MeasureTickerLine(Text text, string content)
+        {
+            if (text.rectTransform.rect.width > 10f)
+            {
+                return Mathf.Ceil(text.preferredHeight) + 6f;
+            }
+            return UiFactory.EstimateWrapLines(content, 26, 990f) * UiFactory.LineHeight(26) + 4f;
         }
 
         public override void OnShow()
@@ -1132,8 +1229,7 @@ namespace YukaNavi.UI
             }
             catch (System.Exception e)
             {
-                _tickerNowText.text = "未接続: " + e.Message;
-                _tickerNextText.text = "";
+                SetTickerLines("未接続: " + e.Message, "");
                 _banner.SetActive(false);
             }
             finally
@@ -1144,35 +1240,36 @@ namespace YukaNavi.UI
 
         void UpdateTicker(NowPlayingDto now, RequestListDto requests)
         {
+            string nowLine;
+            string nextLine;
             if (now.Playing)
             {
-                string nowLine = "♪ いま: " + now.PlayingTitle;
+                nowLine = "♪ いま: " + now.PlayingTitle;
                 if (!string.IsNullOrEmpty(now.PlayingSinger))
                 {
                     nowLine += " (" + now.PlayingSinger + ")";
                 }
-                _tickerNowText.text = nowLine;
                 if (now.NextSong != null)
                 {
-                    string nextLine = "♪ 次: " + now.NextSong.Title;
+                    nextLine = "♪ 次: " + now.NextSong.Title;
                     if (!string.IsNullOrEmpty(now.NextSong.Singer))
                     {
                         nextLine += " (" + now.NextSong.Singer + ")";
                     }
-                    _tickerNextText.text = nextLine;
                 }
                 else
                 {
-                    _tickerNextText.text = "♪ 次: (予約なし)";
+                    nextLine = "♪ 次: (予約なし)";
                 }
             }
             else
             {
-                _tickerNowText.text = "再生停止中";
-                _tickerNextText.text = requests.RemainingCount > 0
+                nowLine = "再生停止中";
+                nextLine = requests.RemainingCount > 0
                     ? "♪ 予約 " + requests.RemainingCount + " 件待ち"
                     : "♪ 予約を待っています";
             }
+            SetTickerLines(nowLine, nextLine);
         }
 
         /// <summary>自分の予約 (名前一致) が未再生の先頭2件に入っていたらバナーを出す。</summary>

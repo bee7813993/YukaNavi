@@ -90,6 +90,47 @@ namespace YukaNavi.UI
             }
         }
 
+        static Sprite _softGlowSprite;
+
+        /// <summary>
+        /// 外側に向かってふわっと透明にぼける角丸矩形の 9-slice スプライト
+        /// (実行時生成、白。色は Image.color で乗せる)。枠のグロー表現用。
+        /// </summary>
+        public static Sprite SoftGlowSprite
+        {
+            get
+            {
+                if (_softGlowSprite == null)
+                {
+                    const int size = 96;
+                    const float blur = 20f;   // 外側のぼかし幅
+                    const float radius = 12f; // 中心矩形の角丸
+                    var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+                    for (int y = 0; y < size; y++)
+                    {
+                        for (int x = 0; x < size; x++)
+                        {
+                            // 中心の角丸矩形からの距離で alpha を落とす (内側は不透明)
+                            float cx = Mathf.Clamp(x + 0.5f, blur + radius, size - blur - radius);
+                            float cy = Mathf.Clamp(y + 0.5f, blur + radius, size - blur - radius);
+                            float dx = x + 0.5f - cx;
+                            float dy = y + 0.5f - cy;
+                            float dist = Mathf.Sqrt(dx * dx + dy * dy) - radius;
+                            float a = Mathf.Clamp01(1f - dist / blur);
+                            a *= a; // 外側ほど早く薄く
+                            tex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+                        }
+                    }
+                    tex.Apply();
+                    tex.wrapMode = TextureWrapMode.Clamp;
+                    _softGlowSprite = Sprite.Create(tex, new Rect(0f, 0f, size, size),
+                        new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect,
+                        new Vector4(40f, 40f, 40f, 40f));
+                }
+                return _softGlowSprite;
+            }
+        }
+
         /// <summary>上が明るく下が濃い縦グラデーション (ヘッダーバー用)。</summary>
         public static Sprite GradientSprite
         {
@@ -352,6 +393,7 @@ namespace YukaNavi.UI
                 go.AddComponent<PressEffect>();
                 var text = CreateText(go.transform, "Label", labels[i], fontSize, Primary);
                 StretchFull(text.rectTransform);
+                FitLabel(text); // 大きい文字サイズ設定でもタブ内に収める
                 buttons[i] = button;
             }
             return buttons;
@@ -376,7 +418,7 @@ namespace YukaNavi.UI
             {
                 units += c <= 0x7F ? 0.56f : 1.04f;
             }
-            return units * fontSize;
+            return units * ScaledFontSize(fontSize);
         }
 
         /// <summary>概算の折り返し行数 (足りないと最終行が欠けるため少し多めに見積もる)。改行にも対応。</summary>
@@ -468,6 +510,32 @@ namespace YukaNavi.UI
         /// 画面上部の共通ヘッダーバー (白帯 + タイトル)。
         /// リンクラ風に、壁紙 (ホーム透過) の対象外となる不透明の白にしている。
         /// </summary>
+        /// <summary>
+        /// セーフエリア (ノッチ・パンチホールカメラ・下部ホームバー) の上下インセット
+        /// (Canvas 単位)。AppRoot が起動時に Screen.safeArea から設定する。エディタ等では 0。
+        /// 画面 (Screens レイヤー) は上インセット分下がり、ノッチ裏はバーの背景が受け持つ。
+        /// </summary>
+        public static float SafeTop;
+        public static float SafeBottom;
+
+        /// <summary>
+        /// バーの白背景をセーフエリア外 (ノッチの裏) まで上に伸ばす。
+        /// 中身はバー本体 (セーフエリア内) のままなので座標系は変わらない。
+        /// </summary>
+        public static void ExtendBarIntoSafeArea(RectTransform bar, Color color)
+        {
+            if (SafeTop <= 0f)
+            {
+                return;
+            }
+            var ext = CreatePanel(bar, "SafeAreaExtension", color);
+            ext.anchorMin = new Vector2(0f, 1f);
+            ext.anchorMax = new Vector2(1f, 1f);
+            ext.pivot = new Vector2(0.5f, 0f);
+            ext.anchoredPosition = Vector2.zero;
+            ext.sizeDelta = new Vector2(0f, SafeTop);
+        }
+
         public static RectTransform CreateTopBar(Transform parent, string title)
         {
             var bar = CreatePanel(parent, "TopBar", Color.white);
@@ -476,6 +544,7 @@ namespace YukaNavi.UI
             bar.pivot = new Vector2(0.5f, 1f);
             bar.sizeDelta = new Vector2(0f, 110f);
             AddShadow(bar.gameObject, 4f);
+            ExtendBarIntoSafeArea(bar, Color.white);
             var text = CreateText(bar, "Title", title, 40, PrimaryDark);
             text.fontStyle = FontStyle.Bold;
             StretchFull(text.rectTransform);
@@ -541,6 +610,52 @@ namespace YukaNavi.UI
             return img;
         }
 
+        const string FontScaleKey = "ui.font_scale";
+        static float _fontScale;
+        static bool _fontScaleLoaded;
+
+        /// <summary>
+        /// 全テキスト共通の拡大率 (スマホでの視認性向上。既定 1.3)。
+        /// 各所の指定サイズは公称値のまま、実描画・幅見積もり・行高をこの係数で揃える。
+        /// 設定画面から変更でき端末に保存される。変更後は ScreenManager.RebuildAll() で反映。
+        /// </summary>
+        public static float FontScale
+        {
+            get
+            {
+                if (!_fontScaleLoaded)
+                {
+                    _fontScale = PlayerPrefs.GetFloat(FontScaleKey, 1.3f);
+                    _fontScaleLoaded = true;
+                }
+                return _fontScale;
+            }
+            set
+            {
+                _fontScale = Mathf.Clamp(value, 1f, 1.9f);
+                _fontScaleLoaded = true;
+                PlayerPrefs.SetFloat(FontScaleKey, _fontScale);
+                PlayerPrefs.Save();
+            }
+        }
+
+        /// <summary>FontScale 適用後の実フォントサイズ。</summary>
+        public static int ScaledFontSize(int fontSize)
+        {
+            return Mathf.RoundToInt(fontSize * FontScale);
+        }
+
+        /// <summary>
+        /// 折り返しテキスト1行分の高さ (FontScale 込み)。
+        /// 丸ゴシックの実行高は fontSize より大きいため、大きいサイズでは比例分を確保する
+        /// (固定 +12px だけだと 145% 以上で縦 Truncate の行が消える)。
+        /// </summary>
+        public static float LineHeight(int fontSize)
+        {
+            float scaled = ScaledFontSize(fontSize);
+            return Mathf.Max(scaled + 12f, scaled * 1.45f);
+        }
+
         public static Text CreateText(Transform parent, string name, string content, int fontSize,
                                       Color color, TextAnchor align = TextAnchor.MiddleCenter)
         {
@@ -549,7 +664,7 @@ namespace YukaNavi.UI
             var text = go.AddComponent<Text>();
             text.font = Font;
             text.text = content;
-            text.fontSize = fontSize;
+            text.fontSize = ScaledFontSize(fontSize);
             text.color = color;
             text.alignment = align;
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -623,7 +738,7 @@ namespace YukaNavi.UI
             scrollRect.content = content;
             scrollRect.viewport = viewportRect;
             scrollRect.horizontal = false;
-            scrollRect.movementType = ScrollRect.MovementType.Clamped;
+            scrollRect.movementType = ScrollRect.MovementType.Elastic; // 端で少しバウンス
             scrollRect.scrollSensitivity = 30f;
             return scrollRectT;
         }
@@ -655,6 +770,272 @@ namespace YukaNavi.UI
             input.textComponent = text;
             input.placeholder = ph;
             return input;
+        }
+
+        /// <summary>
+        /// 実キーボードの Enter で入力を確定したときに action を実行する (検索欄用)。
+        /// Windows / エディタ向けで、モバイルのソフトキーボードでは何もしない。
+        /// 「Enter を押した状態でフォーカスが外れた」ことを監視するため、
+        /// 日本語入力の変換確定 (フォーカスが残る) では発火しない。
+        /// </summary>
+        public static void OnSubmit(InputField input, System.Action action)
+        {
+            var watcher = input.gameObject.AddComponent<SubmitOnEnter>();
+            watcher.Input = input;
+            watcher.Action = action;
+        }
+
+        class SubmitOnEnter : MonoBehaviour
+        {
+            public InputField Input;
+            public System.Action Action;
+            bool _wasFocused;
+
+            void Update()
+            {
+                bool focused = Input.isFocused;
+                var keyboard = UnityEngine.InputSystem.Keyboard.current;
+                if (_wasFocused && !focused && keyboard != null
+                    && (keyboard.enterKey.isPressed || keyboard.enterKey.wasPressedThisFrame
+                        || keyboard.numpadEnterKey.isPressed || keyboard.numpadEnterKey.wasPressedThisFrame))
+                {
+                    Action?.Invoke();
+                }
+                _wasFocused = focused;
+            }
+        }
+
+        /// <summary>ラベルが枠に入りきらないときに自動で縮小させる (タブ・小さいボタン用)。</summary>
+        public static void FitLabel(Text text, int minSize = 16)
+        {
+            text.resizeTextForBestFit = true;
+            text.resizeTextMaxSize = text.fontSize;
+            text.resizeTextMinSize = minSize;
+        }
+
+        /// <summary>トーストの親 (Canvas)。AppRoot が起動時に設定する。</summary>
+        public static Transform ToastRoot;
+        static GameObject _activeToast;
+
+        /// <summary>
+        /// 画面下部にトースト (操作結果の短い通知) を出す。数秒表示して自動で消える。
+        /// 連続して呼ばれたら前のトーストは置き換わる。
+        /// </summary>
+        public static void ShowToast(string message, bool isError = false)
+        {
+            if (ToastRoot == null || string.IsNullOrEmpty(message))
+            {
+                return;
+            }
+            if (_activeToast != null)
+            {
+                Object.Destroy(_activeToast);
+            }
+            var go = new GameObject("Toast");
+            _activeToast = go;
+            go.transform.SetParent(ToastRoot, false);
+            var rect = go.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0f);
+            rect.anchorMax = new Vector2(0.5f, 0f);
+            rect.pivot = new Vector2(0.5f, 0f);
+            const float maxWidth = 1000f;
+            float width = Mathf.Min(EstimateTextWidth(message, 26) + 72f, maxWidth);
+            int lines = EstimateWrapLines(message, 26, maxWidth - 72f);
+            rect.sizeDelta = new Vector2(width, lines * LineHeight(26) + 28f);
+            rect.anchoredPosition = new Vector2(0f, GlobalNav.BarHeight + 28f);
+            var img = go.AddComponent<Image>();
+            img.color = isError
+                ? new Color(0.72f, 0.25f, 0.32f, 0.95f)
+                : new Color(0.27f, 0.22f, 0.38f, 0.92f);
+            Roundify(img);
+            img.raycastTarget = false;
+            AddShadow(go, 4f);
+            var text = CreateText(go.transform, "Message", message, 26, Color.white);
+            StretchFull(text.rectTransform);
+            text.rectTransform.offsetMin = new Vector2(28f, 4f);
+            text.rectTransform.offsetMax = new Vector2(-28f, -4f);
+            text.raycastTarget = false;
+            go.AddComponent<ToastView>();
+        }
+
+        /// <summary>
+        /// 音符が順に跳ねるローディング表示 (♪♪♪ + メッセージ)。不要になったら Destroy する。
+        /// </summary>
+        public static GameObject CreateLoadingNotes(Transform parent, string message)
+        {
+            var go = new GameObject("Loading");
+            go.transform.SetParent(parent, false);
+            var rect = go.AddComponent<RectTransform>();
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = new Vector2(0f, 60f);
+            rect.sizeDelta = new Vector2(600f, 200f);
+            go.AddComponent<LoadingNotesView>().Init(message);
+            return go;
+        }
+
+        /// <summary>ローディング表示のアニメ駆動 (3つの音符が波打つように跳ねる)。</summary>
+        class LoadingNotesView : MonoBehaviour
+        {
+            readonly Text[] _notes = new Text[3];
+            float _elapsed;
+
+            public void Init(string message)
+            {
+                for (int i = 0; i < _notes.Length; i++)
+                {
+                    var note = CreateText(transform, "Note" + i, "♪", 56, Primary);
+                    var rect = note.rectTransform;
+                    rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+                    rect.pivot = new Vector2(0.5f, 0.5f);
+                    rect.anchoredPosition = new Vector2((i - 1) * 72f, 30f);
+                    rect.sizeDelta = new Vector2(90f, 110f);
+                    note.raycastTarget = false;
+                    AddShadow(note.gameObject, 2f);
+                    _notes[i] = note;
+                }
+                if (!string.IsNullOrEmpty(message))
+                {
+                    var text = CreateText(transform, "Message", message, 26, TextMuted);
+                    var rect = text.rectTransform;
+                    rect.anchorMin = new Vector2(0f, 0.5f);
+                    rect.anchorMax = new Vector2(1f, 0.5f);
+                    rect.pivot = new Vector2(0.5f, 0.5f);
+                    rect.anchoredPosition = new Vector2(0f, -56f);
+                    rect.sizeDelta = new Vector2(0f, LineHeight(26));
+                    text.raycastTarget = false;
+                }
+            }
+
+            void Update()
+            {
+                _elapsed += Time.deltaTime;
+                for (int i = 0; i < _notes.Length; i++)
+                {
+                    if (_notes[i] == null)
+                    {
+                        continue;
+                    }
+                    float phase = _elapsed * 5f - i * 0.9f;
+                    float wave = Mathf.Clamp01(Mathf.Sin(phase));
+                    _notes[i].rectTransform.anchoredPosition =
+                        new Vector2((i - 1) * 72f, 30f + wave * 26f);
+                    var c = _notes[i].color;
+                    c.a = 0.4f + 0.6f * wave;
+                    _notes[i].color = c;
+                }
+            }
+        }
+
+        /// <summary>トーストの出現・待機・退場を自前で駆動する (どの画面からでも出せる)。</summary>
+        class ToastView : MonoBehaviour
+        {
+            const float InDuration = 0.18f;
+            const float HoldDuration = 2.2f;
+            const float OutDuration = 0.35f;
+
+            CanvasGroup _group;
+            RectTransform _rect;
+            float _baseY;
+            float _elapsed;
+
+            void Awake()
+            {
+                _group = gameObject.AddComponent<CanvasGroup>();
+                _rect = (RectTransform)transform;
+                _baseY = _rect.anchoredPosition.y;
+                _group.alpha = 0f;
+            }
+
+            void Update()
+            {
+                _elapsed += Time.deltaTime;
+                if (_elapsed < InDuration)
+                {
+                    float k = _elapsed / InDuration;
+                    k = 1f - (1f - k) * (1f - k); // easeOut
+                    _group.alpha = k;
+                    _rect.anchoredPosition = new Vector2(0f, _baseY - 24f * (1f - k));
+                }
+                else if (_elapsed < InDuration + HoldDuration)
+                {
+                    _group.alpha = 1f;
+                    _rect.anchoredPosition = new Vector2(0f, _baseY);
+                }
+                else if (_elapsed < InDuration + HoldDuration + OutDuration)
+                {
+                    _group.alpha = 1f - (_elapsed - InDuration - HoldDuration) / OutDuration;
+                }
+                else
+                {
+                    Destroy(gameObject);
+                }
+            }
+        }
+
+        /// <summary>
+        /// ラベルを1行に固定し、幅に収まらないときは縮小する。FitLabel だけだと
+        /// 2行に折り返して収まった時点で縮小が止まるため、枠の高さを1行分に制限する。
+        /// </summary>
+        public static void FitLabelOneLine(Text text, int minSize = 16)
+        {
+            FitLabel(text, minSize);
+            var rect = text.rectTransform;
+            rect.anchorMin = new Vector2(rect.anchorMin.x, 0.5f);
+            rect.anchorMax = new Vector2(rect.anchorMax.x, 0.5f);
+            rect.pivot = new Vector2(rect.pivot.x, 0.5f);
+            rect.anchoredPosition = new Vector2(rect.anchoredPosition.x, 0f);
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, text.fontSize * 1.45f);
+        }
+
+        /// <summary>
+        /// 横スクロールの右にまだ続きがあるときだけ「›」のしるしを出す (チップ行用)。
+        /// </summary>
+        public static void AddHorizontalMoreIndicator(ScrollRect scroll)
+        {
+            var go = new GameObject("MoreIndicator");
+            go.transform.SetParent(scroll.transform, false);
+            go.transform.SetAsLastSibling(); // マスク付き viewport より前面に出す
+            var bg = go.AddComponent<Image>();
+            bg.sprite = CircleSprite;
+            bg.color = Primary;
+            bg.raycastTarget = false;
+            AddShadow(go, 3f);
+            var rect = bg.rectTransform;
+            rect.anchorMin = rect.anchorMax = new Vector2(1f, 0.5f);
+            rect.pivot = new Vector2(1f, 0.5f);
+            rect.anchoredPosition = new Vector2(-4f, 0f);
+            rect.sizeDelta = new Vector2(52f, 52f);
+            var arrow = CreateText(go.transform, "Arrow", "›", 36, Color.white);
+            arrow.fontStyle = FontStyle.Bold;
+            StretchFull(arrow.rectTransform);
+            go.SetActive(false);
+
+            var watcher = scroll.gameObject.AddComponent<ScrollMoreIndicator>();
+            watcher.Scroll = scroll;
+            watcher.Indicator = go;
+        }
+
+        class ScrollMoreIndicator : MonoBehaviour
+        {
+            public ScrollRect Scroll;
+            public GameObject Indicator;
+
+            void Update()
+            {
+                var viewport = Scroll.viewport != null ? Scroll.viewport : (RectTransform)Scroll.transform;
+                bool more = false;
+                if (Scroll.content != null)
+                {
+                    // content の x はスクロールにつれて 0 → -(はみ出し幅) へ動く
+                    float overflow = Scroll.content.rect.width - viewport.rect.width;
+                    more = overflow > 4f && Scroll.content.anchoredPosition.x > -(overflow - 4f);
+                }
+                if (Indicator.activeSelf != more)
+                {
+                    Indicator.SetActive(more);
+                }
+            }
         }
 
         /// <summary>横スライダー (音量調整等)。位置とサイズは戻り値の RectTransform で調整する。</summary>

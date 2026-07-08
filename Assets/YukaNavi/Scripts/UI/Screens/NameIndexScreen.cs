@@ -94,6 +94,7 @@ namespace YukaNavi.UI
             searchBtnRect.anchoredPosition = new Vector2(-20f, -134f);
             searchBtnRect.sizeDelta = new Vector2(220f, 92f);
             searchButton.onClick.AddListener(RunSearch);
+            UiFactory.OnSubmit(_searchInput, RunSearch); // Enter でも検索
 
             _statusText = UiFactory.CreateText(transform, "Status", "", 26, UiFactory.TextMuted);
             var statusRect = _statusText.rectTransform;
@@ -151,6 +152,7 @@ namespace YukaNavi.UI
 
         void SetStatus(string message, bool isError)
         {
+            HideLoading(); // 結果・エラーの表示 = ローディング終了
             _statusText.text = message;
             _statusText.color = isError ? UiFactory.Danger : UiFactory.TextMuted;
         }
@@ -170,7 +172,8 @@ namespace YukaNavi.UI
         {
             _level = Level.Initials;
             int serial = ++_loadSerial;
-            SetStatus("読み込み中...", false);
+            SetStatus("", false);
+            ShowLoading();
             ClearRows();
             ListerInitialsDto data;
             try
@@ -293,7 +296,8 @@ namespace YukaNavi.UI
         {
             _level = Level.Names;
             int serial = ++_loadSerial;
-            SetStatus("読み込み中...", false);
+            SetStatus("", false);
+            ShowLoading();
             ClearRows();
             ListerNamesDto data;
             try

@@ -23,6 +23,8 @@ namespace YukaNavi.UI
         Button _warikomiButton;
         Button _upButton;
         Button _downButton;
+        Button _stateButton;
+        Text _stateLabel;
         Button _editButton;
         Button _deleteButton;
         Text _deleteLabel;
@@ -74,19 +76,29 @@ namespace YukaNavi.UI
                 ReserveScreen.OpenForEdit(Manager, _item);
             });
 
-            // 移動系 (あまり使われないので小さく1行)。先頭は再生中なら「曲を終了」に変わる
+            // 移動・状態系 (あまり使われないので小さく1行)。先頭は再生中なら「曲を終了」に変わる
             _warikomiButton = UiFactory.CreateSoftButton(transform, "Primary", "次に再生", 26);
-            SetBottomRect(_warikomiButton.GetComponent<RectTransform>(), 104f, 76f, 0f, 1f / 3f);
+            SetBottomRect(_warikomiButton.GetComponent<RectTransform>(), 104f, 76f, 0f, 0.25f);
             _warikomiLabel = _warikomiButton.GetComponentInChildren<Text>();
+            UiFactory.FitLabel(_warikomiLabel);
             _warikomiButton.onClick.AddListener(() => _ = PrimaryActionAsync());
 
             _upButton = UiFactory.CreateSoftButton(transform, "Up", "上へ", 26);
-            SetBottomRect(_upButton.GetComponent<RectTransform>(), 104f, 76f, 1f / 3f, 2f / 3f);
+            SetBottomRect(_upButton.GetComponent<RectTransform>(), 104f, 76f, 0.25f, 0.5f);
+            UiFactory.FitLabel(_upButton.GetComponentInChildren<Text>());
             _upButton.onClick.AddListener(() => _ = MoveAsync("up"));
 
             _downButton = UiFactory.CreateSoftButton(transform, "Down", "下へ", 26);
-            SetBottomRect(_downButton.GetComponent<RectTransform>(), 104f, 76f, 2f / 3f, 1f);
+            SetBottomRect(_downButton.GetComponent<RectTransform>(), 104f, 76f, 0.5f, 0.75f);
+            UiFactory.FitLabel(_downButton.GetComponentInChildren<Text>());
             _downButton.onClick.AddListener(() => _ = MoveAsync("down"));
+
+            // 再生状況の変更 (未再生 → 再生済 / 再生済 → 未再生)
+            _stateButton = UiFactory.CreateSoftButton(transform, "PlayStatus", "再生済に", 26);
+            SetBottomRect(_stateButton.GetComponent<RectTransform>(), 104f, 76f, 0.75f, 1f);
+            _stateLabel = _stateButton.GetComponentInChildren<Text>();
+            UiFactory.FitLabel(_stateLabel);
+            _stateButton.onClick.AddListener(() => _ = TogglePlayStatusAsync());
 
             _deleteButton = AddBottomButton("削除する", UiFactory.Danger, 12f, 80f);
             _deleteLabel = _deleteButton.GetComponentInChildren<Text>();
@@ -140,8 +152,35 @@ namespace YukaNavi.UI
             _warikomiButton.interactable = isPlaying || isPending;
             _upButton.interactable = isPending;
             _downButton.interactable = isPending;
+            // 未再生 → 再生済に / 再生済 (停止中含む) → 未再生に。再生中は変更しない
+            _stateLabel.text = isPending ? "再生済に" : "未再生に";
+            _stateButton.interactable = exists && !isPlaying;
             _editButton.interactable = exists;
             _deleteButton.interactable = exists;
+        }
+
+        /// <summary>再生状況のトグル (未再生 ⇔ 再生済)。変更後は一覧の該当カードへ。</summary>
+        async Task TogglePlayStatusAsync()
+        {
+            if (_item == null)
+            {
+                return;
+            }
+            bool isPending = _item.Nowplaying == "未再生" || _item.Nowplaying == "1";
+            Se.Play(Se.Tap);
+            try
+            {
+                await AppConfig.CreateClient().SetPlayStatusAsync(
+                    _item.Id, isPending ? "再生済" : "未再生");
+                Se.Play(Se.Confirm);
+                // 一覧上の位置づけ (未再生の並び・色) が変わるため該当カードを見せる
+                QueueScreen.OpenAndFocus(Manager, _item.Id);
+            }
+            catch (System.Exception e)
+            {
+                UiFactory.ShowToast("再生状況の変更に失敗: " + e.Message, true);
+                Se.Play(Se.Error);
+            }
         }
 
         /// <summary>先頭ボタン: 未再生なら割り込み、再生中なら曲を終了して次へ (2度押し確認)。</summary>
@@ -168,12 +207,12 @@ namespace YukaNavi.UI
             {
                 await AppConfig.CreateClient().PlayerActionAsync("next");
                 Se.Play(Se.Confirm);
-                SetStatus("次の曲へ送りました");
+                UiFactory.ShowToast("次の曲へ送りました");
                 await RefreshAsync();
             }
             catch (System.Exception e)
             {
-                SetStatus("曲の終了に失敗: " + e.Message);
+                UiFactory.ShowToast("曲の終了に失敗: " + e.Message, true);
                 Se.Play(Se.Error);
                 _endArmed = false;
                 _warikomiLabel.text = "曲を終了";
@@ -295,7 +334,7 @@ namespace YukaNavi.UI
         float AddWrapped(RectTransform card, string label, float y, int fontSize, Color color)
         {
             int lines = UiFactory.EstimateWrapLines(label, fontSize, 960f);
-            float height = lines * (fontSize + 12f) + 4f;
+            float height = lines * UiFactory.LineHeight(fontSize) + 4f;
             var text = UiFactory.CreateText(card, "Text", UiFactory.NoWordWrap(label),
                 fontSize, color, TextAnchor.UpperLeft);
             var rect = text.rectTransform;
@@ -430,7 +469,7 @@ namespace YukaNavi.UI
             }
             catch (System.Exception e)
             {
-                SetStatus("コメントの追記に失敗: " + e.Message);
+                UiFactory.ShowToast("コメントの追記に失敗: " + e.Message, true);
                 Se.Play(Se.Error);
             }
         }
@@ -445,16 +484,19 @@ namespace YukaNavi.UI
             try
             {
                 string message = await AppConfig.CreateClient().MoveRequestAsync(_item.Id, action);
-                SetStatus(message); // 「すでに一番上です。」等 (空 = 成功)
                 if (string.IsNullOrEmpty(message))
                 {
                     Se.Play(Se.Confirm);
+                    // 並べ替えの結果 (どこに動いたか) が見えるよう、一覧の該当カードへ遷移する
+                    QueueScreen.OpenAndFocus(Manager, _item.Id);
+                    return;
                 }
+                UiFactory.ShowToast(message); // 「すでに一番上です。」等
                 _ = RefreshAsync();
             }
             catch (System.Exception e)
             {
-                SetStatus("操作に失敗: " + e.Message);
+                UiFactory.ShowToast("操作に失敗: " + e.Message, true);
                 Se.Play(Se.Error);
             }
         }
@@ -481,7 +523,7 @@ namespace YukaNavi.UI
             }
             catch (System.Exception e)
             {
-                SetStatus("削除に失敗: " + e.Message);
+                UiFactory.ShowToast("削除に失敗: " + e.Message, true);
                 Se.Play(Se.Error);
                 ResetDeleteButton();
             }

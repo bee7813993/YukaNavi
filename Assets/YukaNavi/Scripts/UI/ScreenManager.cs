@@ -193,24 +193,45 @@ namespace YukaNavi.UI
             {
                 StopCoroutine(_enterTransition);
             }
-            _enterTransition = StartCoroutine(EnterRoutine(canvasGroup, reverse ? -40f : 40f));
+            _enterTransition = StartCoroutine(EnterRoutine(canvasGroup, reverse ? -130f : 130f));
         }
 
         System.Collections.IEnumerator EnterRoutine(CanvasGroup canvasGroup, float fromX)
         {
             var rect = (RectTransform)transform;
-            const float duration = 0.16f;
+            const float duration = 0.22f;
             for (float elapsed = 0f; elapsed < duration; elapsed += Time.deltaTime)
             {
-                float k = elapsed / duration;
-                float ease = 1f - (1f - k) * (1f - k); // easeOut
-                canvasGroup.alpha = ease;
+                float k = Mathf.Clamp01(elapsed / duration);
+                float ease = 1f - Mathf.Pow(1f - k, 3f); // easeOutCubic
+                canvasGroup.alpha = Mathf.Min(1f, k * 2.5f); // フェードは早めに終える
                 rect.anchoredPosition = new Vector2(fromX * (1f - ease), 0f);
                 yield return null;
             }
             canvasGroup.alpha = 1f;
             rect.anchoredPosition = Vector2.zero;
             _enterTransition = null;
+        }
+
+        GameObject _loadingNotes;
+
+        /// <summary>
+        /// 音符が跳ねるローディング表示を画面中央に出す。
+        /// 結果の表示時に HideLoading で消す (各画面の SetStatus に仕込むと消し漏れがない)。
+        /// </summary>
+        protected void ShowLoading(string message = "読み込み中...")
+        {
+            HideLoading();
+            _loadingNotes = UiFactory.CreateLoadingNotes(transform, message);
+        }
+
+        protected void HideLoading()
+        {
+            if (_loadingNotes != null)
+            {
+                Destroy(_loadingNotes);
+                _loadingNotes = null;
+            }
         }
 
         /// <summary>表示された直後に呼ばれる。</summary>

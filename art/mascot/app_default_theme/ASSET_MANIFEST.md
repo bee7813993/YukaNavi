@@ -56,6 +56,7 @@ KaraokeRequestorWeb 操作アプリ向けの「ゆかり」ちゃんデフォル
 | メニューアイコン: きせかえ | `ui/icons/yukanavi_icon_skin_256.png` | 256x256, RGBA 透過, 白単色 |
 | メニューアイコン: マイページ | `ui/icons/yukanavi_icon_mypage_256.png` | 256x256, RGBA 透過, 白単色 |
 | メニューアイコン: 接続設定 | `ui/icons/yukanavi_icon_settings_256.png` | 256x256, RGBA 透過, 白単色。ホーム左上の設定ボタンにも流用可 |
+| メニューアイコン: スピーカー | `ui/icons/yukanavi_icon_speaker_256.png` | 256x256, RGBA 透過, 白単色。音声あり/ミュート解除状態用 |
 | メニューアイコン: ミュート設定 | `ui/icons/yukanavi_icon_speaker_mute_256.png` | 256x256, RGBA 透過, 白単色。スピーカー/音声ミュート設定用 |
 | 部屋/ドアアイコン | `ui/icons/yukanavi_icon_room_door_256.png` | 256x256, RGBA 透過, 白単色。部屋名ピル用 |
 | メニュー大バナー: 曲をさがす | `ui/banners/yukanavi_banner_search_song_1000x220.png` | 1000x220, RGBA 透過。リンクラ風の横長画像バナー |

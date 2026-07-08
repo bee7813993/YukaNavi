@@ -234,7 +234,7 @@ namespace YukaNavi.UI
             bool useKeychange = false;
             try
             {
-                var caps = await AppConfig.CreateClient().GetCapabilitiesAsync();
+                var caps = await AppState.EnsureCapabilitiesAsync();
                 isFoobar = caps.Player.Mode == 2;
                 useKeychange = caps.Features != null && caps.Features.Keychange;
             }
@@ -427,7 +427,7 @@ namespace YukaNavi.UI
             const float top = 302f;
             float y = top + 12f;
             int lines = UiFactory.EstimateWrapLines(title, 38, WrapWidth);
-            float titleHeight = lines * 50f + 4f;
+            float titleHeight = lines * UiFactory.LineHeight(38) + 4f;
             _titleText.text = UiFactory.NoWordWrap(title);
             PlaceRow(_titleText.rectTransform, y, titleHeight);
             y += titleHeight + 6f;
@@ -503,7 +503,7 @@ namespace YukaNavi.UI
                 label += " (" + next.Singer + ")";
             }
             int lines = UiFactory.EstimateWrapLines(label, 27, textWidth);
-            float titleHeight = lines * 38f + 4f;
+            float titleHeight = lines * UiFactory.LineHeight(27) + 4f;
             _nextTitle.text = UiFactory.NoWordWrap(label);
             var titleRect = _nextTitle.rectTransform;
             titleRect.anchorMin = new Vector2(0f, 1f);
@@ -746,7 +746,7 @@ namespace YukaNavi.UI
 
                         // 中央の現在キーバッジはタップで原曲キーに戻せる
                         _keyText = UiFactory.CreateBadge(card, "CurrentKey", "…", UiFactory.TextDark, Color.white);
-                        _keyText.fontSize = 26;
+                        _keyText.fontSize = UiFactory.ScaledFontSize(26);
                         var keyGo = _keyText.transform.parent.gameObject;
                         keyGo.GetComponent<Image>().raycastTarget = true;
                         var keyButton = keyGo.AddComponent<Button>();
@@ -911,7 +911,7 @@ namespace YukaNavi.UI
                 y += 10f;
                 AddActionCell(card, "- 弱める", y, 90f, 0f, 1f / 3f, "comp_down");
                 _compText = UiFactory.CreateBadge(card, "CompLevel", "…", UiFactory.TextDark, Color.white);
-                _compText.fontSize = 28;
+                _compText.fontSize = UiFactory.ScaledFontSize(28);
                 PlaceCell((RectTransform)_compText.transform.parent, y + 10f, 70f, 1f / 3f + 0.04f, 2f / 3f - 0.04f);
                 AddActionCell(card, "強める +", y, 90f, 2f / 3f, 1f, "comp_up");
                 y += 90f + 14f;
@@ -1164,7 +1164,7 @@ namespace YukaNavi.UI
         float AddWrapped(RectTransform card, string label, float y, int fontSize, Color color)
         {
             int lines = UiFactory.EstimateWrapLines(label, fontSize, WrapWidth);
-            float height = lines * (fontSize + 12f) + 4f;
+            float height = lines * UiFactory.LineHeight(fontSize) + 4f;
             var text = UiFactory.CreateText(card, "Text", UiFactory.NoWordWrap(label),
                 fontSize, color, TextAnchor.UpperLeft);
             PlaceRow(text.rectTransform, y, height);
