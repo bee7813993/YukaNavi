@@ -16,6 +16,24 @@ namespace YukaNavi.Core
         public static void Init(AudioSource source)
         {
             _source = source;
+            _source.volume = Volume;
+        }
+
+        const string VolumeKey = "se.volume";
+
+        /// <summary>効果音の音量 (0〜1、既定 1)。変更は即反映され保存される。</summary>
+        public static float Volume
+        {
+            get { return PlayerPrefs.GetFloat(VolumeKey, 1f); }
+            set
+            {
+                PlayerPrefs.SetFloat(VolumeKey, Mathf.Clamp01(value));
+                PlayerPrefs.Save();
+                if (_source != null)
+                {
+                    _source.volume = Volume;
+                }
+            }
         }
 
         public static void Play(string name)

@@ -285,10 +285,11 @@ namespace YukaNavi.UI
             var settingsButton = UiFactory.CreateButton(transform, "HomeSettings", "",
                 new Color(1f, 1f, 1f, 0.55f), UiFactory.PrimaryDark, 24);
             settingsButton.image.pixelsPerUnitMultiplier = 0.55f; // ほぼ円形に
+            float buttonTop = statusBarH + 20f; // 白帯 (高さ可変) の下に置く
             var settingsRect = settingsButton.GetComponent<RectTransform>();
             settingsRect.anchorMin = settingsRect.anchorMax = new Vector2(0f, 1f);
             settingsRect.pivot = new Vector2(0f, 1f);
-            settingsRect.anchoredPosition = new Vector2(24f, -130f);
+            settingsRect.anchoredPosition = new Vector2(24f, -buttonTop);
             settingsRect.sizeDelta = new Vector2(88f, 88f);
             var settingsIcon = UiFactory.CreateImage(settingsButton.transform, "Icon",
                 "Art/UI/Icons/yukanavi_icon_settings_256");
@@ -326,15 +327,11 @@ namespace YukaNavi.UI
             var bgmRect = _bgmButton.GetComponent<RectTransform>();
             bgmRect.anchorMin = bgmRect.anchorMax = new Vector2(1f, 1f);
             bgmRect.pivot = new Vector2(1f, 1f);
-            bgmRect.anchoredPosition = new Vector2(-24f, -130f);
+            bgmRect.anchoredPosition = new Vector2(-24f, -buttonTop);
             bgmRect.sizeDelta = new Vector2(88f, 88f);
-            _bgmButton.onClick.AddListener(() =>
-            {
-                Bgm.Muted = !Bgm.Muted;
-                Se.Play(Se.Tap);
-                UpdateBgmButton();
-            });
+            _bgmButton.onClick.AddListener(ToggleSoundPanel);
             UpdateBgmButton();
+            BuildSoundPanel(buttonTop + 88f + 12f);
 
             // 移動モードのヒント (ナビバーの上)
             var hint = UiFactory.CreateText(transform, "EditHint",
@@ -427,6 +424,104 @@ namespace YukaNavi.UI
             _bgmButton.image.color = on ? UiFactory.Primary : new Color(1f, 1f, 1f, 0.55f);
             _bgmIcon.sprite = on ? _speakerOnSprite : _speakerMuteSprite;
             _bgmIcon.color = on ? Color.white : UiFactory.PrimaryDark;
+            if (_soundToggleLabel != null)
+            {
+                _soundToggleLabel.text = on ? "♪ 音を鳴らす: オン" : "音を鳴らす: オフ";
+                _soundToggle.image.color = on ? UiFactory.Primary : new Color(0.75f, 0.73f, 0.80f);
+            }
+        }
+
+        // ---- 音量パネル (スピーカーボタンで開閉) ----
+
+        GameObject _soundPanel;
+        Button _soundToggle;
+        Text _soundToggleLabel;
+
+        void ToggleSoundPanel()
+        {
+            Se.Play(Se.Tap);
+            _soundPanel.SetActive(!_soundPanel.activeSelf);
+        }
+
+        /// <summary>音 ON/OFF と BGM・効果音の音量スライダーを持つ小パネル。</summary>
+        void BuildSoundPanel(float top)
+        {
+            // 外側タップで閉じる透明オーバーレイ
+            _soundPanel = new GameObject("SoundPanel");
+            _soundPanel.transform.SetParent(transform, false);
+            UiFactory.StretchFull(_soundPanel.AddComponent<RectTransform>());
+            var overlay = _soundPanel.AddComponent<Image>();
+            overlay.color = new Color(0f, 0f, 0f, 0f);
+            var overlayButton = _soundPanel.AddComponent<Button>();
+            overlayButton.transition = Selectable.Transition.None;
+            overlayButton.onClick.AddListener(() => _soundPanel.SetActive(false));
+
+            float labelH = UiFactory.LineHeight(24);
+            float rowH = Mathf.Max(64f, labelH + 8f);
+            float y = 16f;
+            float cardH = 16f + rowH + 10f + (labelH + 52f) * 2f + 16f;
+
+            var card = UiFactory.CreatePanel(_soundPanel.transform, "Card", Color.white);
+            card.anchorMin = card.anchorMax = new Vector2(1f, 1f);
+            card.pivot = new Vector2(1f, 1f);
+            card.anchoredPosition = new Vector2(-24f, -top);
+            card.sizeDelta = new Vector2(560f, cardH);
+            UiFactory.Roundify(card.GetComponent<Image>());
+            UiFactory.AddShadow(card.gameObject, 6f);
+            var cardButton = card.gameObject.AddComponent<Button>();
+            cardButton.transition = Selectable.Transition.None; // カード内タップで閉じない
+
+            // 音 ON/OFF
+            _soundToggle = UiFactory.CreateButton(card, "Toggle", "", UiFactory.Primary, Color.white, 24);
+            _soundToggleLabel = _soundToggle.GetComponentInChildren<Text>();
+            UiFactory.FitLabelOneLine(_soundToggleLabel);
+            var toggleRect = _soundToggle.GetComponent<RectTransform>();
+            SetSoundRow(toggleRect, y, rowH);
+            _soundToggle.onClick.AddListener(() =>
+            {
+                Bgm.Muted = !Bgm.Muted;
+                Se.Play(Se.Tap); // 解除した瞬間から操作音が鳴る
+                UpdateBgmButton();
+            });
+            y += rowH + 10f;
+
+            // BGM 音量
+            y += AddVolumeRow(card, y, labelH, "BGM の音量", Bgm.Volume, value => Bgm.Volume = value);
+
+            // 効果音 音量
+            AddVolumeRow(card, y, labelH, "効果音の音量", Se.Volume, value =>
+            {
+                Se.Volume = value;
+            });
+
+            UpdateBgmButton();
+            _soundPanel.SetActive(false);
+        }
+
+        float AddVolumeRow(RectTransform card, float y, float labelH, string label,
+                           float value, System.Action<float> onChanged)
+        {
+            var text = UiFactory.CreateText(card, "Label", label, 24,
+                UiFactory.TextDark, TextAnchor.MiddleLeft);
+            SetSoundRow(text.rectTransform, y, labelH);
+
+            var slider = UiFactory.CreateSlider(card, "Slider", 0f, 1f, wholeNumbers: false);
+            var sliderRect = slider.GetComponent<RectTransform>();
+            SetSoundRow(sliderRect, y + labelH + 4f, 40f);
+            slider.value = value;
+            slider.onValueChanged.AddListener(v => onChanged(v));
+            return labelH + 52f;
+        }
+
+        static void SetSoundRow(RectTransform rect, float y, float height)
+        {
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, -y);
+            rect.offsetMin = new Vector2(24f, rect.offsetMin.y);
+            rect.offsetMax = new Vector2(-24f, rect.offsetMax.y);
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
         }
 
         // ---- 長押し移動モード ----
@@ -739,16 +834,24 @@ namespace YukaNavi.UI
             _appliedSkinRevision = SkinManager.Revision;
 
             // 既存の背景・マスコット・動画リソースを破棄
-            if (_backgroundGo != null)
-            {
-                Destroy(_backgroundGo);
-                _backgroundGo = null;
-            }
+            DestroyBackgroundResources();
             if (_mascotItem != null)
             {
                 Destroy(_mascotItem.Group.gameObject); // グループごと破棄 (MascotView も子)
                 _mascotItem = null;
                 _mascot = null;
+            }
+
+            BuildBackground(skin);
+            BuildMascot(skin);
+        }
+
+        void DestroyBackgroundResources()
+        {
+            if (_backgroundGo != null)
+            {
+                Destroy(_backgroundGo);
+                _backgroundGo = null;
             }
             if (_videoPlayer != null)
             {
@@ -761,18 +864,50 @@ namespace YukaNavi.UI
                 Destroy(_videoTexture);
                 _videoTexture = null;
             }
+        }
 
+        static string BgIndexKey(SkinDef skin)
+        {
+            return "home.bg_index." + skin.Id;
+        }
+
+        /// <summary>
+        /// 背景タップ (前面に UI が無いところ) で次の背景へ。複数背景 (backgrounds) の
+        /// スキンだけで動く。選んだ背景はスキンごとに保存され、次回起動でも続く。
+        /// パーツ移動モード中は編集オーバーレイがタップを受けるためここには届かない。
+        /// </summary>
+        void CycleBackground()
+        {
+            var skin = _currentSkin ?? SkinManager.Current();
+            var layers = SkinManager.GetBackgrounds(skin);
+            if (skin.Folder == null || layers.Count <= 1)
+            {
+                return;
+            }
+            int index = (PlayerPrefs.GetInt(BgIndexKey(skin), 0) + 1) % layers.Count;
+            PlayerPrefs.SetInt(BgIndexKey(skin), index);
+            PlayerPrefs.Save();
+            Se.Play(Se.Tap);
+            DestroyBackgroundResources();
             BuildBackground(skin);
-            BuildMascot(skin);
         }
 
         void BuildBackground(SkinDef skin)
         {
             var view = BackgroundView.Create(transform, "Background");
+            // 背景タップで切替できるようにする (透明の当たり判定)
+            var hit = view.gameObject.AddComponent<Image>();
+            hit.color = new Color(0f, 0f, 0f, 0f);
+            var bgButton = view.gameObject.AddComponent<Button>();
+            bgButton.transition = Selectable.Transition.None;
+            bgButton.onClick.AddListener(CycleBackground);
+
             bool built = false;
-            if (skin.Folder != null && skin.Background != null)
+            var layers = SkinManager.GetBackgrounds(skin);
+            if (skin.Folder != null && layers.Count > 0)
             {
-                var bgDef = skin.Background;
+                int index = Mathf.Clamp(PlayerPrefs.GetInt(BgIndexKey(skin), 0), 0, layers.Count - 1);
+                var bgDef = layers[index];
                 if (bgDef.Type == "video")
                 {
                     string path = SkinManager.GetFilePath(skin, bgDef.File);
@@ -864,25 +999,43 @@ namespace YukaNavi.UI
 
         void BuildMascot(SkinDef skin)
         {
-            Sprite custom = null;
+            Sprite[] customs = null;
+            string[][] mascotTalks = null;
             float scale = 1f;
-            if (skin.Folder != null && skin.Character != null)
+            if (skin.Folder != null)
             {
-                if (skin.Character.Type == "none")
+                if (skin.Character != null && skin.Character.Type == "none")
                 {
                     return; // キャラなしスキン
                 }
-                if (skin.Character.Type == "image")
+                // 複数キャラ (characters) 対応。タップで次の画像に切り替わる
+                var sprites = new List<Sprite>();
+                var talks = new List<string[]>(); // sprites と同じ並びのキャラ別セリフ
+                foreach (var layer in SkinManager.GetCharacters(skin))
                 {
-                    var tex = SkinManager.LoadTexture(skin, skin.Character.File);
-                    if (tex != null)
+                    if (layer.Type != "image")
                     {
-                        custom = Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height),
-                            new Vector2(0.5f, 0.5f), 100f);
-                        scale = Mathf.Clamp(skin.Character.Scale, 0.3f, 2f);
+                        continue; // 未対応 type (live2d 等) は読み飛ばす
+                    }
+                    var tex = SkinManager.LoadTexture(skin, layer.File);
+                    if (tex == null)
+                    {
+                        continue;
+                    }
+                    sprites.Add(Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height),
+                        new Vector2(0.5f, 0.5f), 100f));
+                    talks.Add(layer.Talk != null && layer.Talk.Count > 0 ? layer.Talk.ToArray() : null);
+                    if (sprites.Count == 1)
+                    {
+                        scale = Mathf.Clamp(layer.Scale, 0.3f, 2f);
                     }
                 }
-                // 読み込み失敗・未対応 type (live2d 等) はデフォルトのゆかりちゃんにフォールバック
+                if (sprites.Count > 0)
+                {
+                    customs = sprites.ToArray();
+                    mascotTalks = talks.ToArray();
+                }
+                // 1枚も読めなければデフォルトのゆかりちゃんにフォールバック
             }
             var size = new Vector2(740f, 1110f) * scale;
 
@@ -894,10 +1047,12 @@ namespace YukaNavi.UI
             group.anchorMin = group.anchorMax = new Vector2(0.5f, 0f);
             group.pivot = new Vector2(0.5f, 0f);
             group.sizeDelta = size;
-            _mascot = MascotView.Create(group, size, 0f, custom);
+            _mascot = MascotView.Create(group, size, 0f, customs);
             // スキンにセリフが設定されていればタップ時にランダムで表示する
+            // (キャラごとの talk があれば表示中のキャラのものが優先される)
             _mascot.CustomLines = (skin.Talk != null && skin.Talk.Count > 0)
                 ? skin.Talk.ToArray() : null;
+            _mascot.CustomLinesPerCharacter = mascotTalks;
             _mascotItem = SetupMovable(group, HomeLayoutStore.Mascot, HomeItem.Mascot, _mascot.gameObject);
             // 移動モード中はタップ演出 (表情切替・セリフ) を止める
             _mascot.SuppressTap = () => _editing == HomeItem.Mascot;
@@ -1183,6 +1338,7 @@ namespace YukaNavi.UI
                 _dateText.text = now.ToString("MM/dd ddd").ToUpperInvariant();
                 _statusClockText.text = now.ToString("HH:mm");
                 UpdateBattery();
+                Bgm.RefreshForCurrentSkin(); // 昼夜 BGM の時間帯またぎ (変化がなければ何もしない)
             }
         }
 

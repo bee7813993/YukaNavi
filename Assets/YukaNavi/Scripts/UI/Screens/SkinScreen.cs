@@ -144,6 +144,12 @@ namespace YukaNavi.UI
             UiFactory.FitLabel(createButton.GetComponentInChildren<Text>());
             createButton.onClick.AddListener(OpenCreateModal);
 
+            // 配布スキン (DLC) をシリアルコードで追加
+            var dlcButton = UiFactory.CreateButton(buttonBar, "Dlc", "コードで追加",
+                UiFactory.Primary, Color.white, 28);
+            UiFactory.FitLabel(dlcButton.GetComponentInChildren<Text>());
+            dlcButton.onClick.AddListener(OpenDlcModal);
+
 #if UNITY_ANDROID || UNITY_IOS || UNITY_EDITOR
             var importButton = UiFactory.CreateButton(buttonBar, "Import", "取り込む (zip)",
                 UiFactory.Primary, Color.white, 28);
@@ -226,6 +232,7 @@ namespace YukaNavi.UI
 
             BuildCreateModal();
             BuildColorModal();
+            BuildDlcModal();
         }
 
         Button AddHomeToggle(RectTransform bar, string label, string key)
@@ -901,6 +908,141 @@ namespace YukaNavi.UI
         }
 
         /// <summary>zip を選んでスキンを取り込む。</summary>
+        // ---- 配布スキン (DLC) のシリアルコード追加 ----
+
+        /// <summary>DLC zip の置き場。「コード大文字.zip」を置くだけで配布できる。</summary>
+        const string DlcBaseUrl = "https://ykr.moe/yukanavi_dlc/";
+
+        GameObject _dlcModal;
+        InputField _dlcCodeInput;
+
+        void BuildDlcModal()
+        {
+            _dlcModal = new GameObject("DlcModal");
+            _dlcModal.transform.SetParent(transform, false);
+            UiFactory.StretchFull(_dlcModal.AddComponent<RectTransform>());
+            var overlay = _dlcModal.AddComponent<Image>();
+            overlay.color = new Color(0f, 0f, 0f, 0.55f);
+            var overlayButton = _dlcModal.AddComponent<Button>();
+            overlayButton.transition = Selectable.Transition.None;
+            overlayButton.onClick.AddListener(() => _dlcModal.SetActive(false));
+
+            float y = 24f;
+            float titleH = UiFactory.LineHeight(34);
+            float guideH = UiFactory.LineHeight(24);
+            float cardH = y + titleH + 8f + guideH + 16f + 92f + 24f + 92f + 28f;
+
+            var card = UiFactory.CreatePanel(_dlcModal.transform, "Card", Color.white);
+            card.anchorMin = card.anchorMax = new Vector2(0.5f, 0.5f);
+            card.pivot = new Vector2(0.5f, 0.5f);
+            card.anchoredPosition = new Vector2(0f, 160f); // キーボードに隠れないよう上寄せ
+            card.sizeDelta = new Vector2(880f, cardH);
+            UiFactory.Roundify(card.GetComponent<Image>());
+            UiFactory.AddShadow(card.gameObject, 6f);
+            var cardButton = card.gameObject.AddComponent<Button>();
+            cardButton.transition = Selectable.Transition.None;
+
+            var title = UiFactory.CreateText(card, "Title", "コードでスキンを追加", 34, UiFactory.PrimaryDark);
+            SetCardRow(title.rectTransform, -y, titleH);
+            y += titleH + 8f;
+
+            var guide = UiFactory.CreateText(card, "Guide",
+                "配布されたシリアルコードを入力してください", 24, UiFactory.TextMuted);
+            SetCardRow(guide.rectTransform, -y, guideH);
+            y += guideH + 16f;
+
+            _dlcCodeInput = UiFactory.CreateInputField(card, "Code", "XXXXXXXX", 36);
+            SetCardRow(_dlcCodeInput.GetComponent<RectTransform>(), -y, 92f);
+            _dlcCodeInput.characterLimit = 32;
+            _dlcCodeInput.textComponent.alignment = TextAnchor.MiddleCenter;
+            y += 92f + 24f;
+
+            var okButton = UiFactory.CreateButton(card, "Ok", "追加する", UiFactory.Primary, Color.white, 30);
+            var okRect = okButton.GetComponent<RectTransform>();
+            okRect.anchorMin = okRect.anchorMax = new Vector2(0.5f, 1f);
+            okRect.pivot = new Vector2(0.5f, 1f);
+            okRect.anchoredPosition = new Vector2(-190f, -y);
+            okRect.sizeDelta = new Vector2(340f, 92f);
+            okButton.onClick.AddListener(() => _ = DownloadDlcAsync(_dlcCodeInput.text));
+            UiFactory.OnSubmit(_dlcCodeInput, () => _ = DownloadDlcAsync(_dlcCodeInput.text));
+
+            var cancelButton = UiFactory.CreateSoftButton(card, "Cancel", "やめる", 30);
+            var cancelRect = cancelButton.GetComponent<RectTransform>();
+            cancelRect.anchorMin = cancelRect.anchorMax = new Vector2(0.5f, 1f);
+            cancelRect.pivot = new Vector2(0.5f, 1f);
+            cancelRect.anchoredPosition = new Vector2(190f, -y);
+            cancelRect.sizeDelta = new Vector2(340f, 92f);
+            cancelButton.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Tap);
+                _dlcModal.SetActive(false);
+            });
+
+            _dlcModal.SetActive(false);
+        }
+
+        void OpenDlcModal()
+        {
+            Se.Play(Se.Tap);
+            _dlcCodeInput.text = "";
+            _dlcModal.SetActive(true);
+        }
+
+        /// <summary>コードから DLC zip をダウンロードして取り込み、適用する。</summary>
+        async System.Threading.Tasks.Task DownloadDlcAsync(string code)
+        {
+            code = (code ?? "").Trim().ToUpperInvariant();
+            if (code.Length < 4)
+            {
+                UiFactory.ShowToast("コードを入力してください", true);
+                Se.Play(Se.Error);
+                return;
+            }
+            Se.Play(Se.Tap);
+            _dlcModal.SetActive(false);
+            ShowLoading("ダウンロード中...");
+            string url = DlcBaseUrl + UnityEngine.Networking.UnityWebRequest.EscapeURL(code) + ".zip";
+            try
+            {
+                using (var req = UnityEngine.Networking.UnityWebRequest.Get(url))
+                {
+                    req.timeout = 60;
+                    var op = req.SendWebRequest();
+                    while (!op.isDone)
+                    {
+                        await System.Threading.Tasks.Task.Yield();
+                    }
+                    if (req.result != UnityEngine.Networking.UnityWebRequest.Result.Success)
+                    {
+                        HideLoading();
+                        UiFactory.ShowToast(req.responseCode == 404
+                            ? "コードが見つかりません (入力を確認してください)"
+                            : "ダウンロードに失敗: " + req.error, true);
+                        Se.Play(Se.Error);
+                        return;
+                    }
+                    string tmp = Path.Combine(Application.temporaryCachePath, "dlc_" + code + ".zip");
+                    File.WriteAllBytes(tmp, req.downloadHandler.data);
+                    HideLoading();
+                    OnImportPicked(tmp); // 既存の取り込み + 適用 + 再構築へ
+                    try
+                    {
+                        File.Delete(tmp);
+                    }
+                    catch
+                    {
+                        // 一時ファイルの削除失敗は無視 (temporaryCachePath は OS が掃除する)
+                    }
+                }
+            }
+            catch (System.Exception e)
+            {
+                HideLoading();
+                UiFactory.ShowToast("ダウンロードに失敗: " + e.Message, true);
+                Se.Play(Se.Error);
+            }
+        }
+
         void ImportSkinFlow()
         {
             Se.Play(Se.Tap);
@@ -1403,18 +1545,44 @@ namespace YukaNavi.UI
 
         void AddRow(SkinDef skin, bool selected)
         {
+            // skin.json の書式チェック (手書きの配布スキン制作支援)。問題があれば ⚠ で示す
+            var problems = SkinManager.ValidateSkin(skin);
+            bool broken = !string.IsNullOrEmpty(skin.Error);
+
             var rowGo = new GameObject("Row");
             rowGo.transform.SetParent(_listContent, false);
             var img = rowGo.AddComponent<Image>();
-            img.color = selected ? new Color(0.90f, 0.84f, 1.0f) : UiFactory.CardBg;
+            img.color = broken ? new Color(1f, 0.92f, 0.92f)
+                : (selected ? new Color(0.90f, 0.84f, 1.0f) : UiFactory.CardBg);
             UiFactory.Roundify(img);
             var le = rowGo.AddComponent<LayoutElement>();
             le.preferredHeight = Mathf.Max(110f, UiFactory.LineHeight(32) + 40f);
             var button = rowGo.AddComponent<Button>();
             string skinId = skin.Id;
-            button.onClick.AddListener(() => Apply(skinId));
+            button.onClick.AddListener(() =>
+            {
+                if (broken)
+                {
+                    // 壊れたスキンは適用せず、直すための理由を見せる (タップで閉じるまで表示)
+                    UiFactory.ShowToast("skin.json が壊れています: " + skin.Error, true, sticky: true);
+                    Se.Play(Se.Error);
+                    return;
+                }
+                if (problems.Count > 0)
+                {
+                    // 適用はするが、問題点を知らせる (最大3件 + 件数。タップで閉じるまで表示)
+                    string message = string.Join("\n", problems.GetRange(0, Mathf.Min(3, problems.Count)));
+                    if (problems.Count > 3)
+                    {
+                        message += "\nほか " + (problems.Count - 3) + " 件";
+                    }
+                    UiFactory.ShowToast("⚠ " + message, true, sticky: true);
+                }
+                Apply(skinId);
+            });
 
-            string label = (selected ? "✓ " : "") + skin.Name;
+            string label = (broken || problems.Count > 0 ? "⚠ " : "")
+                + (selected ? "✓ " : "") + skin.Name;
             var text = UiFactory.CreateText(rowGo.transform, "Name", label, 32,
                 selected ? UiFactory.PrimaryDark : UiFactory.TextDark, TextAnchor.MiddleLeft);
             UiFactory.StretchFull(text.rectTransform);
@@ -1422,28 +1590,31 @@ namespace YukaNavi.UI
             text.rectTransform.offsetMax = new Vector2(-330f, -6f);
             UiFactory.FitLabelOneLine(text, 20); // 長い名前は1行に収まるよう縮める
 
-            // ユーザースキンには編集/共有/削除ボタンを付ける
+            // ユーザースキンには編集/共有/削除ボタンを付ける (壊れたスキンは削除のみ)
             if (skin.Folder != null)
             {
-                var editButton = UiFactory.CreateButton(rowGo.transform, "Edit", "編集",
-                    UiFactory.Primary, Color.white, 24);
-                var editRect = editButton.GetComponent<RectTransform>();
-                editRect.anchorMin = new Vector2(1f, 0.5f);
-                editRect.anchorMax = new Vector2(1f, 0.5f);
-                editRect.pivot = new Vector2(1f, 0.5f);
-                editRect.anchoredPosition = new Vector2(-256f, 0f);
-                editRect.sizeDelta = new Vector2(110f, 76f);
-                editButton.onClick.AddListener(() => OpenEditModal(skin));
+                if (!broken)
+                {
+                    var editButton = UiFactory.CreateButton(rowGo.transform, "Edit", "編集",
+                        UiFactory.Primary, Color.white, 24);
+                    var editRect = editButton.GetComponent<RectTransform>();
+                    editRect.anchorMin = new Vector2(1f, 0.5f);
+                    editRect.anchorMax = new Vector2(1f, 0.5f);
+                    editRect.pivot = new Vector2(1f, 0.5f);
+                    editRect.anchoredPosition = new Vector2(-256f, 0f);
+                    editRect.sizeDelta = new Vector2(110f, 76f);
+                    editButton.onClick.AddListener(() => OpenEditModal(skin));
 
-                var exportButton = UiFactory.CreateButton(rowGo.transform, "Export", "共有",
-                    UiFactory.PrimaryDark, Color.white, 24);
-                var expRect = exportButton.GetComponent<RectTransform>();
-                expRect.anchorMin = new Vector2(1f, 0.5f);
-                expRect.anchorMax = new Vector2(1f, 0.5f);
-                expRect.pivot = new Vector2(1f, 0.5f);
-                expRect.anchoredPosition = new Vector2(-136f, 0f);
-                expRect.sizeDelta = new Vector2(110f, 76f);
-                exportButton.onClick.AddListener(() => ExportSkinFlow(skin));
+                    var exportButton = UiFactory.CreateButton(rowGo.transform, "Export", "共有",
+                        UiFactory.PrimaryDark, Color.white, 24);
+                    var expRect = exportButton.GetComponent<RectTransform>();
+                    expRect.anchorMin = new Vector2(1f, 0.5f);
+                    expRect.anchorMax = new Vector2(1f, 0.5f);
+                    expRect.pivot = new Vector2(1f, 0.5f);
+                    expRect.anchoredPosition = new Vector2(-136f, 0f);
+                    expRect.sizeDelta = new Vector2(110f, 76f);
+                    exportButton.onClick.AddListener(() => ExportSkinFlow(skin));
+                }
 
                 var deleteButton = UiFactory.CreateButton(rowGo.transform, "Delete", "削除",
                     UiFactory.Danger, Color.white, 26);

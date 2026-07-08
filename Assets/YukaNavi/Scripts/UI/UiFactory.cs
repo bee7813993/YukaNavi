@@ -819,9 +819,10 @@ namespace YukaNavi.UI
 
         /// <summary>
         /// 画面下部にトースト (操作結果の短い通知) を出す。数秒表示して自動で消える。
+        /// sticky=true は自動で消えず、タップされるまで表示し続ける (書式エラーなど読ませたいもの用)。
         /// 連続して呼ばれたら前のトーストは置き換わる。
         /// </summary>
-        public static void ShowToast(string message, bool isError = false)
+        public static void ShowToast(string message, bool isError = false, bool sticky = false)
         {
             if (ToastRoot == null || string.IsNullOrEmpty(message))
             {
@@ -830,6 +831,10 @@ namespace YukaNavi.UI
             if (_activeToast != null)
             {
                 Object.Destroy(_activeToast);
+            }
+            if (sticky)
+            {
+                message += "\n(タップで閉じる)";
             }
             var go = new GameObject("Toast");
             _activeToast = go;
@@ -840,7 +845,11 @@ namespace YukaNavi.UI
             rect.pivot = new Vector2(0.5f, 0f);
             const float maxWidth = 1000f;
             float width = Mathf.Min(EstimateTextWidth(message, 26) + 72f, maxWidth);
-            int lines = EstimateWrapLines(message, 26, maxWidth - 72f);
+            int lines = 0;
+            foreach (string line in message.Split('\n'))
+            {
+                lines += EstimateWrapLines(line, 26, maxWidth - 72f);
+            }
             rect.sizeDelta = new Vector2(width, lines * LineHeight(26) + 28f);
             rect.anchoredPosition = new Vector2(0f, GlobalNav.BarHeight + 28f);
             var img = go.AddComponent<Image>();
@@ -848,14 +857,21 @@ namespace YukaNavi.UI
                 ? new Color(0.72f, 0.25f, 0.32f, 0.95f)
                 : new Color(0.27f, 0.22f, 0.38f, 0.92f);
             Roundify(img);
-            img.raycastTarget = false;
+            img.raycastTarget = sticky;
             AddShadow(go, 4f);
             var text = CreateText(go.transform, "Message", message, 26, Color.white);
             StretchFull(text.rectTransform);
             text.rectTransform.offsetMin = new Vector2(28f, 4f);
             text.rectTransform.offsetMax = new Vector2(-28f, -4f);
             text.raycastTarget = false;
-            go.AddComponent<ToastView>();
+            var view = go.AddComponent<ToastView>();
+            view.Sticky = sticky;
+            if (sticky)
+            {
+                var button = go.AddComponent<Button>();
+                button.transition = Selectable.Transition.None;
+                button.onClick.AddListener(view.Dismiss);
+            }
         }
 
         /// <summary>
@@ -934,10 +950,14 @@ namespace YukaNavi.UI
             const float HoldDuration = 2.2f;
             const float OutDuration = 0.35f;
 
+            /// <summary>true なら自動で消えず、Dismiss (タップ) されるまで表示し続ける。</summary>
+            public bool Sticky;
+
             CanvasGroup _group;
             RectTransform _rect;
             float _baseY;
             float _elapsed;
+            bool _dismissed;
 
             void Awake()
             {
@@ -945,6 +965,17 @@ namespace YukaNavi.UI
                 _rect = (RectTransform)transform;
                 _baseY = _rect.anchoredPosition.y;
                 _group.alpha = 0f;
+            }
+
+            /// <summary>退場を開始する (sticky トーストのタップ)。</summary>
+            public void Dismiss()
+            {
+                if (_dismissed)
+                {
+                    return;
+                }
+                _dismissed = true;
+                _elapsed = InDuration + HoldDuration; // 退場フェーズへ
             }
 
             void Update()
@@ -956,6 +987,12 @@ namespace YukaNavi.UI
                     k = 1f - (1f - k) * (1f - k); // easeOut
                     _group.alpha = k;
                     _rect.anchoredPosition = new Vector2(0f, _baseY - 24f * (1f - k));
+                }
+                else if (Sticky && !_dismissed)
+                {
+                    _group.alpha = 1f;
+                    _rect.anchoredPosition = new Vector2(0f, _baseY);
+                    _elapsed = InDuration; // タップされるまでここで待つ
                 }
                 else if (_elapsed < InDuration + HoldDuration)
                 {

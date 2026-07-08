@@ -1078,10 +1078,10 @@ namespace YukaNavi.UI
             _poseSkinKey = key;
 
             Texture2D tex = null;
-            if (skin.Character != null && skin.Character.Type == "image"
-                && !string.IsNullOrEmpty(skin.Character.File))
+            var characters = SkinManager.GetCharacters(skin);
+            if (characters.Count > 0 && characters[0].Type == "image")
             {
-                tex = SkinManager.LoadTexture(skin, skin.Character.File);
+                tex = SkinManager.LoadTexture(skin, characters[0].File); // 完了画面は1枚目のキャラ
             }
             var oldSprite = _completePoseImage.sprite;
             if (tex != null)
