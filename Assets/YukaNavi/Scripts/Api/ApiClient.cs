@@ -166,6 +166,10 @@ namespace YukaNavi.Api
             {
                 return;
             }
+            // Unity 内蔵のクッキーエンジンが Set-Cookie (exec.php の YkariUsername 等) を
+            // 記憶して自動付与し、明示指定の Cookie ヘッダーとカンマ結合されて
+            // 「ゆーふ, YkariUserID=...」のような壊れた名前になるため、毎回クリアする
+            UnityWebRequest.ClearCookieCache(new System.Uri(BaseUrl));
             string cookie = "YkariUserID=" + UserId;
             if (!string.IsNullOrEmpty(Username))
             {
