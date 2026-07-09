@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using UnityEngine;
 using YukaNavi.Api;
+using YukaNavi.UI;
 
 namespace YukaNavi.Core
 {
@@ -332,7 +333,6 @@ namespace YukaNavi.Core
             await client.MypageImportAsync(userid, BuildExportJson());
 
             AppConfig.LinkedMypageUserId = userid;
-            PlayerPrefs.DeleteKey(AutoLinkOptOutKey()); // 手動リンク = 自動リンク拒否の解除
             MarkSynced();
 
             // 統合後のサーバー内容をローカルへ取り込む (Web 側で貯めたデータがアプリでも使える)
@@ -345,162 +345,244 @@ namespace YukaNavi.Core
         public static void Unlink()
         {
             AppConfig.LinkedMypageUserId = "";
-            // 明示的な解除なので、Google 持ち歩きによる自動リンクもこのサーバーでは止める
-            // (再連携はペアコード入力か「Google 同期で連携する」の明示操作で)
-            PlayerPrefs.SetInt(AutoLinkOptOutKey(), 1);
-            PlayerPrefs.Save();
         }
 
-        static string AutoLinkOptOutKey()
-        {
-            return "yukanavi.mypage_autolink_optout." + NormalizedServer();
-        }
+        // ---- Google Drive 直接同期 ----
+        // アプリが Google にログイン (GoogleAccount) し、Drive の mypage_data.json を
+        // Web 版と同一形式で読み書きする。ローカルが一次データで、Drive はユーザー自身の
+        // 保存場所 + 部屋をまたぐ持ち運び。同期は自動 (起動時 pull + ローカル変更時 push)。
 
-        // ---- Google 同期の持ち歩き (部屋をまたぐ自動引き継ぎ) ----
+        const string DriveSyncedAtKey = "yukanavi.drive_synced_at";
+        static bool _pulledThisSession; // push は Drive の内容を取り込んだ後のみ (消失防止)
+        static bool _applyingPull;      // pull の適用中はローカル変更フックを無視する
+        static int _pushSerial;
 
-        const string GoogleCarryKey = "yukanavi.google_carry";
-        static string _autoLinkTriedServer; // 失敗した部屋で毎回試さないためのメモ (起動中のみ)
-
-        /// <summary>直近の自動リンク失敗時のサーバーメッセージ (「別の Google 連携設定」等)。</summary>
-        public static string LastAutoLinkError { get; private set; }
-
-        /// <summary>Google 同期を持ち歩いているか (トークンを端末に保存済みか)。</summary>
-        public static bool HasGoogleCarry
-        {
-            get { return !string.IsNullOrEmpty(PlayerPrefs.GetString(GoogleCarryKey, "")); }
-        }
-
-        /// <summary>持ち歩き中の Google アカウント (メール)。未保持なら ""。</summary>
-        public static string GoogleCarryEmail
+        /// <summary>最後に Drive と同期した日時 (unixtime、0 = 未同期)。</summary>
+        public static long LastDriveSyncAt
         {
             get
             {
-                var token = GetCarry();
-                return token != null ? token.GoogleEmail ?? "" : "";
-            }
-        }
-
-        static MypageGoogleTokenDto GetCarry()
-        {
-            string json = PlayerPrefs.GetString(GoogleCarryKey, "");
-            if (string.IsNullOrEmpty(json))
-            {
-                return null;
-            }
-            try
-            {
-                return JsonConvert.DeserializeObject<MypageGoogleTokenDto>(json);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        static void SetCarry(MypageGoogleTokenDto token)
-        {
-            PlayerPrefs.SetString(GoogleCarryKey, JsonConvert.SerializeObject(token));
-            PlayerPrefs.Save();
-        }
-
-        /// <summary>持ち歩きをやめる (端末からトークンを消す)。</summary>
-        public static void ClearGoogleCarry()
-        {
-            PlayerPrefs.DeleteKey(GoogleCarryKey);
-            PlayerPrefs.Save();
-        }
-
-        /// <summary>
-        /// リンク済みの部屋から Google トークンを取得して端末に保存する (持ち歩き開始)。
-        /// Google 未連携 (404) などで取得できなければ false。
-        /// </summary>
-        public static async Task<bool> FetchGoogleCarryAsync()
-        {
-            if (!IsLinked)
-            {
-                return false;
-            }
-            try
-            {
-                var token = await AppConfig.CreateClient().MypageGoogleTokenGetAsync(Uid);
-                SetCarry(token);
-                return true;
-            }
-            catch (System.Exception)
-            {
-                return false;
+                long at;
+                return long.TryParse(PlayerPrefs.GetString(DriveSyncedAtKey, "0"), out at) ? at : 0;
             }
         }
 
         /// <summary>
-        /// 明示的に「Google 同期で連携する」を選んだとき: このサーバーの自動リンク拒否を
-        /// 解除して連携を試みる。
+        /// 起動時に呼ぶ。ローカル変更の自動 push フックを張り、ログイン済みなら
+        /// Drive から取り込む (fire & forget)。
         /// </summary>
-        public static Task<bool> GoogleLinkNowAsync()
+        public static void StartGoogleSync()
         {
-            PlayerPrefs.DeleteKey(AutoLinkOptOutKey());
-            PlayerPrefs.Save();
-            _autoLinkTriedServer = null; // 同一起動内の再試行を許す
-            return TryGoogleAutoLinkAsync();
+            LocalMypage.Changed += OnLocalChanged;
+            if (GoogleAccount.IsLoggedIn)
+            {
+                _ = PullFromDriveAsync(true);
+            }
         }
 
         /// <summary>
-        /// 未リンクの部屋で、持ち歩きトークンによる自動リンクを試みる。
-        /// 成功すると Drive から復元されたユーザーとリンクし、端末データも統合される。
-        /// Google 同期未設定の部屋 (503) や通信エラーは静かにスキップして false。
-        /// トークン無効 (401) は持ち歩きを破棄する (再連携が必要)。
+        /// Drive の内容をローカルへ統合する (履歴 = 回数・日時の大きい方 / 曲・検索 = 重複回避で追加)。
+        /// silent なら失敗を静かにスキップする (認証切れだけはログアウト + トースト)。
         /// </summary>
-        public static async Task<bool> TryGoogleAutoLinkAsync()
+        public static async Task<bool> PullFromDriveAsync(bool silent)
         {
-            if (IsLinked)
-            {
-                return true;
-            }
-            if (PlayerPrefs.GetInt(AutoLinkOptOutKey(), 0) == 1)
-            {
-                return false; // このサーバーでは明示的に連携解除されている
-            }
-            var token = GetCarry();
-            if (token == null || _autoLinkTriedServer == NormalizedServer())
-            {
-                return false;
-            }
-            LastAutoLinkError = null;
             try
             {
-                var client = AppConfig.CreateClient();
-                var result = await client.MypageGoogleRegisterAsync(token);
-                if (result.Refreshed)
+                string json = await GoogleDrive.DownloadAsync();
+                if (json != null)
                 {
-                    token.AccessToken = result.AccessToken;
-                    token.TokenExpiresAt = result.TokenExpiresAt;
-                    SetCarry(token);
+                    _applyingPull = true;
+                    try
+                    {
+                        ApplyDriveJson(json);
+                    }
+                    finally
+                    {
+                        _applyingPull = false;
+                    }
                 }
-                AppConfig.LinkedMypageUserId = result.UserId;
-                // 端末データの統合とミラー (ペアコードでのリンクと同じ後処理)
-                await client.MypageImportAsync(result.UserId, BuildExportJson());
-                MarkSynced();
-                await GetFavoriteAsync();
-                await GetLaterAsync();
-                await GetSavedSearchesAsync();
+                _pulledThisSession = true; // Drive にファイルがまだ無い場合も push してよい
+                MarkDriveSynced();
                 return true;
             }
-            catch (ApiException e)
+            catch (GoogleAuthException)
             {
-                _autoLinkTriedServer = NormalizedServer();
-                LastAutoLinkError = e.Message;
-                if (e.HttpStatus == 401)
+                HandleAuthLost();
+                if (!silent)
                 {
-                    // トークン無効。持ち歩きを破棄する (画面側は HasGoogleCarry の変化で気づける)
-                    ClearGoogleCarry();
+                    throw;
                 }
                 return false;
             }
             catch (System.Exception)
             {
-                _autoLinkTriedServer = NormalizedServer();
-                return false;
+                if (!silent)
+                {
+                    throw;
+                }
+                return false; // 通信エラー等は次の変更か次回起動で追い付く
             }
+        }
+
+        /// <summary>ローカルデータで Drive を上書きする (手動「Driveへ保存」)。失敗は例外。</summary>
+        public static async Task PushToDriveAsync()
+        {
+            try
+            {
+                await GoogleDrive.UploadAsync(BuildExportJson());
+                _pulledThisSession = true; // 明示 push 後は自動 push も許可
+                MarkDriveSynced();
+            }
+            catch (GoogleAuthException)
+            {
+                HandleAuthLost();
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// ローカル変更の自動 push。10秒の debounce で連続変更をまとめる。
+        /// このセッションで Drive をまだ読んでいない間は push しない
+        /// (取り込み前のローカルデータで Drive 側を上書きして消さないため)。
+        /// </summary>
+        static async void OnLocalChanged()
+        {
+            if (_applyingPull || !_pulledThisSession || !GoogleAccount.IsLoggedIn)
+            {
+                return;
+            }
+            int serial = ++_pushSerial;
+            await Task.Delay(10000);
+            if (serial != _pushSerial || !GoogleAccount.IsLoggedIn)
+            {
+                return;
+            }
+            try
+            {
+                await GoogleDrive.UploadAsync(BuildExportJson());
+                MarkDriveSynced();
+            }
+            catch (GoogleAuthException)
+            {
+                HandleAuthLost();
+            }
+            catch (System.Exception)
+            {
+                // 次の変更か次回起動時に追い付く
+            }
+        }
+
+        static void HandleAuthLost()
+        {
+            GoogleAccount.Logout();
+            UiFactory.ShowToast("Google の認証が切れました。もう一度ログインしてください", true);
+        }
+
+        static void MarkDriveSynced()
+        {
+            PlayerPrefs.SetString(DriveSyncedAtKey,
+                System.DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString());
+            PlayerPrefs.Save();
+        }
+
+        // Drive 上の mypage_data.json (Web 版エクスポート形式 version 1) の読み取り用
+        class DriveData
+        {
+            [JsonProperty("history")] public List<DriveHistoryRow> History;
+            [JsonProperty("later")] public List<DriveSongRow> Later;
+            [JsonProperty("favorite_songs")] public List<DriveSongRow> FavoriteSongs;
+            [JsonProperty("favorite_keywords")] public List<MypageKeywordDto> FavoriteKeywords;
+        }
+
+        class DriveHistoryRow
+        {
+            [JsonProperty("fullpath")] public string FullPath;
+            [JsonProperty("songfile")] public string Songfile;
+            [JsonProperty("kind")] public string Kind;
+            [JsonProperty("requested_at")] public long RequestedAt;
+        }
+
+        class DriveSongRow
+        {
+            [JsonProperty("fullpath")] public string FullPath;
+            [JsonProperty("songfile")] public string Songfile;
+            [JsonProperty("kind")] public string Kind;
+            [JsonProperty("added_at")] public long AddedAt;
+        }
+
+        static void ApplyDriveJson(string json)
+        {
+            var data = JsonConvert.DeserializeObject<DriveData>(json);
+            if (data == null)
+            {
+                return;
+            }
+            if (data.History != null)
+            {
+                // 行形式 (1予約 = 1行) を曲ごとに集約してから統合する
+                var byPath = new Dictionary<string, LocalMypage.Item>();
+                foreach (var row in data.History)
+                {
+                    if (string.IsNullOrEmpty(row.FullPath))
+                    {
+                        continue;
+                    }
+                    LocalMypage.Item item;
+                    if (!byPath.TryGetValue(row.FullPath, out item))
+                    {
+                        item = new LocalMypage.Item
+                        {
+                            FullPath = row.FullPath,
+                            Songfile = row.Songfile,
+                            Kind = row.Kind ?? "",
+                        };
+                        byPath[row.FullPath] = item;
+                    }
+                    item.Times++;
+                    item.LastAt = System.Math.Max(item.LastAt, row.RequestedAt);
+                }
+                LocalMypage.MergeHistory(new List<LocalMypage.Item>(byPath.Values));
+            }
+            if (data.Later != null)
+            {
+                LocalMypage.MergeLater(ToItems(data.Later));
+            }
+            if (data.FavoriteSongs != null)
+            {
+                LocalMypage.MergeFavorite(ToItems(data.FavoriteSongs));
+            }
+            if (data.FavoriteKeywords != null)
+            {
+                var searches = new List<LocalMypage.SavedSearch>();
+                foreach (var row in data.FavoriteKeywords)
+                {
+                    if (!string.IsNullOrEmpty(row.Keyword))
+                    {
+                        searches.Add(FromServerKeyword(row));
+                    }
+                }
+                LocalMypage.MergeSavedSearches(searches);
+            }
+        }
+
+        static List<LocalMypage.Item> ToItems(List<DriveSongRow> rows)
+        {
+            var items = new List<LocalMypage.Item>();
+            foreach (var row in rows)
+            {
+                if (string.IsNullOrEmpty(row.FullPath))
+                {
+                    continue;
+                }
+                items.Add(new LocalMypage.Item
+                {
+                    FullPath = row.FullPath,
+                    Songfile = row.Songfile,
+                    Kind = row.Kind ?? "",
+                    AddedAt = row.AddedAt,
+                });
+            }
+            return items;
         }
 
         // ---- お気に入り検索の相互変換 (アプリ SavedSearch ⇔ Web favorite_keyword) ----

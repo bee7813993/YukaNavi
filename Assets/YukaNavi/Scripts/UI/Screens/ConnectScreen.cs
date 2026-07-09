@@ -15,8 +15,13 @@ namespace YukaNavi.UI
     {
         InputField _urlInput;
         InputField _passInput;
+        InputField _relayInput;
         Text _resultText;
         Button _saveButton;
+        GameObject _advGroup;
+        RectTransform _content;
+        float _closedContentH;
+        float _openContentH;
         bool _tested;
 
         public override void BuildUi()
@@ -135,18 +140,19 @@ namespace YukaNavi.UI
             UiFactory.OnSubmit(_passInput, () => _ = TestAsync());
             y -= 96f + 20f;
 
-            // 結果表示
+            // 接続設定 (URL / パスワード) の保存。文字の大きさ等は変更時に即保存される
+            _saveButton = UiFactory.CreateButton(content, "SaveButton", "接続設定を保存して戻る",
+                UiFactory.PrimaryDark, Color.white, 38);
+            UiFactory.FitLabelOneLine(_saveButton.GetComponentInChildren<Text>());
+            SetTopRect(_saveButton.GetComponent<RectTransform>(), y, 96f);
+            _saveButton.onClick.AddListener(SaveAndBack);
+            y -= 96f + 20f;
+
+            // 結果表示 (接続テスト・保存時のメッセージ)
             _resultText = UiFactory.CreateText(content, "Result", "", 30, UiFactory.TextDark);
             float resultH = UiFactory.LineHeight(30) * 2f;
             SetTopRect(_resultText.rectTransform, y, resultH);
             y -= resultH + 24f;
-
-            // 保存して戻る
-            _saveButton = UiFactory.CreateButton(content, "SaveButton", "保存して戻る",
-                UiFactory.PrimaryDark, Color.white, 38);
-            SetTopRect(_saveButton.GetComponent<RectTransform>(), y, 96f);
-            _saveButton.onClick.AddListener(SaveAndBack);
-            y -= 96f + 44f;
 
             // 文字の大きさ (全画面共通。変更すると即時反映して端末に保存される)
             var fontLabel = UiFactory.CreateText(content, "FontLabel", "文字の大きさ", 30,
@@ -162,9 +168,49 @@ namespace YukaNavi.UI
                 "ゆかナビ v" + Application.version, 22, UiFactory.TextMuted);
             float versionH = UiFactory.LineHeight(22);
             SetTopRect(versionText.rectTransform, y, versionH);
-            y -= versionH;
+            y -= versionH + 32f;
 
-            content.sizeDelta = new Vector2(0f, -y + 24f);
+            // 高度な設定 (折りたたみ。通常は変更不要なので最初は閉じておく)
+            var advToggle = UiFactory.CreateText(content, "AdvToggle", "▸ 高度な設定", 26,
+                UiFactory.TextMuted, TextAnchor.MiddleLeft);
+            float advToggleH = UiFactory.LineHeight(26) + 16f; // タップしやすいよう少し高く
+            SetTopRect(advToggle.rectTransform, y, advToggleH);
+            // CreateText は既定でタップ透過のため、トグルとして自分でタップを受けるよう戻す
+            advToggle.raycastTarget = true;
+            var advButton = advToggle.gameObject.AddComponent<Button>();
+            advButton.transition = Selectable.Transition.None;
+            y -= advToggleH + 8f;
+            _closedContentH = -y + 24f;
+
+            // 展開部分 (Google 認証の中継サーバー)
+            var advGroup = UiFactory.CreatePanel(content, "AdvGroup");
+            UiFactory.StretchFull(advGroup);
+            _advGroup = advGroup.gameObject;
+            const string relayLabelText = "Google認証の中継サーバー URL (空欄で標準に戻る)";
+            var relayLabel = UiFactory.CreateText(advGroup, "RelayLabel", relayLabelText, 24,
+                UiFactory.TextMuted, TextAnchor.UpperLeft);
+            float relayLabelH = UiFactory.EstimateWrapLines(relayLabelText, 24, 900f)
+                * UiFactory.LineHeight(24);
+            SetTopRect(relayLabel.rectTransform, y, relayLabelH);
+            y -= relayLabelH + 8f;
+            _relayInput = UiFactory.CreateInputField(advGroup, "RelayInput",
+                AppConfig.DefaultGoogleRelayUrl, 24);
+            SetTopRect(_relayInput.GetComponent<RectTransform>(), y, 84f);
+            y -= 84f;
+            _openContentH = -y + 24f;
+
+            _advGroup.SetActive(false);
+            advButton.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Tap);
+                bool open = !_advGroup.activeSelf;
+                _advGroup.SetActive(open);
+                advToggle.text = (open ? "▾" : "▸") + " 高度な設定";
+                _content.sizeDelta = new Vector2(0f, open ? _openContentH : _closedContentH);
+            });
+
+            _content = content;
+            content.sizeDelta = new Vector2(0f, _closedContentH);
             var fontTabs = UiFactory.CreateSegmentTabs(fontBar,
                 new[] { "100%", "130%", "160%", "190%" }, 24);
             float[] scales = { 1f, 1.3f, 1.6f, 1.9f };
@@ -215,6 +261,7 @@ namespace YukaNavi.UI
 
         public override void OnShow()
         {
+            _relayInput.text = AppConfig.GoogleRelayUrl;
             // QR 読み取りから戻ってきた場合は読み取った URL を反映する
             if (!string.IsNullOrEmpty(QrScanScreen.LastScannedText))
             {
@@ -317,6 +364,7 @@ namespace YukaNavi.UI
             }
             AppConfig.ServerUrl = url;
             AppConfig.EasyPass = (_passInput.text ?? "").Trim();
+            AppConfig.GoogleRelayUrl = _relayInput.text;
             AppConfig.IsConfigured = true;
             AppState.Invalidate(); // capabilities を取り直す
             Se.Play(Se.Transition);

@@ -1,4 +1,5 @@
 using UnityEditor;
+using UnityEditor.Android;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
@@ -14,6 +15,8 @@ namespace YukaNavi.EditorTools
 
         const string AndroidIdentifier = "com.bee7813993.yukanavi";
         const string IconPath = "Assets/YukaNavi/Art/Icon/yukanavi_app_icon_1024.png";
+        const string AdaptiveFgPath = "Assets/YukaNavi/Art/Icon/yukanavi_icon_adaptive_fg.png";
+        const string AdaptiveBgPath = "Assets/YukaNavi/Art/Icon/yukanavi_icon_adaptive_bg.png";
 
         /// <summary>再生モード中のビルドは Unity に拒否されるため、分かりやすく案内して中断する。</summary>
         static bool CanBuild()
@@ -87,7 +90,32 @@ namespace YukaNavi.EditorTools
             {
                 PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
             }
+
+            // Android のアダプティブアイコン (Android 8+)。未設定だとランチャーが
+            // デフォルトアイコンを白枠の中に縮小表示してしまう。
+            // 前景はマスクで切られない中央 66.7% (表示保証領域) にキャラを収めた素材
+            var fg = AssetDatabase.LoadAssetAtPath<Texture2D>(AdaptiveFgPath);
+            var bg = AssetDatabase.LoadAssetAtPath<Texture2D>(AdaptiveBgPath);
+            if (icon != null && fg != null && bg != null)
+            {
+                SetAndroidIcons(AndroidPlatformIconKind.Adaptive, bg, fg); // [背景, 前景] の順
+                SetAndroidIcons(AndroidPlatformIconKind.Round, icon);
+                SetAndroidIcons(AndroidPlatformIconKind.Legacy, icon);
+            }
             AssetDatabase.SaveAssets();
+        }
+
+        static void SetAndroidIcons(PlatformIconKind kind, params Texture2D[] layers)
+        {
+            var icons = PlayerSettings.GetPlatformIcons(NamedBuildTarget.Android, kind);
+            foreach (var platformIcon in icons)
+            {
+                for (int i = 0; i < layers.Length && i < platformIcon.maxLayerCount; i++)
+                {
+                    platformIcon.SetTexture(layers[i], i);
+                }
+            }
+            PlayerSettings.SetPlatformIcons(NamedBuildTarget.Android, kind, icons);
         }
 
         static void Report(BuildReport report, string revealPath)

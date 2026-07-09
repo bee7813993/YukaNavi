@@ -143,7 +143,7 @@ namespace YukaNavi.UI
             }
             _rows.Clear();
             _statusText.text = "";
-            if (MypageService.IsLinked || MypageService.HasGoogleCarry)
+            if (MypageService.IsLinked)
             {
                 ShowLoading();
             }
@@ -151,25 +151,6 @@ namespace YukaNavi.UI
             var tab = _tab;
             try
             {
-                // 未リンクでも Google 同期を持ち歩いていれば、この部屋への自動リンクを試みる
-                if (!MypageService.IsLinked && MypageService.HasGoogleCarry)
-                {
-                    bool linked = await MypageService.TryGoogleAutoLinkAsync();
-                    if (serial != _reloadSerial)
-                    {
-                        return;
-                    }
-                    if (linked)
-                    {
-                        UpdateLinkButton();
-                        UiFactory.ShowToast("Google アカウントで同期を開始しました");
-                    }
-                    else if (!MypageService.HasGoogleCarry)
-                    {
-                        // 自動リンク中にトークン無効が判明して持ち歩きが破棄された
-                        UiFactory.ShowToast("Google の認証が切れています。連携をやり直してください", true);
-                    }
-                }
                 // お気に入り検索 (保存した検索条件) は曲とは別の行を出す
                 if (tab == Tab.Search)
                 {

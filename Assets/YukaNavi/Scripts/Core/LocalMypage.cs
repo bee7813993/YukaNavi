@@ -65,6 +65,11 @@ namespace YukaNavi.Core
 
         const int HistoryLimit = 500;
 
+        /// <summary>
+        /// データが変わって保存されたときに発火する (Google Drive への自動 push が購読する)。
+        /// </summary>
+        public static event System.Action Changed;
+
         static Store _store;
 
         static string FilePath
@@ -107,6 +112,7 @@ namespace YukaNavi.Core
             {
                 // 保存失敗はメモリ上のデータで動作継続
             }
+            Changed?.Invoke();
         }
 
         static long Now()
@@ -137,14 +143,19 @@ namespace YukaNavi.Core
                     Times = 1,
                     LastAt = Now(),
                 });
-                if (store.History.Count > HistoryLimit)
-                {
-                    // 最終予約日時が最も古いものから削る
-                    store.History.Sort((a, b) => a.LastAt.CompareTo(b.LastAt));
-                    store.History.RemoveRange(0, store.History.Count - HistoryLimit);
-                }
+                TrimHistory(store);
             }
             Save();
+        }
+
+        static void TrimHistory(Store store)
+        {
+            if (store.History.Count > HistoryLimit)
+            {
+                // 最終予約日時が最も古いものから削る
+                store.History.Sort((a, b) => a.LastAt.CompareTo(b.LastAt));
+                store.History.RemoveRange(0, store.History.Count - HistoryLimit);
+            }
         }
 
         /// <summary>履歴 (最終予約日時の新しい順)。</summary>
@@ -239,6 +250,67 @@ namespace YukaNavi.Core
             }
             Save();
             return added;
+        }
+
+        // ---- Google Drive からの統合 (MypageService が使う) ----
+
+        /// <summary>履歴を統合する。同じ曲は回数・最終日時の大きい方を採る。</summary>
+        public static void MergeHistory(List<Item> items)
+        {
+            var store = GetStore();
+            foreach (var incoming in items)
+            {
+                var item = store.History.Find(i => i.FullPath == incoming.FullPath);
+                if (item == null)
+                {
+                    store.History.Add(incoming);
+                }
+                else
+                {
+                    item.Times = System.Math.Max(item.Times, incoming.Times);
+                    item.LastAt = System.Math.Max(item.LastAt, incoming.LastAt);
+                }
+            }
+            TrimHistory(store);
+            Save();
+        }
+
+        /// <summary>あとで歌うに統合する (既にある曲は追加しない)。</summary>
+        public static void MergeLater(List<Item> items)
+        {
+            MergeSongs(GetStore().Later, items);
+        }
+
+        /// <summary>お気に入り曲に統合する (既にある曲は追加しない)。</summary>
+        public static void MergeFavorite(List<Item> items)
+        {
+            MergeSongs(GetStore().Favorite, items);
+        }
+
+        static void MergeSongs(List<Item> list, List<Item> items)
+        {
+            foreach (var incoming in items)
+            {
+                if (!list.Exists(i => i.FullPath == incoming.FullPath))
+                {
+                    list.Add(incoming);
+                }
+            }
+            Save();
+        }
+
+        /// <summary>保存した検索に統合する (同じ条件は追加しない)。</summary>
+        public static void MergeSavedSearches(List<SavedSearch> items)
+        {
+            var store = GetStore();
+            foreach (var incoming in items)
+            {
+                if (!store.Searches.Exists(s => s.SameCondition(incoming)))
+                {
+                    store.Searches.Add(incoming);
+                }
+            }
+            Save();
         }
 
         // ---- サーバー同期用のミラー置き換え (MypageService が使う) ----

@@ -493,39 +493,6 @@ namespace YukaNavi.Api
             return PostApiAsync<object>("api/mypage.php", form);
         }
 
-        /// <summary>Google 連携状態。</summary>
-        public Task<MypageGoogleStatusDto> MypageGoogleStatusAsync(string userid)
-            => GetApiAsync<MypageGoogleStatusDto>(
-                "api/mypage.php?action=google_status&userid=" + Esc(userid));
-
-        /// <summary>Google Drive と同期する。direction は "to_drive" / "from_drive"。</summary>
-        public Task<MypageGoogleSyncDto> MypageGoogleSyncAsync(string userid, string direction)
-            => GetApiAsync<MypageGoogleSyncDto>(
-                "api/mypage.php?action=google_sync&userid=" + Esc(userid)
-                + "&direction=" + Esc(direction));
-
-        /// <summary>Google トークン一式の取得 (同期の持ち歩き用)。未連携は 404。</summary>
-        public Task<MypageGoogleTokenDto> MypageGoogleTokenGetAsync(string userid)
-            => GetApiAsync<MypageGoogleTokenDto>(
-                "api/mypage.php?action=google_token_get&userid=" + Esc(userid));
-
-        /// <summary>
-        /// 持ち歩きトークンでこの部屋に Google ユーザーを用意し、Drive から復元する。
-        /// Google 同期未設定の部屋は 503、トークン無効は 401。
-        /// </summary>
-        public Task<MypageGoogleRegisterDto> MypageGoogleRegisterAsync(MypageGoogleTokenDto token)
-        {
-            var form = new UnityEngine.WWWForm();
-            form.AddField("action", "google_register");
-            form.AddField("google_sub", token.GoogleSub ?? "");
-            form.AddField("google_email", token.GoogleEmail ?? "");
-            form.AddField("access_token", token.AccessToken ?? "");
-            form.AddField("refresh_token", token.RefreshToken ?? "");
-            form.AddField("token_expires_at", token.TokenExpiresAt.ToString());
-            form.AddField("client_id", token.ClientId ?? "");
-            return PostApiAsync<MypageGoogleRegisterDto>("api/mypage.php", form);
-        }
-
         /// <summary>予約1件の再生状況変更 (「未再生」「再生済」等。/api/playstatus.php)。</summary>
         public async Task SetPlayStatusAsync(int id, string nowplaying)
         {
