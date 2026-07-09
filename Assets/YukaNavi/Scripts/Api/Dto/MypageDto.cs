@@ -54,40 +54,4 @@ namespace YukaNavi.Api
         [JsonProperty("added_at")] public long AddedAt;
     }
 
-    /// <summary>action=google_status の data。</summary>
-    public class MypageGoogleStatusDto
-    {
-        [JsonProperty("linked")] public bool Linked;
-        [JsonProperty("email")] public string Email;
-        [JsonProperty("auto_sync")] public bool AutoSync;
-        [JsonProperty("last_synced_at")] public long LastSyncedAt;
-    }
-
-    /// <summary>action=google_sync の data。</summary>
-    public class MypageGoogleSyncDto
-    {
-        [JsonProperty("synced")] public bool Synced;
-        [JsonProperty("direction")] public string Direction;
-    }
-
-    /// <summary>action=google_token_get の data (同期の持ち歩き用トークン一式)。</summary>
-    public class MypageGoogleTokenDto
-    {
-        [JsonProperty("google_sub")] public string GoogleSub;
-        [JsonProperty("google_email")] public string GoogleEmail;
-        [JsonProperty("access_token")] public string AccessToken;
-        [JsonProperty("refresh_token")] public string RefreshToken;
-        [JsonProperty("token_expires_at")] public long TokenExpiresAt;
-        /// <summary>発行元のクライアント ID (別設定の部屋を見分けるため)</summary>
-        [JsonProperty("client_id")] public string ClientId;
-    }
-
-    /// <summary>action=google_register の data。</summary>
-    public class MypageGoogleRegisterDto
-    {
-        [JsonProperty("userid")] public string UserId;
-        [JsonProperty("access_token")] public string AccessToken;
-        [JsonProperty("token_expires_at")] public long TokenExpiresAt;
-        [JsonProperty("refreshed")] public bool Refreshed;
-    }
 }

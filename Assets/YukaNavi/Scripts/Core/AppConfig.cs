@@ -12,6 +12,7 @@ namespace YukaNavi.Core
         const string KeyUsername = "yukanavi.username";
         const string KeySkinId = "yukanavi.skin_id";
         const string KeyMypageUserId = "yukanavi.mypage_userid";
+        const string KeyGoogleRelayUrl = "yukanavi.google_relay_url";
 
         /// <summary>
         /// 既定の接続先。Android 実機は localhost に繋がらないため試験サーバーを使う。
@@ -54,6 +55,23 @@ namespace YukaNavi.Core
         {
             get { return PlayerPrefs.GetString(KeySkinId, ""); }
             set { PlayerPrefs.SetString(KeySkinId, value); PlayerPrefs.Save(); }
+        }
+
+        /// <summary>既定の Google 認証中継サーバー (relay)。</summary>
+        public const string DefaultGoogleRelayUrl = "https://ykr.moe/mypage_google_callback.php";
+
+        /// <summary>
+        /// Google 認証の中継サーバー URL (高度な設定。通常は変更不要)。
+        /// 空を保存すると既定に戻る。自前の relay を立てる場合だけ差し替える。
+        /// </summary>
+        public static string GoogleRelayUrl
+        {
+            get
+            {
+                string url = PlayerPrefs.GetString(KeyGoogleRelayUrl, "").Trim();
+                return url == "" ? DefaultGoogleRelayUrl : url;
+            }
+            set { PlayerPrefs.SetString(KeyGoogleRelayUrl, (value ?? "").Trim()); PlayerPrefs.Save(); }
         }
 
         /// <summary>接続設定を一度でも保存したか (false なら初回起動 → 接続設定画面から始める)。</summary>

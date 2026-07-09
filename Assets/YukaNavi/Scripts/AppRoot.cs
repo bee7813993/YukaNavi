@@ -113,6 +113,10 @@ namespace YukaNavi
             // トースト (操作結果の通知) の親。生成時に最後の子になるので常に最前面
             UiFactory.ToastRoot = canvasGo.transform;
 
+            // マイページの Google Drive 自動同期 (ログイン済みなら起動時に取り込む)
+            PlayerPrefs.DeleteKey("yukanavi.google_carry"); // 旧・持ち歩きトークンの掃除
+            MypageService.StartGoogleSync();
+
             if (AppConfig.IsConfigured)
             {
                 _screens.ShowAsRoot<HomeScreen>();

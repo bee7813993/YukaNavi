@@ -5,23 +5,23 @@ using YukaNavi.Core;
 namespace YukaNavi.UI
 {
     /// <summary>
-    /// マイページのサーバー連携 (デバイスリンク) 画面。
-    /// Web 版のマイページ > デバイスリンクで発行した6文字コードを入力すると、
-    /// このサーバーで Web 版と同じユーザーになり、以降マイページが同期される。
-    /// リンク済みのときは Google 連携の状態表示と「今すぐ同期」も行える。
+    /// マイページのサーバー連携画面。2つの独立した連携を扱う:
+    /// - デバイスリンク: Web 版の マイページ > デバイスリンク で発行した6文字コードを
+    ///   入力すると、このサーバーで Web 版と同じユーザーになり、以降マイページが同期される
+    /// - Google 同期: アプリが直接 Google にログインし、マイページを Google Drive に
+    ///   自動保存する (部屋と無関係にどこでも同じデータを使える)
     /// </summary>
     public class MypageLinkScreen : ScreenBase
     {
         InputField _codeInput;
         Button _linkButton;
-        Button _googleLinkButton;
         Text _stateText;
         GameObject _linkedGroup;
         GameObject _unlinkedGroup;
-        Text _googleText;
-        Button _carryButton;
-        Text _carryButtonLabel;
-        int _refreshSerial;
+        GameObject _googleOutGroup;  // Google: 未ログイン
+        GameObject _googleBusyGroup; // Google: ブラウザ認証待ち
+        GameObject _googleInGroup;   // Google: ログイン済み
+        Text _googleInfoText;
 
         public override void BuildUi()
         {
@@ -31,9 +31,8 @@ namespace YukaNavi.UI
             UiFactory.CreateTopBar(transform, "サーバー連携");
 
             float y = 130f;
-            float labelH = UiFactory.LineHeight(26);
 
-            // 現在の状態
+            // 現在の状態 (デバイスリンク)
             _stateText = UiFactory.CreateText(transform, "State", "", 28, UiFactory.PrimaryDark);
             SetRow(_stateText.rectTransform, y, UiFactory.LineHeight(28));
             y += UiFactory.LineHeight(28) + 20f;
@@ -73,15 +72,7 @@ namespace YukaNavi.UI
             UiFactory.OnSubmit(_codeInput, () => _ = LinkAsync());
             uy += 96f + 32f;
 
-            // Google 同期を持ち歩いているときは、コード入力なしで連携できるボタンを出す
-            _googleLinkButton = UiFactory.CreateButton(unlinked, "GoogleLink",
-                "Google 同期で連携する", UiFactory.PrimaryDark, Color.white, 28);
-            UiFactory.FitLabelOneLine(_googleLinkButton.GetComponentInChildren<Text>());
-            SetRow(_googleLinkButton.GetComponent<RectTransform>(), uy, 84f);
-            _googleLinkButton.onClick.AddListener(() => _ = GoogleLinkAsync());
-            _googleLinkButton.gameObject.SetActive(false);
-
-            // ---- リンク済み時: 説明 + Google 連携 + 解除 ----
+            // ---- リンク済み時: 説明 + 解除 ----
             var linked = UiFactory.CreatePanel(transform, "Linked");
             UiFactory.StretchFull(linked);
             _linkedGroup = linked.gameObject;
@@ -94,60 +85,6 @@ namespace YukaNavi.UI
                 UiFactory.TextDark, TextAnchor.UpperLeft);
             SetRow(linkedText.rectTransform, ly, lg);
             ly += lg + 32f;
-
-            // Google 連携 (状態は OnShow で取得)
-            var googleLabel = UiFactory.CreateText(linked, "GoogleLabel", "Google同期", 30,
-                UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
-            SetRow(googleLabel.rectTransform, ly, UiFactory.LineHeight(30));
-            ly += UiFactory.LineHeight(30) + 4f;
-
-            _googleText = UiFactory.CreateText(linked, "GoogleState", "確認中...", 26,
-                UiFactory.TextMuted, TextAnchor.UpperLeft);
-            float gh = UiFactory.LineHeight(26) * 2f;
-            SetRow(_googleText.rectTransform, ly, gh);
-            ly += gh + 12f;
-
-            // Google 操作ボタン行 (連携ページを開く / Driveへ保存 / Driveから取込)
-            var googleBar = UiFactory.CreatePanel(linked, "GoogleButtons");
-            float rowH = Mathf.Max(84f, UiFactory.LineHeight(26) + 24f);
-            SetRow(googleBar, ly, rowH);
-            var googleLayout = googleBar.gameObject.AddComponent<HorizontalLayoutGroup>();
-            googleLayout.childForceExpandWidth = true;
-            googleLayout.childForceExpandHeight = true;
-            googleLayout.spacing = 10f;
-            ly += rowH + 24f;
-
-            var openButton = UiFactory.CreateButton(googleBar, "OpenGoogle", "連携ページを開く",
-                UiFactory.PrimaryDark, Color.white, 24);
-            UiFactory.FitLabelOneLine(openButton.GetComponentInChildren<Text>());
-            openButton.onClick.AddListener(OpenGooglePage);
-
-            var pushButton = UiFactory.CreateButton(googleBar, "SyncPush", "Driveへ保存",
-                UiFactory.Primary, Color.white, 24);
-            UiFactory.FitLabelOneLine(pushButton.GetComponentInChildren<Text>());
-            pushButton.onClick.AddListener(() => _ = GoogleSyncAsync("to_drive"));
-
-            var pullButton = UiFactory.CreateButton(googleBar, "SyncPull", "Driveから取込",
-                UiFactory.Primary, Color.white, 24);
-            UiFactory.FitLabelOneLine(pullButton.GetComponentInChildren<Text>());
-            pullButton.onClick.AddListener(() => _ = GoogleSyncAsync("from_drive"));
-
-            // 持ち歩き (別の部屋に接続したとき Google アカウントで自動的に同期を引き継ぐ)
-            const string carryGuide = "同期の持ち歩き: オンにすると、別の部屋に接続したとき"
-                + "Google アカウントで自動的にマイページを引き継ぎます。";
-            float cgH = UiFactory.EstimateWrapLines(carryGuide, 24, 900f) * UiFactory.LineHeight(24);
-            var carryText = UiFactory.CreateText(linked, "CarryGuide", carryGuide, 24,
-                UiFactory.TextMuted, TextAnchor.UpperLeft);
-            SetRow(carryText.rectTransform, ly, cgH);
-            ly += cgH + 8f;
-
-            _carryButton = UiFactory.CreateButton(linked, "Carry", "", UiFactory.PrimaryPale,
-                UiFactory.Primary, 26);
-            _carryButtonLabel = _carryButton.GetComponentInChildren<Text>();
-            UiFactory.FitLabelOneLine(_carryButtonLabel);
-            SetRow(_carryButton.GetComponent<RectTransform>(), ly, 84f);
-            _carryButton.onClick.AddListener(() => _ = ToggleCarryAsync());
-            ly += 84f + 48f;
 
             // リンク解除 (2度押し確認)
             var unlinkButton = UiFactory.CreateButton(linked, "Unlink", "連携を解除する",
@@ -169,6 +106,95 @@ namespace YukaNavi.UI
                 UiFactory.ShowToast("連携を解除しました (端末内のデータはそのまま使えます)");
                 armed = false;
                 unlinkLabel.text = "連携を解除する";
+                UpdateState();
+            });
+            ly += 84f + 32f;
+
+            // ---- Google 同期 (部屋と無関係の共通セクション。どちらのグループでも下に出る) ----
+            float gy = Mathf.Max(uy, ly) + 40f;
+
+            var googleLabel = UiFactory.CreateText(transform, "GoogleLabel", "Google 同期", 30,
+                UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
+            SetRow(googleLabel.rectTransform, gy, UiFactory.LineHeight(30));
+            gy += UiFactory.LineHeight(30) + 4f;
+
+            const string googleGuide = "Google にログインすると、マイページを Google Drive に"
+                + "自動保存し、どの部屋でも同じデータを使えます (Web版のGoogle連携と共通)。";
+            float ggH = UiFactory.EstimateWrapLines(googleGuide, 24, 900f) * UiFactory.LineHeight(24);
+            var googleGuideText = UiFactory.CreateText(transform, "GoogleGuide", googleGuide, 24,
+                UiFactory.TextMuted, TextAnchor.UpperLeft);
+            SetRow(googleGuideText.rectTransform, gy, ggH);
+            gy += ggH + 16f;
+
+            // 未ログイン: ログインボタン
+            var gOut = UiFactory.CreatePanel(transform, "GoogleOut");
+            UiFactory.StretchFull(gOut);
+            _googleOutGroup = gOut.gameObject;
+            var loginButton = UiFactory.CreateButton(gOut, "GoogleLogin", "Google にログイン",
+                UiFactory.PrimaryDark, Color.white, 30);
+            UiFactory.FitLabelOneLine(loginButton.GetComponentInChildren<Text>());
+            SetRow(loginButton.GetComponent<RectTransform>(), gy, 96f);
+            loginButton.onClick.AddListener(() => _ = GoogleLoginAsync());
+
+            // 認証待ち: 案内 + 中止
+            var gBusy = UiFactory.CreatePanel(transform, "GoogleBusy");
+            UiFactory.StretchFull(gBusy);
+            _googleBusyGroup = gBusy.gameObject;
+            float by = gy;
+            const string busyGuide = "ブラウザで Google の認証を進めてください...";
+            float bh = UiFactory.EstimateWrapLines(busyGuide, 26, 900f) * UiFactory.LineHeight(26);
+            var busyText = UiFactory.CreateText(gBusy, "BusyGuide", busyGuide, 26,
+                UiFactory.TextDark, TextAnchor.MiddleLeft);
+            SetRow(busyText.rectTransform, by, bh);
+            by += bh + 12f;
+            var cancelButton = UiFactory.CreateButton(gBusy, "Cancel", "中止する",
+                UiFactory.PrimaryPale, UiFactory.Primary, 26);
+            SetRow(cancelButton.GetComponent<RectTransform>(), by, 84f);
+            cancelButton.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Tap);
+                GoogleAccount.CancelLogin();
+            });
+
+            // ログイン済み: アカウント情報 + 手動同期 + ログアウト
+            var gIn = UiFactory.CreatePanel(transform, "GoogleIn");
+            UiFactory.StretchFull(gIn);
+            _googleInGroup = gIn.gameObject;
+            float iy = gy;
+            _googleInfoText = UiFactory.CreateText(gIn, "GoogleInfo", "", 26,
+                UiFactory.TextDark, TextAnchor.UpperLeft);
+            float ih = UiFactory.LineHeight(26) * 2f;
+            SetRow(_googleInfoText.rectTransform, iy, ih);
+            iy += ih + 12f;
+
+            // 手動同期 (通常は自動で同期される。任意のタイミングで揃えたいとき用)
+            var syncBar = UiFactory.CreatePanel(gIn, "SyncButtons");
+            float rowH = Mathf.Max(84f, UiFactory.LineHeight(26) + 24f);
+            SetRow(syncBar, iy, rowH);
+            var syncLayout = syncBar.gameObject.AddComponent<HorizontalLayoutGroup>();
+            syncLayout.childForceExpandWidth = true;
+            syncLayout.childForceExpandHeight = true;
+            syncLayout.spacing = 10f;
+            iy += rowH + 16f;
+
+            var pushButton = UiFactory.CreateButton(syncBar, "SyncPush", "Driveへ保存",
+                UiFactory.Primary, Color.white, 24);
+            UiFactory.FitLabelOneLine(pushButton.GetComponentInChildren<Text>());
+            pushButton.onClick.AddListener(() => _ = GoogleSyncAsync(true));
+
+            var pullButton = UiFactory.CreateButton(syncBar, "SyncPull", "Driveから取込",
+                UiFactory.Primary, Color.white, 24);
+            UiFactory.FitLabelOneLine(pullButton.GetComponentInChildren<Text>());
+            pullButton.onClick.AddListener(() => _ = GoogleSyncAsync(false));
+
+            var logoutButton = UiFactory.CreateButton(gIn, "GoogleLogout", "ログアウト",
+                UiFactory.PrimaryPale, UiFactory.Primary, 26);
+            SetRow(logoutButton.GetComponent<RectTransform>(), iy, 84f);
+            logoutButton.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Tap);
+                GoogleAccount.Logout();
+                UiFactory.ShowToast("ログアウトしました (Drive 上のデータはそのまま残ります)");
                 UpdateState();
             });
 
@@ -199,76 +225,21 @@ namespace YukaNavi.UI
             _stateText.color = linked ? UiFactory.Primary : UiFactory.TextMuted;
             _unlinkedGroup.SetActive(!linked);
             _linkedGroup.SetActive(linked);
-            if (!linked)
-            {
-                _googleLinkButton.gameObject.SetActive(MypageService.HasGoogleCarry);
-            }
-            UpdateCarryButton();
-            if (linked)
-            {
-                _ = RefreshGoogleAsync();
-            }
-        }
 
-        /// <summary>持ち歩き中の Google 同期でこの部屋と連携する (自動リンク拒否も解除)。</summary>
-        async System.Threading.Tasks.Task GoogleLinkAsync()
-        {
-            Se.Play(Se.Tap);
-            ShowLoading("連携中...");
-            bool linked = await MypageService.GoogleLinkNowAsync();
-            HideLoading();
-            if (linked)
+            bool busy = GoogleAccount.IsLoginInProgress;
+            bool loggedIn = GoogleAccount.IsLoggedIn;
+            _googleOutGroup.SetActive(!busy && !loggedIn);
+            _googleBusyGroup.SetActive(busy);
+            _googleInGroup.SetActive(!busy && loggedIn);
+            if (!busy && loggedIn)
             {
-                Se.Play(Se.Confirm);
-                UiFactory.ShowToast("Google アカウントで連携しました");
-                UpdateState();
+                long at = MypageService.LastDriveSyncAt;
+                string last = at > 0
+                    ? System.DateTimeOffset.FromUnixTimeSeconds(at)
+                        .ToLocalTime().ToString("M/d HH:mm")
+                    : "未同期";
+                _googleInfoText.text = "ログイン中: " + GoogleAccount.Email + "\n最終同期: " + last;
             }
-            else
-            {
-                Se.Play(Se.Error);
-                string message = !string.IsNullOrEmpty(MypageService.LastAutoLinkError)
-                    ? "連携できませんでした: " + MypageService.LastAutoLinkError
-                    : (MypageService.HasGoogleCarry
-                        ? "連携できませんでした (この部屋は Google 同期が未設定かもしれません)"
-                        : "Google の認証が切れています。連携をやり直してください");
-                UiFactory.ShowToast(message, true);
-                UpdateState();
-            }
-        }
-
-        void UpdateCarryButton()
-        {
-            bool carrying = MypageService.HasGoogleCarry;
-            _carryButtonLabel.text = carrying
-                ? "✓ 持ち歩き中 (" + MypageService.GoogleCarryEmail + ") - タップでやめる"
-                : "同期の持ち歩きを開始する";
-            _carryButton.image.color = carrying ? UiFactory.Primary : UiFactory.PrimaryPale;
-            _carryButtonLabel.color = carrying ? Color.white : UiFactory.Primary;
-        }
-
-        /// <summary>持ち歩きの開始 (トークン取得) / 停止 (端末から破棄)。</summary>
-        async System.Threading.Tasks.Task ToggleCarryAsync()
-        {
-            Se.Play(Se.Tap);
-            if (MypageService.HasGoogleCarry)
-            {
-                MypageService.ClearGoogleCarry();
-                UiFactory.ShowToast("同期の持ち歩きをやめました (この端末からトークンを消しました)");
-                UpdateCarryButton();
-                return;
-            }
-            bool ok = await MypageService.FetchGoogleCarryAsync();
-            if (ok)
-            {
-                Se.Play(Se.Confirm);
-                UiFactory.ShowToast("同期の持ち歩きを開始しました。別の部屋でも自動で引き継がれます");
-            }
-            else
-            {
-                Se.Play(Se.Error);
-                UiFactory.ShowToast("先にこの部屋で Google 連携を済ませてください", true);
-            }
-            UpdateCarryButton();
         }
 
         async System.Threading.Tasks.Task LinkAsync()
@@ -304,75 +275,97 @@ namespace YukaNavi.UI
             }
         }
 
-        async System.Threading.Tasks.Task RefreshGoogleAsync()
+        /// <summary>
+        /// Google ログイン。ブラウザを開いて認証完了をポーリングで待ち、
+        /// 成功したら Drive と双方向に同期する (取込 → 保存)。
+        /// </summary>
+        async System.Threading.Tasks.Task GoogleLoginAsync()
         {
-            int serial = ++_refreshSerial;
-            _googleText.text = "確認中...";
-            try
+            Se.Play(Se.Tap);
+            var login = GoogleAccount.LoginAsync();
+            UpdateState(); // 認証待ち表示へ
+            bool ok = await login;
+            if (this == null)
             {
-                var status = await AppConfig.CreateClient()
-                    .MypageGoogleStatusAsync(AppConfig.LinkedMypageUserId);
-                if (serial != _refreshSerial)
+                return; // 画面が作り直された (状態は次の表示で反映される)
+            }
+            if (!ok)
+            {
+                if (!string.IsNullOrEmpty(GoogleAccount.LastLoginError))
                 {
-                    return;
-                }
-                if (!status.Linked)
-                {
-                    _googleText.text = "未連携です。「連携ページを開く」からWeb版で認証すると、"
-                        + "マイページを Google Drive に保存して別の部屋でも復元できます。";
+                    Se.Play(Se.Error);
+                    UiFactory.ShowToast(GoogleAccount.LastLoginError, true);
                 }
                 else
                 {
-                    string last = status.LastSyncedAt > 0
-                        ? System.DateTimeOffset.FromUnixTimeSeconds(status.LastSyncedAt)
-                            .ToLocalTime().ToString("M/d HH:mm")
-                        : "未同期";
-                    _googleText.text = "連携中: " + status.Email + "\n最終同期: " + last
-                        + (status.AutoSync ? " (自動同期オン)" : "");
+                    UiFactory.ShowToast("ログインを中止しました");
                 }
+                UpdateState();
+                return;
+            }
+            Se.Play(Se.Confirm);
+            UiFactory.ShowToast("Google にログインしました: " + GoogleAccount.Email);
+            UpdateState();
+
+            // 初回同期: Drive の内容を取り込み、端末の内容も Drive へ反映する
+            ShowLoading("Drive と同期中...");
+            try
+            {
+                await MypageService.PullFromDriveAsync(false);
+                await MypageService.PushToDriveAsync();
+                if (this == null)
+                {
+                    return;
+                }
+                UiFactory.ShowToast("Google Drive と同期しました");
             }
             catch (System.Exception e)
             {
-                if (serial == _refreshSerial)
+                if (this == null)
                 {
-                    _googleText.text = "状態の取得に失敗: " + e.Message;
+                    return;
                 }
+                UiFactory.ShowToast("同期に失敗: " + e.Message, true);
             }
+            HideLoading();
+            UpdateState();
         }
 
-        /// <summary>Web 版の Google 連携ページをブラウザで開く (認証は Web 側で行う)。</summary>
-        void OpenGooglePage()
-        {
-            Se.Play(Se.Tap);
-            string url = AppConfig.ServerUrl.TrimEnd('/') + "/mypage_google_sync.php";
-            if (!string.IsNullOrEmpty(AppConfig.EasyPass))
-            {
-                url += "?easypass=" + System.Uri.EscapeDataString(AppConfig.EasyPass);
-            }
-            Application.OpenURL(url);
-        }
-
-        async System.Threading.Tasks.Task GoogleSyncAsync(string direction)
+        async System.Threading.Tasks.Task GoogleSyncAsync(bool toDrive)
         {
             Se.Play(Se.Tap);
             ShowLoading("同期中...");
             try
             {
-                await AppConfig.CreateClient()
-                    .MypageGoogleSyncAsync(AppConfig.LinkedMypageUserId, direction);
+                if (toDrive)
+                {
+                    await MypageService.PushToDriveAsync();
+                }
+                else
+                {
+                    await MypageService.PullFromDriveAsync(false);
+                }
+                if (this == null)
+                {
+                    return;
+                }
                 HideLoading();
                 Se.Play(Se.Confirm);
-                UiFactory.ShowToast(direction == "to_drive"
+                UiFactory.ShowToast(toDrive
                     ? "Google Drive に保存しました"
                     : "Google Drive から取り込みました");
-                _ = RefreshGoogleAsync();
             }
             catch (System.Exception e)
             {
+                if (this == null)
+                {
+                    return;
+                }
                 HideLoading();
                 UiFactory.ShowToast("同期に失敗: " + e.Message, true);
                 Se.Play(Se.Error);
             }
+            UpdateState(); // 最終同期時刻や認証切れログアウトの反映
         }
     }
 }

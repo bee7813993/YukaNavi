@@ -15,6 +15,7 @@ namespace YukaNavi.UI
     {
         InputField _urlInput;
         InputField _passInput;
+        InputField _relayInput;
         Text _resultText;
         Button _saveButton;
         bool _tested;
@@ -155,6 +156,24 @@ namespace YukaNavi.UI
             y -= labelH + 8f;
             var fontBar = UiFactory.CreatePanel(content, "FontTabs");
             SetTopRect(fontBar, y, 84f);
+            y -= 84f + 44f;
+
+            // 高度な設定 (通常は変更不要)
+            var advLabel = UiFactory.CreateText(content, "AdvLabel", "高度な設定", 26,
+                UiFactory.TextMuted, TextAnchor.MiddleLeft);
+            SetTopRect(advLabel.rectTransform, y, UiFactory.LineHeight(26));
+            y -= UiFactory.LineHeight(26) + 8f;
+
+            const string relayLabelText = "Google認証の中継サーバー URL (空欄で標準に戻る)";
+            var relayLabel = UiFactory.CreateText(content, "RelayLabel", relayLabelText, 24,
+                UiFactory.TextMuted, TextAnchor.UpperLeft);
+            float relayLabelH = UiFactory.EstimateWrapLines(relayLabelText, 24, 900f)
+                * UiFactory.LineHeight(24);
+            SetTopRect(relayLabel.rectTransform, y, relayLabelH);
+            y -= relayLabelH + 8f;
+            _relayInput = UiFactory.CreateInputField(content, "RelayInput",
+                AppConfig.DefaultGoogleRelayUrl, 24);
+            SetTopRect(_relayInput.GetComponent<RectTransform>(), y, 84f);
             y -= 84f + 28f;
 
             // アプリバージョン (ProjectSettings の bundleVersion)
@@ -215,6 +234,7 @@ namespace YukaNavi.UI
 
         public override void OnShow()
         {
+            _relayInput.text = AppConfig.GoogleRelayUrl;
             // QR 読み取りから戻ってきた場合は読み取った URL を反映する
             if (!string.IsNullOrEmpty(QrScanScreen.LastScannedText))
             {
@@ -317,6 +337,7 @@ namespace YukaNavi.UI
             }
             AppConfig.ServerUrl = url;
             AppConfig.EasyPass = (_passInput.text ?? "").Trim();
+            AppConfig.GoogleRelayUrl = _relayInput.text;
             AppConfig.IsConfigured = true;
             AppState.Invalidate(); // capabilities を取り直す
             Se.Play(Se.Transition);
