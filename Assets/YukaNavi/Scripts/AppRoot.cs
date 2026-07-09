@@ -126,18 +126,27 @@ namespace YukaNavi
                 _screens.ShowAsRoot<ConnectScreen>();
             }
 
-            // 起動スプラッシュ (最前面。スキンに splash.png があればそれ、なければ標準)
-            ShowSplash(canvasGo.transform);
+            // 起動タイトル (最前面。背景はスキンの splash.png、なければ標準)
+            ShowTitle(canvasGo.transform);
 
             // 共有メニュー経由で起動された場合は URL リクエスト画面を開く
             HandleSharedUrl();
         }
 
+        GameObject _titleGo;
+        Button _titleGoogleButton;
+        Text _titleGoogleLabel;
+        GameObject _titleStatusPanel;
+        Text _titleStatusText;
+
         /// <summary>
-        /// アプリ内スプラッシュ。しばらく表示してフェードアウトする。
-        /// スキンフォルダに splash.png を置くときせかえで差し替えられる。
+        /// 起動タイトル画面。splash 画像を背景に「Touch To Start」(点滅) を表示し、
+        /// 画面のどこをタップしても進む (Google ボタンなど個別 UI はそちらが優先)。
+        /// 下部に Google 同期の状態を表示し、未ログインなら任意のログイン導線を出す
+        /// (タップだけで進める。選択の強制はしない)。
+        /// スキンフォルダに splash.png を置くときせかえで背景を差し替えられる。
         /// </summary>
-        void ShowSplash(Transform canvas)
+        void ShowTitle(Transform canvas)
         {
             Sprite sprite = null;
             var skinTex = SkinManager.LoadTexture(SkinManager.Current(), "splash.png");
@@ -155,10 +164,11 @@ namespace YukaNavi
                 return;
             }
 
-            var go = new GameObject("Splash");
+            var go = new GameObject("Title");
             go.transform.SetParent(canvas, false);
+            _titleGo = go;
             var bg = go.AddComponent<Image>();
-            bg.color = Color.white; // 画像が画面比と合わないときの下地
+            bg.color = Color.white; // 画像が画面比と合わないときの下地 + 下の画面への誤タップ防止
             UiFactory.StretchFull(bg.rectTransform);
 
             var imgGo = new GameObject("Image");
@@ -171,27 +181,173 @@ namespace YukaNavi
             fitter.aspectRatio = sprite.rect.width / sprite.rect.height;
             fitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
 
-            StartCoroutine(SplashRoutine(go, sprite, skinTex));
+            // ---- 下部 UI (セーフエリアの上に積む) ----
+            float statusH = Mathf.Max(84f, UiFactory.LineHeight(26) + 24f);
+            float statusBottom = UiFactory.SafeBottom + 60f;
+
+            // 状態行 1: 未ログイン/認証待ちのボタン (認証待ち中はタップで中止)
+            _titleGoogleButton = UiFactory.CreateButton(go.transform, "GoogleLogin", "",
+                UiFactory.PrimaryPale, UiFactory.Primary, 26);
+            _titleGoogleLabel = _titleGoogleButton.GetComponentInChildren<Text>();
+            UiFactory.FitLabelOneLine(_titleGoogleLabel);
+            SetTitleRow(_titleGoogleButton.GetComponent<RectTransform>(), statusBottom, statusH, 720f);
+            _titleGoogleButton.onClick.AddListener(() =>
+            {
+                if (GoogleAccount.IsLoginInProgress)
+                {
+                    Se.Play(Se.Tap);
+                    GoogleAccount.CancelLogin();
+                    return;
+                }
+                _ = TitleLoginAsync();
+            });
+
+            // 状態行 2: ログイン済みの表示 (半透明の白帯 + テキスト。タップは背面の開始判定へ通す)
+            var statusPanel = UiFactory.CreatePanel(go.transform, "GoogleStatus",
+                new Color(1f, 1f, 1f, 0.8f));
+            _titleStatusPanel = statusPanel.gameObject;
+            SetTitleRow(statusPanel, statusBottom, statusH, 720f);
+            statusPanel.GetComponent<Image>().raycastTarget = false;
+            _titleStatusText = UiFactory.CreateText(statusPanel, "Text", "", 24,
+                UiFactory.TextDark);
+            UiFactory.StretchFull(_titleStatusText.rectTransform);
+            UiFactory.FitLabelOneLine(_titleStatusText);
+            _titleStatusText.raycastTarget = false;
+
+            // 画面のどこをタップしても進む (最奥の下地がタップを受ける)
+            bool closing = false;
+            var startButton = bg.gameObject.AddComponent<Button>();
+            startButton.transition = Selectable.Transition.None;
+            startButton.onClick.AddListener(() =>
+            {
+                if (closing)
+                {
+                    return;
+                }
+                closing = true;
+                Se.Play(Se.Transition);
+                StartCoroutine(TitleFadeRoutine(go, sprite, skinTex));
+            });
+
+            // Touch To Start (点滅)
+            var touchText = UiFactory.CreateText(go.transform, "TouchToStart",
+                "Touch To Start", 46, Color.white);
+            touchText.fontStyle = FontStyle.Bold;
+            touchText.raycastTarget = false;
+            var outline = touchText.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0f, 0f, 0f, 0.8f);
+            outline.effectDistance = new Vector2(3f, -3f);
+            var touchRect = touchText.rectTransform;
+            touchRect.anchorMin = touchRect.anchorMax = new Vector2(0.5f, 0.5f);
+            touchRect.pivot = new Vector2(0.5f, 0.5f);
+            touchRect.anchoredPosition = new Vector2(0f, -40f);
+            touchRect.sizeDelta = new Vector2(900f, UiFactory.LineHeight(46));
+            StartCoroutine(TitleBlinkRoutine(touchText));
+
+            UpdateTitleStatus();
         }
 
-        IEnumerator SplashRoutine(GameObject splash, Sprite sprite, Texture2D skinTex)
+        /// <summary>タイトル下部の行配置 (下端基準・中央寄せ)。</summary>
+        static void SetTitleRow(RectTransform rect, float bottom, float height, float width)
         {
-            yield return new WaitForSeconds(1.4f);
-            var images = splash.GetComponentsInChildren<Image>();
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
+            rect.pivot = new Vector2(0.5f, 0f);
+            rect.anchoredPosition = new Vector2(0f, bottom);
+            rect.sizeDelta = new Vector2(width, height);
+        }
+
+        void UpdateTitleStatus()
+        {
+            if (_titleGo == null)
+            {
+                return; // タイトルは閉じられた
+            }
+            bool busy = GoogleAccount.IsLoginInProgress;
+            bool loggedIn = GoogleAccount.IsLoggedIn;
+            _titleGoogleButton.gameObject.SetActive(busy || !loggedIn);
+            _titleStatusPanel.SetActive(!busy && loggedIn);
+            if (busy)
+            {
+                _titleGoogleLabel.text = "ブラウザで認証中... (タップで中止)";
+            }
+            else if (!loggedIn)
+            {
+                _titleGoogleLabel.text = "Google でログイン";
+            }
+            else
+            {
+                _titleStatusText.text = "Google 同期: " + GoogleAccount.Email;
+            }
+        }
+
+        /// <summary>
+        /// タイトルからの Google ログイン。「はじめる」で先に進んでもポーリングは続き、
+        /// 完了時はトーストで知らせる。成功後は Drive と双方向に同期する (取込 → 保存)。
+        /// </summary>
+        async System.Threading.Tasks.Task TitleLoginAsync()
+        {
+            Se.Play(Se.Tap);
+            var login = GoogleAccount.LoginAsync();
+            UpdateTitleStatus(); // 認証待ち表示へ
+            bool ok = await login;
+            UpdateTitleStatus();
+            if (!ok)
+            {
+                if (!string.IsNullOrEmpty(GoogleAccount.LastLoginError))
+                {
+                    Se.Play(Se.Error);
+                    UiFactory.ShowToast(GoogleAccount.LastLoginError, true);
+                }
+                else
+                {
+                    UiFactory.ShowToast("ログインを中止しました");
+                }
+                return;
+            }
+            Se.Play(Se.Confirm);
+            UiFactory.ShowToast("Google にログインしました: " + GoogleAccount.Email);
+            try
+            {
+                await MypageService.PullFromDriveAsync(false);
+                await MypageService.PushToDriveAsync();
+                UiFactory.ShowToast("Google Drive と同期しました");
+            }
+            catch (System.Exception e)
+            {
+                UiFactory.ShowToast("同期に失敗: " + e.Message, true);
+            }
+            UpdateTitleStatus();
+        }
+
+        /// <summary>Touch To Start のゆっくりした点滅 (タイトルが消えるまで)。</summary>
+        IEnumerator TitleBlinkRoutine(Text text)
+        {
+            float t = 0f;
+            while (text != null)
+            {
+                t += Time.deltaTime;
+                var c = text.color;
+                c.a = 0.55f + 0.45f * Mathf.Sin(t * Mathf.PI * 2f / 1.4f);
+                text.color = c;
+                yield return null;
+            }
+        }
+
+        IEnumerator TitleFadeRoutine(GameObject title, Sprite sprite, Texture2D skinTex)
+        {
+            // CanvasGroup で子 (画像・ボタン・テキスト) をまとめてフェードアウト
+            var group = title.AddComponent<CanvasGroup>();
+            group.blocksRaycasts = false;
             float t = 0f;
             const float fade = 0.4f;
             while (t < fade)
             {
                 t += Time.deltaTime;
-                foreach (var image in images)
-                {
-                    var c = image.color;
-                    c.a = 1f - Mathf.Clamp01(t / fade);
-                    image.color = c;
-                }
+                group.alpha = 1f - Mathf.Clamp01(t / fade);
                 yield return null;
             }
-            Destroy(splash);
+            _titleGo = null;
+            Destroy(title);
             Destroy(sprite);
             if (skinTex != null)
             {
