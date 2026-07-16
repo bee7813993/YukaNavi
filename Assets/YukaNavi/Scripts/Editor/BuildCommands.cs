@@ -3,6 +3,8 @@ using UnityEditor.Android;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
+// UnityEditor.iOS を using すると BuildPipeline が曖昧になるため、必要な型だけ別名で
+using iOSPlatformIconKind = UnityEditor.iOS.iOSPlatformIconKind;
 
 namespace YukaNavi.EditorTools
 {
@@ -13,7 +15,7 @@ namespace YukaNavi.EditorTools
     {
         static readonly string[] Scenes = { "Assets/Scenes/SampleScene.unity" };
 
-        const string AndroidIdentifier = "com.bee7813993.yukanavi";
+        const string AppIdentifier = "com.bee7813993.yukanavi";
         const string IconPath = "Assets/YukaNavi/Art/Icon/yukanavi_app_icon_1024.png";
         const string AdaptiveFgPath = "Assets/YukaNavi/Art/Icon/yukanavi_icon_adaptive_fg.png";
         const string AdaptiveBgPath = "Assets/YukaNavi/Art/Icon/yukanavi_icon_adaptive_bg.png";
@@ -97,6 +99,45 @@ namespace YukaNavi.EditorTools
             Report(report, "Build/Android");
         }
 
+        [MenuItem("YukaNavi/ビルド/iOS (Xcodeプロジェクト書き出し)")]
+        public static void BuildIos()
+        {
+            if (!CanBuild())
+            {
+                return;
+            }
+            EnsureSettings();
+            // iOS のバージョン (CFBundleShortVersionString) は数字とドットのみ。
+            // "0.0.1-alpha" のようなサフィックスはビルドの間だけ外す
+            // (Android・アプリ内表示は元の表記のまま)
+            string originalVersion = PlayerSettings.bundleVersion;
+            var numeric = System.Text.RegularExpressions.Regex.Match(
+                originalVersion, @"^\d+(\.\d+)*");
+            if (numeric.Success && numeric.Value != originalVersion)
+            {
+                PlayerSettings.bundleVersion = numeric.Value;
+            }
+            try
+            {
+                // Windows でできるのは Xcode プロジェクトの書き出しまで。
+                // コンパイル・署名・実機転送・App Store 提出は Mac の Xcode
+                // (または Unity Build Automation 等のクラウドビルド) で行う
+                var options = new BuildPlayerOptions
+                {
+                    scenes = Scenes,
+                    locationPathName = "Build/iOS",
+                    target = BuildTarget.iOS,
+                };
+                Report(BuildPipeline.BuildPlayer(options), "Build/iOS");
+            }
+            finally
+            {
+                PlayerSettings.bundleVersion = originalVersion;
+                // ビルド中の自動保存で数字のみのバージョンがディスクに残るため、書き戻す
+                AssetDatabase.SaveAssets();
+            }
+        }
+
         /// <summary>
         /// AAB 署名用の keystore パスワードをローカルファイルから読み込む。
         /// %USERPROFILE%\.android\yukanavi-keystore-pass.txt の 1行目 = keystore の
@@ -141,7 +182,13 @@ namespace YukaNavi.EditorTools
         {
             PlayerSettings.productName = "ゆかナビ";
             PlayerSettings.companyName = "bee7813993";
-            PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, AndroidIdentifier);
+            PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, AppIdentifier);
+            PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, AppIdentifier);
+
+            // QR コード読み取り (接続設定) でカメラを使う。iOS はこの説明文が無いと
+            // カメラ起動時にクラッシュし、App Store 審査も通らない
+            PlayerSettings.iOS.cameraUsageDescription =
+                "QRコードを読み取って接続先を設定するためにカメラを使用します。";
 
             // Windows: デモは縦持ちレイアウトのため、スマホ縦型のウィンドウで起動する
             // (横画面レイアウト対応は M1 以降)
@@ -178,16 +225,22 @@ namespace YukaNavi.EditorTools
             var bg = AssetDatabase.LoadAssetAtPath<Texture2D>(AdaptiveBgPath);
             if (icon != null && fg != null && bg != null)
             {
-                SetAndroidIcons(AndroidPlatformIconKind.Adaptive, bg, fg); // [背景, 前景] の順
-                SetAndroidIcons(AndroidPlatformIconKind.Round, icon);
-                SetAndroidIcons(AndroidPlatformIconKind.Legacy, icon);
+                SetPlatformIconsFor(NamedBuildTarget.Android,
+                    AndroidPlatformIconKind.Adaptive, bg, fg); // [背景, 前景] の順
+                SetPlatformIconsFor(NamedBuildTarget.Android,
+                    AndroidPlatformIconKind.Round, icon);
+                SetPlatformIconsFor(NamedBuildTarget.Android,
+                    AndroidPlatformIconKind.Legacy, icon);
+                SetPlatformIconsFor(NamedBuildTarget.iOS,
+                    iOSPlatformIconKind.Application, icon);
             }
             AssetDatabase.SaveAssets();
         }
 
-        static void SetAndroidIcons(PlatformIconKind kind, params Texture2D[] layers)
+        static void SetPlatformIconsFor(NamedBuildTarget target, PlatformIconKind kind,
+                                        params Texture2D[] layers)
         {
-            var icons = PlayerSettings.GetPlatformIcons(NamedBuildTarget.Android, kind);
+            var icons = PlayerSettings.GetPlatformIcons(target, kind);
             foreach (var platformIcon in icons)
             {
                 for (int i = 0; i < layers.Length && i < platformIcon.maxLayerCount; i++)
@@ -195,7 +248,7 @@ namespace YukaNavi.EditorTools
                     platformIcon.SetTexture(layers[i], i);
                 }
             }
-            PlayerSettings.SetPlatformIcons(NamedBuildTarget.Android, kind, icons);
+            PlayerSettings.SetPlatformIcons(target, kind, icons);
         }
 
         static void Report(BuildReport report, string revealPath)
