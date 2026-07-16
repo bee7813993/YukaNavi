@@ -251,7 +251,18 @@ namespace YukaNavi.UI
             AddCard(card =>
             {
                 float y = 16f;
-                y += AddWrapped(card, _item.DisplayName, y, 34, UiFactory.TextDark);
+                // 曲名は修正済みのメタデータ (song_name) を優先する (一覧のタイトルと同じ規則)。
+                // 未再生のシークレット予約は伏せ字 (DisplayName) のまま
+                bool masked = _item.Secret == 1
+                    && (_item.Nowplaying == "未再生" || _item.Nowplaying == "1");
+                bool hasSongName = !masked && !string.IsNullOrEmpty(_item.SongName);
+                y += AddWrapped(card, hasSongName ? _item.SongName : _item.DisplayName,
+                    y, 34, UiFactory.TextDark);
+                if (hasSongName && _item.SongName != _item.DisplayName)
+                {
+                    // ファイル名はこの画面でだけ確認できるため小さく残す
+                    y += AddWrapped(card, _item.DisplayName, y, 22, UiFactory.TextMuted);
+                }
                 y += 6f;
                 y += AddWrapped(card, StateLine(_item), y, 26, UiFactory.Primary);
                 if (!string.IsNullOrEmpty(_item.Singer))

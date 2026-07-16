@@ -101,6 +101,7 @@ namespace YukaNavi
             _screens.Register<MypageScreen>();
             _screens.Register<MypageLinkScreen>();
             _screens.Register<ReserveScreen>();
+            _screens.Register<MetadataEditScreen>();
             _screens.Register<SearchResultScreen>();
             _screens.Register<NameIndexScreen>();
             _screens.Register<UrlRequestScreen>();

@@ -493,6 +493,34 @@ namespace YukaNavi.Api
             return PostApiAsync<object>("api/mypage.php", form);
         }
 
+        /// <summary>
+        /// 曲メタデータ (曲名・歌手・作品・使われ方・補足 + 読み仮名) の取得。
+        /// ListerDB 未設定・未ヒットの項目は ""。旧サーバーは 404 (ApiException)。
+        /// </summary>
+        public Task<SongMetadataDto> GetSongMetadataAsync(string fullpath)
+            => GetApiAsync<SongMetadataDto>(
+                "api/song_metadata.php?fullpath=" + Esc(fullpath));
+
+        /// <summary>
+        /// 予約の曲メタデータ修正。予約行の表示 (song_name / lister_*) に反映され、
+        /// 変更があった項目はサーバー側の修正ログにも記録される。
+        /// </summary>
+        public Task CorrectSongMetadataAsync(int id, SongMetadataDto meta)
+        {
+            var form = new UnityEngine.WWWForm();
+            form.AddField("action", "correct");
+            form.AddField("id", id.ToString());
+            form.AddField("song_name", meta.SongName ?? "");
+            form.AddField("song_ruby", meta.SongRuby ?? "");
+            form.AddField("lister_artist", meta.Artist ?? "");
+            form.AddField("lister_artist_ruby", meta.ArtistRuby ?? "");
+            form.AddField("lister_work", meta.Work ?? "");
+            form.AddField("lister_work_ruby", meta.WorkRuby ?? "");
+            form.AddField("lister_op_ed", meta.OpEd ?? "");
+            form.AddField("lister_comment", meta.Comment ?? "");
+            return PostApiAsync<object>("api/song_metadata.php", form);
+        }
+
         /// <summary>予約1件の再生状況変更 (「未再生」「再生済」等。/api/playstatus.php)。</summary>
         public async Task SetPlayStatusAsync(int id, string nowplaying)
         {
