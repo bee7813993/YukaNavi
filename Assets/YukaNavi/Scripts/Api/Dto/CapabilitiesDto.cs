@@ -50,6 +50,8 @@ namespace YukaNavi.Api
         [JsonProperty("easyauth")] public bool Easyauth;
         [JsonProperty("new_request_list")] public bool NewRequestList;
         [JsonProperty("new_search_ui")] public bool NewSearchUi;
+        /// <summary>曲情報の修正 (/api/song_metadata.php)。旧サーバーではキー欠落 = false</summary>
+        [JsonProperty("metadata_edit")] public bool MetadataEdit;
     }
 
     public class PlayerInfoDto

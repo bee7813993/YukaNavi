@@ -47,12 +47,18 @@ namespace YukaNavi.UI
         static readonly Color ToggleOffColor = new Color(0.75f, 0.73f, 0.80f);
 
         Entry _entry;
+        /// <summary>曲情報の修正値 (MetadataEditScreen の結果。null = 修正なし)。
+        /// 予約成功後にサーバーへ送って予約行へ反映する。</summary>
+        SongMetadataDto _correction;
         /// <summary>変更対象の予約 id (負なら新規予約)。</summary>
         int _editId = -1;
         int _completedId = -1; // 直前に予約 (新規・変更) した id。完了画面から一覧の該当カードへ飛ぶ
         /// <summary>変更対象の予約 (曲えらびなおしに渡すため保持)。</summary>
         RequestItemDto _editSource;
         GameObject _changeSongRow;
+        GameObject _fixRow;
+        Button _fixButton;
+        Text _fixButtonLabel;
         Text _topBarTitle;
         Text _submitLabel;
         Text _completeMessage;
@@ -171,7 +177,8 @@ namespace YukaNavi.UI
             }
             _pending = new Entry
             {
-                Line1 = item.Songfile,
+                // 曲名は修正済みのメタデータ (song_name) を優先する (一覧のタイトルと同じ規則)
+                Line1 = !string.IsNullOrEmpty(item.SongName) ? item.SongName : item.Songfile,
                 Line2 = line2,
                 Filename = item.Songfile,
                 FullPath = item.FullPath,
@@ -301,6 +308,15 @@ namespace YukaNavi.UI
                 Manager.Show<SearchScreen>();
             });
             _changeSongRow.SetActive(false);
+
+            // 曲の情報 (曲名・歌手・作品など) に誤りがあるときの修正 (通常の動画/音楽のみ)
+            var fixPanel = AddPanel(form, 84f, transparent: true);
+            _fixRow = fixPanel.gameObject;
+            _fixButton = UiFactory.CreateSoftButton(fixPanel, "FixMetadata",
+                "✎ 曲の情報を修正する", 28);
+            _fixButtonLabel = _fixButton.GetComponentInChildren<Text>();
+            UiFactory.StretchFull(_fixButton.GetComponent<RectTransform>());
+            _fixButton.onClick.AddListener(() => _ = OpenMetadataEditAsync());
 
             AddSectionHeader(form, "きほん");
 
@@ -772,6 +788,84 @@ namespace YukaNavi.UI
             _songPanelLe.preferredHeight = y + 16f;
         }
 
+        /// <summary>修正値を曲カードの表示 (曲名 / 歌手・作品行) に反映する。</summary>
+        void ApplyCorrection()
+        {
+            if (_correction == null)
+            {
+                return;
+            }
+            if (!string.IsNullOrEmpty(_correction.SongName))
+            {
+                _entry.Line1 = _correction.SongName;
+            }
+            string line2 = _correction.Artist ?? "";
+            if (!string.IsNullOrEmpty(_correction.Work))
+            {
+                line2 += (line2 != "" ? "　／　" : "") + _correction.Work;
+            }
+            if (!string.IsNullOrEmpty(_correction.OpEd))
+            {
+                line2 += (line2 != "" ? " " : "") + "[" + _correction.OpEd + "]";
+            }
+            _entry.Line2 = line2;
+            LayoutSongCard();
+            _fixButtonLabel.text = "✎ 曲の情報を修正する (修正あり)";
+        }
+
+        /// <summary>
+        /// 曲情報の修正画面を開く。初回は現在の曲情報 (読み仮名込み) をサーバーから
+        /// 取得して初期値にし、修正済みならその値から再編集する。
+        /// </summary>
+        async Task OpenMetadataEditAsync()
+        {
+            Se.Play(Se.Tap);
+            if (_correction != null)
+            {
+                MetadataEditScreen.Open(Manager, _correction.Clone());
+                return;
+            }
+            _fixButton.interactable = false;
+            ShowLoading();
+            SongMetadataDto meta;
+            try
+            {
+                meta = await AppConfig.CreateClient().GetSongMetadataAsync(_entry.FullPath);
+            }
+            catch (ApiException e) when (e.HttpStatus == 404)
+            {
+                UiFactory.ShowToast("このサーバーは曲情報の修正に対応していません", true);
+                Se.Play(Se.Error);
+                return;
+            }
+            catch (System.Exception e)
+            {
+                UiFactory.ShowToast("曲情報の取得に失敗: " + e.Message, true);
+                Se.Play(Se.Error);
+                return;
+            }
+            finally
+            {
+                HideLoading();
+                _fixButton.interactable = true;
+            }
+            // 予約の変更では予約行の値を優先する (Web 側で修正済みの値かもしれない)
+            if (_editSource != null)
+            {
+                if (!string.IsNullOrEmpty(_editSource.SongName)) meta.SongName = _editSource.SongName;
+                if (!string.IsNullOrEmpty(_editSource.ListerArtist)) meta.Artist = _editSource.ListerArtist;
+                if (!string.IsNullOrEmpty(_editSource.ListerWork)) meta.Work = _editSource.ListerWork;
+                if (!string.IsNullOrEmpty(_editSource.ListerOpEd)) meta.OpEd = _editSource.ListerOpEd;
+                if (!string.IsNullOrEmpty(_editSource.ListerComment)) meta.Comment = _editSource.ListerComment;
+            }
+            // ListerDB に無い曲は、いま表示している曲名を編集の起点にする
+            if (string.IsNullOrEmpty(meta.SongName))
+            {
+                meta.SongName = _entry.Line1;
+            }
+            MetadataEditScreen.Open(Manager, meta);
+        }
+
         void UpdateMypageButtons()
         {
             bool inFavorite = _entry != null && LocalMypage.IsInFavorite(_entry.FullPath);
@@ -814,6 +908,23 @@ namespace YukaNavi.UI
 
         public override void OnShow()
         {
+            // 曲情報の修正画面から戻ってきた場合は、入力中のフォームを保ったまま修正だけ反映する
+            if (MetadataEditScreen.HasSession)
+            {
+                var corrected = MetadataEditScreen.EndSession();
+                if (_pending == null && _entry != null)
+                {
+                    if (corrected != null)
+                    {
+                        _correction = corrected;
+                        ApplyCorrection();
+                        UiFactory.ShowToast("曲の情報を修正しました (予約すると反映されます)");
+                    }
+                    return;
+                }
+                // 別の曲で開き直された等: 修正セッションは破棄して通常の表示へ
+            }
+
             var edit = _pendingEdit;
             _pendingEdit = null;
             _entry = _pending ?? _entry;
@@ -829,6 +940,9 @@ namespace YukaNavi.UI
             _topBarTitle.text = _editId >= 0 ? "予約の変更" : "予約の確認";
             _submitLabel.text = _editId >= 0 ? "この内容で変更する" : "この内容で予約する";
             _changeSongRow.SetActive(_editId >= 0);
+            _correction = null;
+            _fixButtonLabel.text = "✎ 曲の情報を修正する";
+            _fixRow.SetActive(false); // 対応サーバーでだけ表示 (ApplyCapabilitiesAsync)
 
             LayoutSongCard();
             _errorText.text = "";
@@ -893,6 +1007,10 @@ namespace YukaNavi.UI
                 _bgvRow.SetActive(caps.Features.Bgv && isVideo);
                 _otherRow.SetActive(caps.Features.Otherplayer && isVideo);
                 _pauseRow.SetActive(caps.Features.Userpause);
+                // 曲情報の修正は対応サーバー (旧サーバーはキー欠落 = false) の
+                // 通常の動画/音楽のみ (URL指定・小休止では出さない)
+                _fixRow.SetActive(caps.Features.MetadataEdit
+                    && string.IsNullOrEmpty(_entry.Kind));
                 if (!string.IsNullOrEmpty(caps.Request.OtherplayerDisc))
                 {
                     _otherButtonLabel.text = caps.Request.OtherplayerDisc;
@@ -1046,6 +1164,19 @@ namespace YukaNavi.UI
                 if (_editId < 0)
                 {
                     LocalMypage.AddHistory(_entry.FullPath, _entry.Line1, kind);
+                }
+                // 曲情報の修正があれば予約行へ反映する (予約一覧の表示 + サーバーの修正ログ)
+                if (_correction != null && _completedId > 0)
+                {
+                    try
+                    {
+                        await AppConfig.CreateClient()
+                            .CorrectSongMetadataAsync(_completedId, _correction);
+                    }
+                    catch (System.Exception e)
+                    {
+                        UiFactory.ShowToast("曲情報の修正の保存に失敗: " + e.Message, true);
+                    }
                 }
                 ShowComplete();
             }
