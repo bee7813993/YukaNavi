@@ -54,7 +54,7 @@ namespace YukaNavi.EditorTools
                 return;
             }
             EnsureSettings();
-            // Play ストア提出時は AAB だが、M0 は実機に直接入れる APK で確認する
+            // 実機に直接入れる確認用は APK (Play ストア提出は下の AAB メニュー)
             EditorUserBuildSettings.buildAppBundle = false;
             var options = new BuildPlayerOptions
             {
@@ -63,6 +63,77 @@ namespace YukaNavi.EditorTools
                 target = BuildTarget.Android,
             };
             Report(BuildPipeline.BuildPlayer(options), "Build/Android");
+        }
+
+        [MenuItem("YukaNavi/ビルド/Android (AAB / Playストア用)")]
+        public static void BuildAndroidAab()
+        {
+            if (!CanBuild())
+            {
+                return;
+            }
+            EnsureSettings();
+            if (!ApplyKeystorePassword())
+            {
+                return;
+            }
+            // Play は同じ versionCode を再提出できないため、ビルドごとに増やす
+            PlayerSettings.Android.bundleVersionCode += 1;
+            EditorUserBuildSettings.buildAppBundle = true;
+            var options = new BuildPlayerOptions
+            {
+                scenes = Scenes,
+                locationPathName = "Build/Android/YukaNavi.aab",
+                target = BuildTarget.Android,
+            };
+            var report = BuildPipeline.BuildPlayer(options);
+            if (report.summary.result != BuildResult.Succeeded)
+            {
+                PlayerSettings.Android.bundleVersionCode -= 1; // 失敗した番号は使い回す
+            }
+            AssetDatabase.SaveAssets(); // versionCode の変更を ProjectSettings に保存
+            Debug.Log($"[YukaNavi] versionCode = {PlayerSettings.Android.bundleVersionCode}"
+                + $" / version = {PlayerSettings.bundleVersion}");
+            Report(report, "Build/Android");
+        }
+
+        /// <summary>
+        /// AAB 署名用の keystore パスワードをローカルファイルから読み込む。
+        /// %USERPROFILE%\.android\yukanavi-keystore-pass.txt の 1行目 = keystore の
+        /// パスワード、2行目 = エイリアスのパスワード (省略時は1行目と同じ)。
+        /// パスワードをリポジトリに置かないための仕組み (keystore 本体・エイリアス名は
+        /// Player Settings 側の設定をそのまま使う)。
+        /// </summary>
+        static bool ApplyKeystorePassword()
+        {
+            string path = System.IO.Path.Combine(
+                System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile),
+                ".android", "yukanavi-keystore-pass.txt");
+            if (!System.IO.File.Exists(path))
+            {
+                Debug.LogError("[YukaNavi] keystore パスワードファイルがありません: " + path
+                    + "\n1行目に keystore のパスワードを書いたテキストファイルを作成してください"
+                    + " (エイリアスのパスワードが異なる場合は2行目に)。");
+                return false;
+            }
+            var lines = System.IO.File.ReadAllLines(path);
+            if (lines.Length == 0 || string.IsNullOrWhiteSpace(lines[0]))
+            {
+                Debug.LogError("[YukaNavi] keystore パスワードファイルが空です: " + path);
+                return false;
+            }
+            if (string.IsNullOrEmpty(PlayerSettings.Android.keystoreName))
+            {
+                Debug.LogError("[YukaNavi] keystore が未設定です。Player Settings >"
+                    + " Publishing Settings で Custom Keystore を設定してください。");
+                return false;
+            }
+            PlayerSettings.Android.useCustomKeystore = true;
+            PlayerSettings.Android.keystorePass = lines[0].Trim();
+            PlayerSettings.Android.keyaliasPass =
+                (lines.Length > 1 && !string.IsNullOrWhiteSpace(lines[1]))
+                    ? lines[1].Trim() : lines[0].Trim();
+            return true;
         }
 
         /// <summary>アプリ名・識別子・アイコンを設定する (何度実行しても同じ結果になる)。</summary>
@@ -81,6 +152,15 @@ namespace YukaNavi.EditorTools
 
             // ゆかりは LAN 内の http 運用が基本のため、Android の非 HTTPS 通信を許可する
             PlayerSettings.insecureHttpOption = InsecureHttpOption.AlwaysAllowed;
+
+            // Play の要件は Target SDK 側 (未指定 = 最新で満たす)。Minimum は広めに
+            // Android 7.1 (API 25) — カラオケ会で配るアプリなので古い端末でも入れられるように
+            PlayerSettings.Android.minSdkVersion = (AndroidSdkVersions)25;
+
+            // エントリポイントは GameActivity 固定。カスタムマニフェスト
+            // (Assets/Plugins/Android/AndroidManifest.xml、共有メニュー受け取り用) が
+            // UnityPlayerGameActivity 前提のため、Activity に変えるとリソースリンクで失敗する
+            PlayerSettings.Android.applicationEntry = AndroidApplicationEntry.GameActivity;
 
             // 現状の UI は縦持ち専用のため Android は Portrait 固定 (横レイアウトは将来対応)
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
