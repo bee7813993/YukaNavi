@@ -226,6 +226,34 @@ namespace YukaNavi.UI
             }
         }
 
+        /// <summary>「うたう人」が自分 (設定した名前) の予約か。</summary>
+        static bool IsMine(RequestItemDto item)
+        {
+            string me = AppConfig.Username;
+            return !string.IsNullOrEmpty(me) && item.Singer == me;
+        }
+
+        /// <summary>
+        /// 行の基準色。自分が歌う予定 (未再生かつ うたう人 = 自分) の行には
+        /// 再生中 (PrimaryPale) より控えめな淡いテーマ色を敷く。
+        /// </summary>
+        static Color RowBaseColor(RequestItemDto item)
+        {
+            bool isPlaying = item.Nowplaying == "再生中";
+            bool isPending = item.Nowplaying == "未再生" || item.Nowplaying == "1";
+            if (isPlaying)
+            {
+                return UiFactory.PrimaryPale;
+            }
+            if (!isPending)
+            {
+                return new Color(0.965f, 0.955f, 0.985f);
+            }
+            return IsMine(item)
+                ? Color.Lerp(UiFactory.CardBg, UiFactory.PrimaryPale, 0.45f)
+                : UiFactory.CardBg;
+        }
+
         /// <summary>内容が変わったときだけ行を作り直す (スクロール位置の維持のため)。</summary>
         void RebuildIfChanged(List<RequestItemDto> items)
         {
@@ -234,8 +262,10 @@ namespace YukaNavi.UI
             {
                 foreach (var item in items)
                 {
+                    // singer は「自分の予約」の色分けに使うため変更を検知する
                     sig.Append(item.Id).Append(':').Append(item.Nowplaying)
-                       .Append(':').Append(item.Reqorder).Append('|');
+                       .Append(':').Append(item.Reqorder)
+                       .Append(':').Append(item.Singer).Append('|');
                 }
             }
             string signature = sig.ToString();
@@ -302,8 +332,7 @@ namespace YukaNavi.UI
                 DefaultRowHeight);
 
             var img = rowGo.AddComponent<Image>();
-            img.color = isPlaying ? UiFactory.PrimaryPale
-                : (isDone ? new Color(0.965f, 0.955f, 0.985f) : UiFactory.CardBg);
+            img.color = RowBaseColor(item);
             UiFactory.Roundify(img);
             UiFactory.AddShadow(rowGo, 3f);
             var le = rowGo.AddComponent<LayoutElement>();
@@ -386,13 +415,15 @@ namespace YukaNavi.UI
                     contentY, commentHeight);
             }
 
-            // 下段左: うたう人のピルバッジ (Web 版の登録者バッジ相当)
+            // 下段左: うたう人のピルバッジ (Web 版の登録者バッジ相当)。自分の名前なら濃色で示す
             if (!string.IsNullOrEmpty(item.Singer))
             {
+                bool mine = IsMine(item);
                 string singerLabel = "うたう人: " + item.Singer;
                 var singerBadge = UiFactory.CreateBadge(rowGo.transform, "Singer", singerLabel,
-                    isDone ? new Color(0.92f, 0.91f, 0.95f) : UiFactory.PrimaryPale,
-                    isDone ? UiFactory.TextMuted : UiFactory.PrimaryDark);
+                    isDone ? new Color(0.92f, 0.91f, 0.95f)
+                        : (mine ? UiFactory.PrimaryDark : UiFactory.PrimaryPale),
+                    isDone ? UiFactory.TextMuted : (mine ? Color.white : UiFactory.PrimaryDark));
                 var singerRect = (RectTransform)singerBadge.transform.parent;
                 singerRect.anchorMin = singerRect.anchorMax = new Vector2(0f, 0f);
                 singerRect.pivot = new Vector2(0f, 0f);
@@ -490,6 +521,17 @@ namespace YukaNavi.UI
             ScrollToRow((RectTransform)target);
         }
 
+        /// <summary>指定の行が画面の上 1/4 あたりに来るスクロール位置 (0〜1)。</summary>
+        float NormalizedPositionFor(RectTransform target)
+        {
+            float contentHeight = _listContent.rect.height;
+            float viewportHeight = _scrollRect.viewport != null
+                ? _scrollRect.viewport.rect.height : ((RectTransform)_scrollRect.transform).rect.height;
+            float scrollable = Mathf.Max(contentHeight - viewportHeight, 1f);
+            float targetTop = -target.anchoredPosition.y;
+            return 1f - Mathf.Clamp01((targetTop - viewportHeight * 0.25f) / scrollable);
+        }
+
         /// <summary>指定の行が画面の上 1/4 あたりに来る位置へスクロールする。</summary>
         void ScrollToRow(RectTransform target)
         {
@@ -497,16 +539,13 @@ namespace YukaNavi.UI
             {
                 return;
             }
-            float contentHeight = _listContent.rect.height;
-            float viewportHeight = _scrollRect.viewport != null
-                ? _scrollRect.viewport.rect.height : ((RectTransform)_scrollRect.transform).rect.height;
-            float scrollable = Mathf.Max(contentHeight - viewportHeight, 1f);
-            float targetTop = -target.anchoredPosition.y;
-            float normalized = 1f - Mathf.Clamp01((targetTop - viewportHeight * 0.25f) / scrollable);
-            _scrollRect.verticalNormalizedPosition = normalized;
+            _scrollRect.verticalNormalizedPosition = NormalizedPositionFor(target);
         }
 
-        /// <summary>指定 id の行へスクロールし、色をふわっと往復させて位置を示す。</summary>
+        /// <summary>
+        /// 指定 id の行へフォーカスする (予約完了・変更後の「どこに入ったか」の提示)。
+        /// 滑らかにスクロールで寄せて視線を誘導し、カードを弾ませて光らせる。
+        /// </summary>
         void FocusRequest(int id)
         {
             Canvas.ForceUpdateCanvases(); // 直前に作り直した行のレイアウトを確定させる
@@ -517,21 +556,74 @@ namespace YukaNavi.UI
                 {
                     continue;
                 }
-                ScrollToRow((RectTransform)child);
-                var img = child.GetComponent<Image>();
-                if (img != null)
-                {
-                    StartCoroutine(FlashRowRoutine(img, img.color));
-                }
+                StartCoroutine(FocusRoutine((RectTransform)child, rowDrag.Item));
                 return;
+            }
+        }
+
+        IEnumerator FocusRoutine(RectTransform row, RequestItemDto item)
+        {
+            // 画面遷移のスライド (0.22秒) が終わり、ユーザーが一覧を見てから動き始める
+            // (遷移中に動きが済んでしまうと気づけない)
+            yield return new WaitForSeconds(0.45f);
+            if (row == null)
+            {
+                yield break;
+            }
+            // 滑らかスクロール (目的地までの動きで視線を導く)
+            if (_scrollRect != null)
+            {
+                _scrollRect.velocity = Vector2.zero;
+                float from = _scrollRect.verticalNormalizedPosition;
+                float to = NormalizedPositionFor(row);
+                const float duration = 0.4f;
+                for (float t = 0f; t < duration; t += Time.deltaTime)
+                {
+                    if (_scrollRect == null || row == null)
+                    {
+                        yield break;
+                    }
+                    float k = t / duration;
+                    float ease = 1f - (1f - k) * (1f - k) * (1f - k);
+                    _scrollRect.verticalNormalizedPosition = Mathf.Lerp(from, to, ease);
+                    yield return null;
+                }
+                _scrollRect.verticalNormalizedPosition = to;
+            }
+            if (row == null)
+            {
+                yield break;
+            }
+            // 着地したらポンポンと2回弾ませつつ光らせて「ここ」を主張する
+            var img = row.GetComponent<Image>();
+            if (img != null)
+            {
+                StartCoroutine(FlashRowRoutine(img, RowBaseColor(item)));
+            }
+            const float bounce = 0.5f;
+            for (float t = 0f; t < bounce; t += Time.deltaTime)
+            {
+                if (row == null)
+                {
+                    yield break;
+                }
+                float k = t / bounce;
+                // 2回弾む (2回目は小さく減衰)
+                float s = 1f + Mathf.Abs(Mathf.Sin(k * Mathf.PI * 2f)) * 0.06f * (1f - 0.6f * k);
+                row.localScale = new Vector3(s, s, 1f);
+                yield return null;
+            }
+            if (row != null)
+            {
+                row.localScale = Vector3.one;
             }
         }
 
         IEnumerator FlashRowRoutine(Image img, Color baseColor)
         {
-            var flash = Color.Lerp(baseColor, UiFactory.Primary, 0.38f);
+            var flash = Color.Lerp(baseColor, UiFactory.Primary, 0.5f);
             float t = 0f;
-            while (t < 1.6f)
+            while (t < 2.4f)
             {
                 if (img == null)
                 {
@@ -711,7 +803,7 @@ namespace YukaNavi.UI
                 _scrollRect.enabled = true;
             }
             var img = drag.GetComponent<Image>();
-            img.color = UiFactory.CardBg;
+            img.color = RowBaseColor(drag.Item);
             drag.transform.localScale = Vector3.one;
 
             // 表示順 (上から) の id をサーバーへ送る
