@@ -63,6 +63,10 @@ namespace YukaNavi.UI
         int _volPending;
         bool _volApplying;
         Text _keyText;
+        GameObject _advancedCard;
+        bool _advancedOpen;
+        Text _compText;
+        InputField _codeInput;
 
         // 右: キュー / 履歴
         RectTransform _queueContent;
@@ -513,43 +517,154 @@ namespace YukaNavi.UI
                 return y + 90f + 16f;
             });
 
-            // キー変更 (MPC + 対応サーバーのみ)
-            if (!isFoobar && useKeychange)
+            // 映像 + キー変更 (MPC 専用。PlayerScreen と同じカード構成)
+            if (!isFoobar)
             {
                 AddCard(card =>
                 {
                     float y = 16f;
-                    var down = UiFactory.CreateSoftButton(card, "KeyDown", "キーダウン", 26);
-                    PlaceCell((RectTransform)down.transform, y, 90f, 0f, 1f / 3f);
-                    down.onClick.AddListener(() =>
-                    {
-                        Se.Play(Se.Tap);
-                        _ = SendActionAsync("keychange", "key=down");
-                    });
+                    AddActionCell(card, "字幕ON/OFF", y, 90f, 0f, 0.5f, "subtitle_toggle");
+                    AddActionCell(card, "音声トラック変更", y, 90f, 0.5f, 1f, "audiotrack_next");
+                    y += 90f;
 
-                    // 中央の現在キーバッジはタップで原曲キーに戻せる (PlayerScreen と同じ)
-                    _keyText = UiFactory.CreateBadge(card, "CurrentKey", "…", UiFactory.TextDark, Color.white);
-                    _keyText.fontSize = UiFactory.ScaledFontSize(26);
-                    var keyGo = _keyText.transform.parent.gameObject;
-                    keyGo.GetComponent<Image>().raycastTarget = true;
-                    var keyButton = keyGo.AddComponent<Button>();
-                    keyGo.AddComponent<PressEffect>();
-                    keyButton.onClick.AddListener(() =>
+                    if (useKeychange)
                     {
-                        Se.Play(Se.Tap);
-                        _ = SendActionAsync("keychange", "key=0");
-                    });
-                    PlaceCell((RectTransform)keyGo.transform, y + 10f, 70f, 1f / 3f + 0.04f, 2f / 3f - 0.04f);
+                        y += 12f;
+                        var down = UiFactory.CreateSoftButton(card, "KeyDown", "キーダウン", 26);
+                        PlaceCell((RectTransform)down.transform, y, 90f, 0f, 1f / 3f);
+                        down.onClick.AddListener(() =>
+                        {
+                            Se.Play(Se.Tap);
+                            _ = SendActionAsync("keychange", "key=down");
+                        });
 
-                    var up = UiFactory.CreateSoftButton(card, "KeyUp", "キーアップ", 26);
-                    PlaceCell((RectTransform)up.transform, y, 90f, 2f / 3f, 1f);
-                    up.onClick.AddListener(() =>
-                    {
-                        Se.Play(Se.Tap);
-                        _ = SendActionAsync("keychange", "key=up");
-                    });
-                    return y + 90f + 16f;
+                        // 中央の現在キーバッジはタップで原曲キーに戻せる (PlayerScreen と同じ)
+                        _keyText = UiFactory.CreateBadge(card, "CurrentKey", "…", UiFactory.TextDark, Color.white);
+                        _keyText.fontSize = UiFactory.ScaledFontSize(26);
+                        var keyGo = _keyText.transform.parent.gameObject;
+                        keyGo.GetComponent<Image>().raycastTarget = true;
+                        var keyButton = keyGo.AddComponent<Button>();
+                        keyGo.AddComponent<PressEffect>();
+                        keyButton.onClick.AddListener(() =>
+                        {
+                            Se.Play(Se.Tap);
+                            _ = SendActionAsync("keychange", "key=0");
+                        });
+                        PlaceCell((RectTransform)keyGo.transform, y + 10f, 70f, 1f / 3f + 0.04f, 2f / 3f - 0.04f);
+
+                        var up = UiFactory.CreateSoftButton(card, "KeyUp", "キーアップ", 26);
+                        PlaceCell((RectTransform)up.transform, y, 90f, 2f / 3f, 1f);
+                        up.onClick.AddListener(() =>
+                        {
+                            Se.Play(Se.Tap);
+                            _ = SendActionAsync("keychange", "key=up");
+                        });
+                        y += 90f;
+                    }
+                    return y + 16f;
                 });
+            }
+
+            // 詳細設定 (MPC 専用、折りたたみ。PlayerScreen と同内容)
+            if (!isFoobar)
+            {
+                BuildAdvancedCard();
+            }
+        }
+
+        /// <summary>詳細設定の折りたたみカード (開閉のたびに作り直す)。</summary>
+        void BuildAdvancedCard()
+        {
+            if (_advancedCard != null)
+            {
+                _controlCards.Remove(_advancedCard);
+                Destroy(_advancedCard);
+                _advancedCard = null;
+                _compText = null;
+                _codeInput = null;
+            }
+
+            _advancedCard = AddCard(card =>
+            {
+                // ヘッダー (タップで開閉)
+                var header = UiFactory.CreateButton(card, "AdvHeader", "", new Color(1f, 1f, 1f, 0f), UiFactory.Primary, 28);
+                var headerRect = (RectTransform)header.transform;
+                headerRect.anchorMin = new Vector2(0f, 1f);
+                headerRect.anchorMax = new Vector2(1f, 1f);
+                headerRect.pivot = new Vector2(0.5f, 1f);
+                headerRect.anchoredPosition = Vector2.zero;
+                headerRect.sizeDelta = new Vector2(0f, 86f);
+                var headerLabel = UiFactory.CreateText(header.transform, "Title", "詳細設定", 28, UiFactory.Primary, TextAnchor.MiddleLeft);
+                UiFactory.StretchFull(headerLabel.rectTransform);
+                headerLabel.rectTransform.offsetMin = new Vector2(28f, 0f);
+                var arrow = UiFactory.CreateText(header.transform, "Arrow", _advancedOpen ? "▲" : "▼", 26, UiFactory.Primary, TextAnchor.MiddleRight);
+                UiFactory.StretchFull(arrow.rectTransform);
+                arrow.rectTransform.offsetMax = new Vector2(-28f, 0f);
+                header.onClick.AddListener(() =>
+                {
+                    _advancedOpen = !_advancedOpen;
+                    Se.Play(Se.Tap);
+                    BuildAdvancedCard();
+                });
+
+                float y = 86f;
+                if (!_advancedOpen)
+                {
+                    return y;
+                }
+                y += 8f;
+
+                y += AddSectionLabel(card, "音ズレ修正 ー映像を遅く／映像を早くー", y);
+                AddActionCell(card, "-100ms", y, 90f, 0f, 0.25f, "audiodelay_down", "step=100");
+                AddActionCell(card, "-10ms", y, 90f, 0.25f, 0.5f, "audiodelay_down");
+                AddActionCell(card, "+10ms", y, 90f, 0.5f, 0.75f, "audiodelay_up");
+                AddActionCell(card, "+100ms", y, 90f, 0.75f, 1f, "audiodelay_up", "step=100");
+                y += 90f + 20f;
+
+                y += AddSectionLabel(card, "再生スピード", y);
+                AddActionCell(card, "スピードダウン", y, 90f, 0f, 1f / 3f, "speed_down");
+                AddActionCell(card, "標準スピード", y, 90f, 1f / 3f, 2f / 3f, "speed_normal");
+                AddActionCell(card, "スピードアップ", y, 90f, 2f / 3f, 1f, "speed_up");
+                y += 90f + 20f;
+
+                y += AddSectionLabel(card, "映像オプション", y);
+                AddActionCell(card, "サイズ縮小", y, 90f, 0f, 1f / 3f, "size_small");
+                AddActionCell(card, "サイズ標準", y, 90f, 1f / 3f, 2f / 3f, "size_normal");
+                AddActionCell(card, "サイズ拡大", y, 90f, 2f / 3f, 1f, "size_large");
+                y += 90f + 14f;
+                AddActionCell(card, "D3Dフルスクリーン", y, 90f, 0f, 1f / 3f, "d3d_fullscreen", null, 22);
+                AddActionCell(card, "ミュートON/OFF", y, 90f, 1f / 3f, 2f / 3f, "mute", null, 22);
+                AddActionCell(card, "左右反転", y, 90f, 2f / 3f, 1f, "mirror");
+                y += 90f + 14f;
+                AddActionCell(card, "時刻表示", y, 90f, 0f, 1f / 3f, "show_time");
+                y += 90f + 20f;
+
+                y += AddSectionLabel(card, "字幕補正（白飛び対策）", y);
+                y += AddWrapped(card,
+                    "明るさ・コントラスト・彩度を一括で調整します。設定値は保存され、次の曲にも引き継がれます。",
+                    y, 22, UiFactory.TextMuted);
+                y += 10f;
+                AddActionCell(card, "- 弱める", y, 90f, 0f, 1f / 3f, "comp_down");
+                _compText = UiFactory.CreateBadge(card, "CompLevel", "…", UiFactory.TextDark, Color.white);
+                _compText.fontSize = UiFactory.ScaledFontSize(28);
+                PlaceCell((RectTransform)_compText.transform.parent, y + 10f, 70f, 1f / 3f + 0.04f, 2f / 3f - 0.04f);
+                AddActionCell(card, "強める +", y, 90f, 2f / 3f, 1f, "comp_up");
+                y += 90f + 14f;
+                AddActionCell(card, "リセット（0 に戻す）", y, 84f, 0f, 1f, "comp_reset");
+                y += 84f + 20f;
+
+                y += AddSectionLabel(card, "任意コード送出", y);
+                _codeInput = UiFactory.CreateInputField(card, "Code", "コード番号", 28);
+                _codeInput.contentType = InputField.ContentType.IntegerNumber;
+                PlaceCell((RectTransform)_codeInput.transform, y, 84f, 0f, 0.6f);
+                var send = UiFactory.CreateSoftButton(card, "SendCode", "送出", 26);
+                PlaceCell((RectTransform)send.transform, y, 84f, 0.62f, 1f);
+                send.onClick.AddListener(() => _ = SendCodeAsync());
+                return y + 84f + 24f;
+            });
+            if (_advancedOpen)
+            {
+                _ = SyncCompAsync();
             }
         }
 
@@ -705,6 +820,25 @@ namespace YukaNavi.UI
         {
             var text = UiFactory.CreateText(parent, "Label", label, fontSize, color);
             UiFactory.StretchFull(text.rectTransform);
+        }
+
+        /// <summary>セクション見出し。次の行までのオフセットを返す (PlayerScreen と同じ)。</summary>
+        float AddSectionLabel(RectTransform card, string label, float y)
+        {
+            var text = UiFactory.CreateText(card, "Section", label, 22, UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
+            PlaceRow(text.rectTransform, y, 32f);
+            return 42f;
+        }
+
+        /// <summary>折り返しテキスト行。使った高さを返す (PlayerScreen と同じ)。</summary>
+        float AddWrapped(RectTransform card, string label, float y, int fontSize, Color color)
+        {
+            int lines = UiFactory.EstimateWrapLines(label, fontSize, WrapWidth);
+            float height = lines * UiFactory.LineHeight(fontSize) + 4f;
+            var text = UiFactory.CreateText(card, "Text", UiFactory.NoWordWrap(label),
+                fontSize, color, TextAnchor.UpperLeft);
+            PlaceRow(text.rectTransform, y, height);
+            return height;
         }
 
         void BuildPlayPauseIcons(Transform button)
@@ -947,6 +1081,7 @@ namespace YukaNavi.UI
             _rows.Clear();
             _historyRows.Clear();
             _controlCards.Clear();
+            _advancedCard = null;
             DestroyQrTextures();
             DestroyRecordResources();
         }
@@ -1073,7 +1208,22 @@ namespace YukaNavi.UI
         {
             try
             {
-                await AppConfig.CreateClient().PlayerActionAsync(action, extraQuery);
+                var result = await AppConfig.CreateClient().PlayerActionAsync(action, extraQuery);
+                // 応答に現在値が含まれる操作は表示へ反映する (PlayerScreen と同じ)
+                if (result.Volume.HasValue)
+                {
+                    ApplyVolumeUi(result.Volume.Value);
+                }
+                else if (result.CompLevel.HasValue && _compText != null)
+                {
+                    _compText.text = CompLabel(result.CompLevel.Value);
+                }
+                if (action == "playpause" || action == "next" || action == "start_first"
+                    || action == "start" || action == "keychange")
+                {
+                    // 盤の回転・アイコン・バッジを早めに追従させる
+                    _ = RefreshNowPlayingAsync();
+                }
             }
             catch (ApiException e)
             {
@@ -1083,6 +1233,39 @@ namespace YukaNavi.UI
             {
                 UiFactory.ShowToast("操作に失敗しました: " + e.Message, true);
             }
+        }
+
+        async Task SyncCompAsync()
+        {
+            try
+            {
+                var result = await AppConfig.CreateClient().PlayerActionAsync("comp_get");
+                if (result.CompLevel.HasValue && _compText != null)
+                {
+                    _compText.text = CompLabel(result.CompLevel.Value);
+                }
+            }
+            catch (System.Exception)
+            {
+                // 旧サーバー (comp_* 未対応) では「…」表示のまま
+            }
+        }
+
+        async Task SendCodeAsync()
+        {
+            int code;
+            if (_codeInput == null || !int.TryParse(_codeInput.text, out code))
+            {
+                UiFactory.ShowToast("コード番号を入力してください", true);
+                Se.Play(Se.Error);
+                return;
+            }
+            await SendActionAsync("command", "value=" + code);
+        }
+
+        static string CompLabel(int level)
+        {
+            return level > 0 ? "+" + level : level.ToString();
         }
 
         /// <summary>ボリューム系 (応答の現在値をスライダーへ反映する)。</summary>
