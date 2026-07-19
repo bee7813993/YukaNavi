@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ゆかナビ プライバシーポリシー</title>
+<style>
+  :root {
+    --bg: #faf7f2;
+    --card: #ffffff;
+    --text: #3a3330;
+    --muted: #7a6f68;
+    --accent: #c2649a;
+    --border: #e8ddd4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1e1a18;
+      --card: #2a2422;
+      --text: #ece5df;
+      --muted: #a89c94;
+      --accent: #e08bbd;
+      --border: #443c38;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif;
+    line-height: 1.85;
+  }
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 24px 20px 64px;
+  }
+  header.page {
+    text-align: center;
+    padding: 28px 0 8px;
+  }
+  header.page h1 {
+    font-size: 1.5rem;
+    margin: 0 0 4px;
+  }
+  header.page p {
+    color: var(--muted);
+    margin: 0;
+    font-size: .9rem;
+  }
+  section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+    margin-top: 20px;
+  }
+  h2 {
+    font-size: 1.1rem;
+    margin: 0 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--accent);
+  }
+  h3 {
+    font-size: 1rem;
+    margin: 18px 0 6px;
+    color: var(--accent);
+  }
+  p, li { font-size: .95rem; }
+  ul { padding-left: 1.4em; margin: 8px 0; }
+  a { color: var(--accent); word-break: break-all; }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: .85rem;
+    margin-top: 32px;
+  }
+  .note {
+    font-size: .85rem;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="page">
+    <h1>ゆかナビ プライバシーポリシー</h1>
+    <p>制定日: 2026年7月19日</p>
+  </header>
+
+  <section>
+    <p>本ポリシーは、YFRTeam (以下「開発者」) が提供するモバイルアプリ「ゆかナビ」(以下「本アプリ」) における利用者情報の取り扱いを定めるものです。</p>
+  </section>
+
+  <section>
+    <h2>1. 本アプリが送信・利用する情報</h2>
+
+    <h3>1-1. 接続先の「ゆかり」サーバーとの通信 (基本機能)</h3>
+    <p>本アプリは、利用者またはカラオケ会の主催者が運営するカラオケリクエストシステム「ゆかり」のサーバーに接続して動作します。この際、次の情報が接続先サーバーに送信・保存されます。</p>
+    <ul>
+      <li>利用者が入力した「うたう人」の名前、予約時のコメント、選曲した楽曲の情報</li>
+      <li>本アプリが自動生成する匿名の利用者 ID (UUID) — マイページ機能 (履歴・お気に入りなど) で利用者を識別するために使用します</li>
+      <li>通信にともない、接続先サーバーには IP アドレスや端末のユーザーエージェントが記録されることがあります</li>
+    </ul>
+    <p class="note">接続先サーバーは利用者自身または主催者が運営するものであり、これらの情報を開発者が受け取ることはありません。サーバー上の情報の管理は各サーバーの運営者によります。</p>
+
+    <h3>1-2. Google アカウント連携 (任意)</h3>
+    <p>マイページのデータをバックアップするために、任意で Google アカウントにログインできます。ログインした場合のみ、次の情報を利用します。</p>
+    <ul>
+      <li><strong>メールアドレス</strong> — ログイン中のアカウントの表示と識別のために取得します</li>
+      <li><strong>Google Drive のアプリ専用データ領域</strong> — マイページのデータ (履歴・お気に入りなど) を、利用者自身の Google Drive 内にある本アプリ専用の領域に保存します。この領域には本アプリのみがアクセスでき、Drive 内のほかのファイルを読み書きすることはありません</li>
+    </ul>
+    <p>ログイン手続きは、開発者が運営する中継サーバー (ykr.moe) を経由して行われます。中継サーバーは認証の仲介のみを行い、認証情報は受け渡しの間 (最長 10 分間) のみ一時的に保持し、受け渡し完了後ただちに削除します。取得したアクセストークン等は利用者の端末内にのみ保存され、開発者がこれを収集・保存することはありません。</p>
+    <p class="note">Google ログインを行わなくても、本アプリのすべての基本機能を利用できます。</p>
+
+    <h3>1-3. カメラ・写真 (任意)</h3>
+    <p>接続設定用の QR コードを読み取るために、利用者の操作に応じてカメラおよび撮影した写真を使用します。読み取り処理はすべて端末内で行われ、映像や画像が端末の外部に送信されることはありません。</p>
+  </section>
+
+  <section>
+    <h2>2. 収集しない情報</h2>
+    <ul>
+      <li>位置情報、連絡先、通話履歴などの端末内の個人情報は収集しません</li>
+      <li>広告 ID は利用せず、広告配信 SDK・アクセス解析 SDK を組み込んでいません</li>
+      <li>開発者が利用者の利用状況を収集・追跡することはありません</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>3. 端末内に保存される情報</h2>
+    <p>接続設定、マイページのデータ、きせかえ (スキン) データなどは、本アプリ専用の領域として端末内に保存されます。</p>
+  </section>
+
+  <section>
+    <h2>4. 第三者提供</h2>
+    <p>開発者は、法令に基づく場合を除き、利用者の情報を第三者に提供しません。</p>
+  </section>
+
+  <section>
+    <h2>5. データの削除</h2>
+    <ul>
+      <li><strong>端末内のデータ</strong> — 本アプリをアンインストールすることで削除されます</li>
+      <li><strong>Google Drive 上のバックアップ</strong> — Google アカウントの設定画面 (セキュリティ → サードパーティ製のアプリとサービス) から本アプリの接続を解除する際に、保存データの削除を選択できます</li>
+      <li><strong>接続先サーバー上の予約・履歴</strong> — 各サーバーの運営者 (カラオケ会の主催者など) にお問い合わせください</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>6. ポリシーの改定</h2>
+    <p>本ポリシーの内容は、必要に応じて改定されることがあります。重要な変更がある場合は、本ページにて告知します。</p>
+  </section>
+
+  <section>
+    <h2>7. お問い合わせ</h2>
+    <p>本ポリシーおよび本アプリに関するお問い合わせは、次の窓口までお願いします。</p>
+    <ul>
+      <li>GitHub: <a href="https://github.com/bee7813993/KaraokeRequestorWeb/issues">https://github.com/bee7813993/KaraokeRequestorWeb/issues</a></li>
+      <li>メール: <a href="mailto:bee7813993@gmail.com">bee7813993@gmail.com</a></li>
+    </ul>
+  </section>
+
+  <footer>
+    <p><a href="./">ゆかナビ サポートページへ戻る</a></p>
+    <p>© YFRTeam</p>
+  </footer>
+</main>
+</body>
+</html>
