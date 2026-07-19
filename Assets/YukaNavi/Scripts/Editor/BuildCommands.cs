@@ -112,12 +112,7 @@ namespace YukaNavi.EditorTools
             // "0.0.1-alpha" のようなサフィックスはビルドの間だけ外す
             // (Android・アプリ内表示は元の表記のまま)
             string originalVersion = PlayerSettings.bundleVersion;
-            var numeric = System.Text.RegularExpressions.Regex.Match(
-                originalVersion, @"^\d+(\.\d+)*");
-            if (numeric.Success && numeric.Value != originalVersion)
-            {
-                PlayerSettings.bundleVersion = numeric.Value;
-            }
+            ApplyNumericVersionForIos();
             try
             {
                 // Windows でできるのは Xcode プロジェクトの書き出しまで。
@@ -138,6 +133,43 @@ namespace YukaNavi.EditorTools
                 AssetDatabase.SaveAssets();
             }
         }
+
+        /// <summary>
+        /// iOS で使えないバージョン表記 ("0.0.1-alpha" 等) を数字とドットのみにそろえる。
+        /// </summary>
+        static void ApplyNumericVersionForIos()
+        {
+            var numeric = System.Text.RegularExpressions.Regex.Match(
+                PlayerSettings.bundleVersion, @"^\d+(\.\d+)*");
+            if (numeric.Success && numeric.Value != PlayerSettings.bundleVersion)
+            {
+                PlayerSettings.bundleVersion = numeric.Value;
+            }
+        }
+
+#if UNITY_CLOUD_BUILD
+        /// <summary>
+        /// Unity Build Automation の iOS ターゲットが呼ぶ Pre-Export フック
+        /// (ターゲット設定の Advanced Options > Pre-Export Method Name に
+        /// "YukaNavi.EditorTools.BuildCommands.PreExportIosCloud" を設定する)。
+        /// クラウドビルドはビルドメニューを通らず ProjectSettings の値を直接使うため、
+        /// iOS で使えないバージョン表記をここで数字のみにそろえる。
+        /// また TestFlight は同じビルド番号を2度受け付けないため、
+        /// UBA のビルド番号を CFBundleVersion に割り当てる。
+        /// </summary>
+        public static void PreExportIosCloud(UnityEngine.CloudBuild.BuildManifestObject manifest)
+        {
+            ApplyNumericVersionForIos();
+            string buildNumber;
+            if (manifest != null && manifest.TryGetValue("buildNumber", out buildNumber)
+                && !string.IsNullOrEmpty(buildNumber))
+            {
+                PlayerSettings.iOS.buildNumber = buildNumber;
+            }
+            Debug.Log("[YukaNavi] PreExportIosCloud: version=" + PlayerSettings.bundleVersion
+                + " buildNumber=" + PlayerSettings.iOS.buildNumber);
+        }
+#endif
 
         /// <summary>
         /// AAB 署名用の keystore パスワードをローカルファイルから読み込む。
