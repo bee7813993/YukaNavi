@@ -108,13 +108,19 @@ namespace YukaNavi.UI
             _menuContent.offsetMin = new Vector2(40f, BarHeight + 30f);
             _menuContent.offsetMax = new Vector2(-40f, -70f - UiFactory.SafeTop);
 
-            // 大バナー: 主要2機能 (専用のバナー画像)
-            AddBigBanner(_menuContent, 0, "曲をさがす",
-                "Art/UI/Banners/yukanavi_banner_search_song_1000x220",
-                () => _screens.Show<SearchScreen>());
-            AddBigBanner(_menuContent, 1, "予約一覧",
-                "Art/UI/Banners/yukanavi_banner_queue_1000x220",
-                () => _screens.Show<QueueScreen>());
+            // 大バナー: 主要2機能 (専用のバナー画像)。
+            // 横向き (ダッシュボード表示中) は縦の余裕がないため、バナーは出さず
+            // グリッド項目で代替する
+            bool landscape = Screen.width > Screen.height;
+            if (!landscape)
+            {
+                AddBigBanner(_menuContent, 0, "曲をさがす",
+                    "Art/UI/Banners/yukanavi_banner_search_song_1000x220",
+                    () => _screens.Show<SearchScreen>());
+                AddBigBanner(_menuContent, 1, "予約一覧",
+                    "Art/UI/Banners/yukanavi_banner_queue_1000x220",
+                    () => _screens.Show<QueueScreen>());
+            }
 
             // 機能グリッド (2列)。リンクラ同様に下部 (ナビバーの上) に寄せ、中間はホームが透ける
             var grid = UiFactory.CreatePanel(_menuContent, "Grid");
@@ -124,14 +130,24 @@ namespace YukaNavi.UI
             grid.anchoredPosition = new Vector2(0f, 20f);
             var gridLayout = grid.gameObject.AddComponent<GridLayoutGroup>();
             gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-            gridLayout.constraintCount = 2;
+            gridLayout.constraintCount = landscape ? 3 : 2;
             // セルの高さはラベル+キャプション (文字の大きさ設定に追従) が収まる分を確保する
             float cellH = Mathf.Max(175f,
                 16f + UiFactory.LineHeight(34) + 4f + UiFactory.LineHeight(22) + 16f);
             gridLayout.cellSize = new Vector2(486f, cellH);
             gridLayout.spacing = new Vector2(24f, 24f);
             gridLayout.childAlignment = TextAnchor.LowerCenter;
-            grid.sizeDelta = new Vector2(0f, cellH * 3f + 24f * 2f); // 3行分
+            int itemCount = landscape ? 8 : 6; // 横向きはバナー代替の2項目が増える
+            int rowCount = Mathf.CeilToInt(itemCount / (float)gridLayout.constraintCount);
+            grid.sizeDelta = new Vector2(0f, cellH * rowCount + 24f * (rowCount - 1));
+
+            if (landscape)
+            {
+                AddGridItem(grid, "曲をさがす", "キーワードでさがす",
+                    "Art/UI/Icons/yukanavi_icon_search_song_256", () => _screens.Show<SearchScreen>());
+                AddGridItem(grid, "予約一覧", "順番の確認と操作",
+                    "Art/UI/Icons/yukanavi_icon_queue_256", () => _screens.Show<QueueScreen>());
+            }
 
             AddGridItem(grid, "マイページ", "履歴・お気に入り",
                 "Art/UI/Icons/yukanavi_icon_mypage_256", () => _screens.Show<MypageScreen>());
@@ -143,6 +159,8 @@ namespace YukaNavi.UI
                 "Art/UI/Icons/yukanavi_icon_settings_256", () => _screens.Show<ConnectScreen>());
             AddGridItem(grid, "Web版を開く", "ブラウザで表示",
                 "Art/UI/Icons/yukanavi_icon_room_door_256", OpenWebVersion);
+            AddGridItem(grid, "ダッシュボード", "タブレット据え置き表示",
+                "Art/UI/Icons/yukanavi_icon_queue_256", () => _screens.Show<DashboardScreen>());
 
             _menuPanel.SetActive(false);
         }

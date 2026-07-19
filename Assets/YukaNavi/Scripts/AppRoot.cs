@@ -38,6 +38,7 @@ namespace YukaNavi
         RectTransform _screenLayer;
         float _appliedSafeTop = -1f;
         float _appliedSafeBottom = -1f;
+        bool _appliedLandscape;
 
         void Start()
         {
@@ -74,6 +75,7 @@ namespace YukaNavi
             UiFactory.SafeBottom = safeBottom;
             _appliedSafeTop = safeTop;
             _appliedSafeBottom = safeBottom;
+            _appliedLandscape = Screen.width > Screen.height;
 
             // SE / BGM
             var seSource = gameObject.AddComponent<AudioSource>();
@@ -114,6 +116,7 @@ namespace YukaNavi
             _screens.Register<UrlRequestScreen>();
             _screens.Register<PeriodScreen>();
             _screens.Register<RequestDetailScreen>();
+            _screens.Register<DashboardScreen>();
 
             // 下部の常時表示ナビゲーションバー (戻る / メニュー / ホーム)
             GlobalNav.Create(canvasGo.transform, _screens);
@@ -363,11 +366,17 @@ namespace YukaNavi
             }
         }
 
-        /// <summary>Screen.safeArea を Canvas 単位 (幅 1080 基準) の上下インセットに換算する。</summary>
+        /// <summary>
+        /// 現在の Canvas 基準幅 (幅基準スケール)。通常は縦持ちの 1080。
+        /// 横向きのダッシュボード表示中は 1920 に切り替わる (DashboardScreen が設定)。
+        /// </summary>
+        public static float CanvasRefWidth = 1080f;
+
+        /// <summary>Screen.safeArea を Canvas 単位 (幅基準) の上下インセットに換算する。</summary>
         static void ReadSafeInsets(out float top, out float bottom)
         {
             var safe = Screen.safeArea;
-            float toCanvas = 1080f / Screen.width; // 幅基準スケール (matchWidthOrHeight = 0)
+            float toCanvas = CanvasRefWidth / Screen.width; // 幅基準スケール (matchWidthOrHeight = 0)
             top = Mathf.Max(0f, (Screen.height - safe.yMax) * toCanvas);
             bottom = Mathf.Max(0f, safe.yMin * toCanvas);
         }
@@ -375,12 +384,17 @@ namespace YukaNavi
         void Update()
         {
             // エディタの Simulator 切り替え等でセーフエリアが変わったら UI を作り直して追従する
-            // (UI は生成時にインセットを焼き込むため)
+            // (UI は生成時にインセットを焼き込むため)。
+            // 画面の向きの変化も見る (ダッシュボードの横向き切替。セーフエリアの無い
+            // 端末やエディタでは回転してもインセットが 0 のまま変わらないため)
             ReadSafeInsets(out float top, out float bottom);
-            if (Mathf.Abs(top - _appliedSafeTop) < 0.5f && Mathf.Abs(bottom - _appliedSafeBottom) < 0.5f)
+            bool landscape = Screen.width > Screen.height;
+            if (landscape == _appliedLandscape
+                && Mathf.Abs(top - _appliedSafeTop) < 0.5f && Mathf.Abs(bottom - _appliedSafeBottom) < 0.5f)
             {
                 return;
             }
+            _appliedLandscape = landscape;
             _appliedSafeTop = top;
             _appliedSafeBottom = bottom;
             UiFactory.SafeTop = top;
