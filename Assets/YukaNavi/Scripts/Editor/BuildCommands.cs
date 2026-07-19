@@ -15,7 +15,8 @@ namespace YukaNavi.EditorTools
     {
         static readonly string[] Scenes = { "Assets/Scenes/SampleScene.unity" };
 
-        const string AppIdentifier = "com.bee7813993.yukanavi";
+        // アプリ ID (Android applicationId / iOS Bundle ID)。ストア公開後は変更不可
+        const string AppIdentifier = "com.yfrteam.yukanavi";
         const string IconPath = "Assets/YukaNavi/Art/Icon/yukanavi_app_icon_1024.png";
         const string AdaptiveFgPath = "Assets/YukaNavi/Art/Icon/yukanavi_icon_adaptive_fg.png";
         const string AdaptiveBgPath = "Assets/YukaNavi/Art/Icon/yukanavi_icon_adaptive_bg.png";
@@ -175,6 +176,18 @@ namespace YukaNavi.EditorTools
                 (lines.Length > 1 && !string.IsNullOrWhiteSpace(lines[1]))
                     ? lines[1].Trim() : lines[0].Trim();
             return true;
+        }
+
+        /// <summary>
+        /// EnsureSettings を単独で実行して ProjectSettings に保存する。
+        /// クラウドビルド (Unity Build Automation) はビルドメニューを経由せず
+        /// ProjectSettings の値をそのまま使うため、設定変更後はこれで反映しておく。
+        /// </summary>
+        [MenuItem("YukaNavi/設定を適用 (アプリ名・ID・アイコン)")]
+        public static void ApplySettings()
+        {
+            EnsureSettings();
+            Debug.Log("[YukaNavi] アプリ設定を適用しました (ID: " + AppIdentifier + ")");
         }
 
         /// <summary>アプリ名・識別子・アイコンを設定する (何度実行しても同じ結果になる)。</summary>
