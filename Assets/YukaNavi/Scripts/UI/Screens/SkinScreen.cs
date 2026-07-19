@@ -18,7 +18,6 @@ namespace YukaNavi.UI
         static readonly Vector2 PreviewSize = new Vector2(280f, 498f);
 
         RectTransform _listContent;
-        Text _pathText;
         readonly List<GameObject> _rows = new List<GameObject>();
 
         // ホームの表示トグル (時計/メッセージ/マスコット)。配置は現在のスキンに保存される
@@ -217,16 +216,6 @@ namespace YukaNavi.UI
                 UpdateHomeToggles();
                 SetMessage("ホームの配置を初期状態に戻しました");
             });
-
-            _pathText = UiFactory.CreateText(transform, "Path", "", 20, new Color(0.5f, 0.47f, 0.6f));
-            float pathH = UiFactory.LineHeight(20) * 2f;
-            var pathRect = _pathText.rectTransform;
-            pathRect.anchorMin = new Vector2(0f, 1f);
-            pathRect.anchorMax = new Vector2(1f, 1f);
-            pathRect.pivot = new Vector2(0.5f, 1f);
-            pathRect.anchoredPosition = new Vector2(0f, -y);
-            pathRect.sizeDelta = new Vector2(-40f, pathH);
-            y += pathH + 8f;
 
             var scrollRectT = UiFactory.CreateScrollList(transform, "SkinList", out _listContent);
             scrollRectT.anchorMin = new Vector2(0f, 0f);
@@ -1592,7 +1581,6 @@ namespace YukaNavi.UI
         {
             _createModal.SetActive(false);
             _colorModal.SetActive(false);
-            _pathText.text = SkinManager.SkinsRoot;
             Rebuild();
             UpdateHomeToggles();
         }
