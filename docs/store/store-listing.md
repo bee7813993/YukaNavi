@@ -10,12 +10,12 @@
 | デベロッパー名 | YFRTeam |
 | カテゴリ | ミュージック (または エンターテインメント) |
 | 価格 | 無料 (アプリ内課金なし・広告なし) |
-| サポート URL | https://ykr.moe/yukanavi/ |
-| プライバシーポリシー URL | https://ykr.moe/yukanavi/privacy.html |
-| マーケティング URL (任意) | https://github.com/bee7813993/KaraokeRequestorWeb |
+| サポート URL | https://ykr.moe/apps/yukanavi/support.html |
+| プライバシーポリシー URL | https://ykr.moe/apps/yukanavi/privacy.html |
+| マーケティング URL (任意) | https://ykr.moe/apps/yukanavi/index.html |
 
-※ サポートページとプライバシーポリシーは `docs/store/yukanavi/` の HTML を
-ykr.moe の `/yukanavi/` に配置する (リポジトリが非公開のため GitHub は使えない)。
+※ ykr.moe の既存公式サイトのページを使用する。既存ページへの修正提案は
+`docs/store/site-updates/` を参照 (適用は ykr.moe 側で行う)。
 
 ---
 
@@ -60,7 +60,7 @@ ykr.moe の `/yukanavi/` に配置する (リポジトリが非公開のため G
 
 ■ プライバシー
 広告 SDK やアクセス解析ツールは入っていません。詳しくはプライバシーポリシーをご覧ください。
-https://ykr.moe/yukanavi/privacy.html
+https://ykr.moe/apps/yukanavi/privacy.html
 ```
 
 ### キーワード (100文字以内・カンマ区切り)
