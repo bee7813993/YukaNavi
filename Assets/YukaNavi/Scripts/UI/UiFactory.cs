@@ -753,6 +753,14 @@ namespace YukaNavi.UI
             Roundify(img);
             AddShadow(go, 3f);
             var input = go.AddComponent<InputField>();
+            // 既定のカーソルは細く薄くモバイルで見失いやすいため、太いテーマ色にする
+            input.caretWidth = 4;
+            input.customCaretColor = true;
+            input.caretColor = Primary;
+            input.selectionColor = new Color(Primary.r, Primary.g, Primary.b, 0.3f);
+            // モバイルは OS キーボード側で編集する既定 (タップでカーソル移動できる) のまま、
+            // Unity が描画しないカーソルを MobileCaret が caretPosition から自前で重ねる
+            go.AddComponent<MobileCaret>();
 
             var text = CreateText(go.transform, "Text", "", fontSize, TextDark, TextAnchor.MiddleLeft);
             text.supportRichText = false;

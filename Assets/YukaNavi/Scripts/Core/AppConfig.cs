@@ -15,16 +15,17 @@ namespace YukaNavi.Core
         const string KeyGoogleRelayUrl = "yukanavi.google_relay_url";
 
         /// <summary>
-        /// 既定の接続先。Android 実機は localhost に繋がらないため試験サーバーを使う。
+        /// 既定の接続先。実機は空欄 (初回にユーザーが入力する。ポート番号だけの
+        /// 入力で ykr.moe の部屋になる)。エディタ・PC は開発用に localhost。
         /// </summary>
         public static string DefaultServerUrl
         {
             get
             {
-#if UNITY_ANDROID && !UNITY_EDITOR
-                return "http://ykr.moe:11004/";
-#else
+#if UNITY_EDITOR || UNITY_STANDALONE
                 return "http://localhost/";
+#else
+                return "";
 #endif
             }
         }

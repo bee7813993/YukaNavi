@@ -290,6 +290,13 @@
       },
       "url": "https://packages.unity.com"
     },
+    "com.yasirkula.nativecamera": {
+      "version": "1.5.1",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {},
+      "url": "https://package.openupm.com"
+    },
     "com.yasirkula.nativefilepicker": {
       "version": "1.4.3",
       "depth": 0,

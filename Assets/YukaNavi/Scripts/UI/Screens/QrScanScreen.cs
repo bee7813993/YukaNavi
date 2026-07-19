@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using YukaNavi.Core;
 using ZXing;
@@ -29,6 +30,15 @@ namespace YukaNavi.UI
         float _nextScanTime;
         float _cameraStartedAt;
         bool _orientationApplied;
+        /// <summary>デジタルズーム倍率 (映像の中央 1/_zoom を表示・デコードする)</summary>
+        float _zoom = 1f;
+        Slider _zoomSlider;
+        Text _zoomLabel;
+        /// <summary>ピンチ操作の前フレームの2本指間距離 (0 = ピンチ中でない)</summary>
+        float _pinchLastDist;
+        string _deviceName;
+        /// <summary>高解像度要求が拒否されて既定解像度で再試行したか</summary>
+        bool _triedDefaultRes;
 
         public override void BuildUi()
         {
@@ -37,25 +47,55 @@ namespace YukaNavi.UI
 
             UiFactory.CreateTopBar(transform, "QRコードを読み取る");
 
-            var caption = UiFactory.CreateText(transform, "Caption",
-                "ゆかりの部屋の QR コードを写してください", 30, UiFactory.TextDark);
-            var captionRect = caption.rectTransform;
-            captionRect.anchorMin = new Vector2(0f, 1f);
-            captionRect.anchorMax = new Vector2(1f, 1f);
-            captionRect.pivot = new Vector2(0.5f, 1f);
-            captionRect.anchoredPosition = new Vector2(0f, -130f);
-            captionRect.sizeDelta = new Vector2(-40f, 44f);
+            // カメラプレビュー (できるだけ大きく = トップバー下からズーム行の上まで)
+            var areaGo = new GameObject("PreviewArea");
+            areaGo.transform.SetParent(transform, false);
+            var area = areaGo.AddComponent<RectTransform>();
+            UiFactory.StretchFull(area);
+            area.offsetMax = new Vector2(0f, -120f); // トップバーの下
+            area.offsetMin = new Vector2(0f, GlobalNav.BarHeight + 210f); // ズーム行 + 案内の上
 
-            // カメラプレビュー
             var previewGo = new GameObject("Preview");
-            previewGo.transform.SetParent(transform, false);
+            previewGo.transform.SetParent(areaGo.transform, false);
             _preview = previewGo.AddComponent<RawImage>();
             _preview.color = Color.white;
             var previewRect = _preview.rectTransform;
             previewRect.anchorMin = previewRect.anchorMax = new Vector2(0.5f, 0.5f);
             previewRect.pivot = new Vector2(0.5f, 0.5f);
-            previewRect.anchoredPosition = new Vector2(0f, 60f);
-            previewRect.sizeDelta = new Vector2(920f, 920f);
+            previewRect.anchoredPosition = Vector2.zero;
+            previewRect.sizeDelta = new Vector2(1040f, 1040f);
+
+            // デジタルズーム (席から遠い TV に映した QR 用。中央を切り出して拡大する)
+            var zoomRow = UiFactory.CreatePanel(transform, "ZoomRow");
+            zoomRow.anchorMin = new Vector2(0f, 0f);
+            zoomRow.anchorMax = new Vector2(1f, 0f);
+            zoomRow.pivot = new Vector2(0.5f, 0f);
+            zoomRow.anchoredPosition = new Vector2(0f, GlobalNav.BarHeight + 120f);
+            zoomRow.offsetMin = new Vector2(40f, zoomRow.offsetMin.y);
+            zoomRow.offsetMax = new Vector2(-40f, zoomRow.offsetMax.y);
+            zoomRow.sizeDelta = new Vector2(zoomRow.sizeDelta.x, 70f);
+
+            _zoomLabel = UiFactory.CreateText(zoomRow, "Label", "拡大 1.0x", 26,
+                UiFactory.TextDark, TextAnchor.MiddleLeft);
+            var zoomLabelRect = _zoomLabel.rectTransform;
+            zoomLabelRect.anchorMin = new Vector2(0f, 0f);
+            zoomLabelRect.anchorMax = new Vector2(0f, 1f);
+            zoomLabelRect.pivot = new Vector2(0f, 0.5f);
+            zoomLabelRect.anchoredPosition = Vector2.zero;
+            zoomLabelRect.sizeDelta = new Vector2(220f, 0f);
+
+            _zoomSlider = UiFactory.CreateSlider(zoomRow, "Zoom", 10f, 50f); // 1.0x〜5.0x
+            var sliderRect = _zoomSlider.GetComponent<RectTransform>();
+            UiFactory.StretchFull(sliderRect);
+            sliderRect.offsetMin = new Vector2(240f, 10f);
+            sliderRect.offsetMax = new Vector2(-10f, -10f);
+            _zoomSlider.value = 10f;
+            _zoomSlider.onValueChanged.AddListener(value =>
+            {
+                _zoom = value / 10f;
+                _zoomLabel.text = "拡大 " + _zoom.ToString("0.0") + "x";
+                ApplyPreviewUv();
+            });
 
             _statusText = UiFactory.CreateText(transform, "Status", "", 28, UiFactory.TextDark);
             var statusRect = _statusText.rectTransform;
@@ -64,11 +104,30 @@ namespace YukaNavi.UI
             statusRect.pivot = new Vector2(0.5f, 0f);
             statusRect.anchoredPosition = new Vector2(0f, GlobalNav.BarHeight + 30f);
             statusRect.sizeDelta = new Vector2(-40f, 80f);
+
+            // 写真で読み取る (OS のカメラアプリを起動する = 光学ズームや静止画の
+            // フル解像度が使えるため、ライブ映像で読めない遠さの QR の確実な手段)
+            var photoButton = UiFactory.CreateSoftButton(transform, "PhotoScan",
+                "写真で読み取る", 26);
+            var photoRect = photoButton.GetComponent<RectTransform>();
+            photoRect.anchorMin = photoRect.anchorMax = new Vector2(0.5f, 0f);
+            photoRect.pivot = new Vector2(0.5f, 0f);
+            photoRect.anchoredPosition = new Vector2(0f, GlobalNav.BarHeight + 224f);
+            photoRect.sizeDelta = new Vector2(460f, 80f);
+            photoButton.onClick.AddListener(TakePhoto);
+            if (!Application.isMobilePlatform)
+            {
+                photoButton.gameObject.SetActive(false); // OS カメラ連携は実機のみ
+            }
         }
 
         public override void OnShow()
         {
             LastScannedText = null;
+            if (_zoomSlider != null)
+            {
+                _zoomSlider.value = 10f; // ズームを 1.0x に戻す
+            }
             SetStatus("カメラを起動中...", false);
             StartCoroutine(StartCameraRoutine());
         }
@@ -116,26 +175,37 @@ namespace YukaNavi.UI
             }
             Debug.Log("[YukaNavi] カメラデバイス: " + string.Join(", ", names));
 
-            // 解像度は指定せずデバイスの既定に任せる (指定すると OBS 仮想カメラ等が拒否することがある)
-            _camTexture = new WebCamTexture(devices[0].name);
-            _camTexture.Play();
-            _cameraStartedAt = Time.time;
-            _orientationApplied = false;
-            _preview.texture = _camTexture;
+            _deviceName = devices[0].name;
+            _triedDefaultRes = false;
+            StartCameraTexture(true);
+            EnsureReader();
+            _nextScanTime = Time.time + 1f;
+        }
 
+        void EnsureReader()
+        {
+            if (_reader != null)
+            {
+                return;
+            }
             _reader = new BarcodeReaderGeneric
             {
                 AutoRotate = true,
+                TryInverted = true, // 白黒反転した QR も試す
                 Options = new ZXing.Common.DecodingOptions
                 {
                     TryHarder = true,
                     PossibleFormats = new List<BarcodeFormat> { BarcodeFormat.QR_CODE },
                 },
             };
-            _nextScanTime = Time.time + 1f;
         }
 
         public override void OnHide()
+        {
+            StopCameraTexture();
+        }
+
+        void StopCameraTexture()
         {
             if (_camTexture != null)
             {
@@ -148,6 +218,7 @@ namespace YukaNavi.UI
 
         void Update()
         {
+            UpdatePinchZoom();
             if (_camTexture == null || !_camTexture.isPlaying)
             {
                 return;
@@ -158,6 +229,15 @@ namespace YukaNavi.UI
             {
                 if (Time.time - _cameraStartedAt > CameraStartTimeoutSeconds)
                 {
+                    if (!_triedDefaultRes)
+                    {
+                        // 高解像度の要求を拒否する環境 (OBS 仮想カメラ等) は既定解像度で再試行
+                        _triedDefaultRes = true;
+                        _camTexture.Stop();
+                        Destroy(_camTexture);
+                        StartCameraTexture(false);
+                        return;
+                    }
                     SetStatus("カメラの映像を取得できません。URL を手入力してください", true);
                     OnHide();
                 }
@@ -175,6 +255,25 @@ namespace YukaNavi.UI
             TryDecode();
         }
 
+        /// <summary>カメラテクスチャを起動する (高解像度優先、拒否環境は既定で再試行)。</summary>
+        void StartCameraTexture(bool highRes)
+        {
+            // 遠くの TV に映した QR も読めるよう高解像度を要求する
+            // (デジタルズームの切り出しに十分な画素が要る)
+            // 4K を要求する (非対応端末は最も近いサポート解像度が選ばれる)。
+            // 縦持ちでは画面の横方向 = センサー短辺のため、デジタルズームで
+            // 遠くの QR を読むには縦 2160 級の画素が要る
+            _camTexture = highRes
+                ? new WebCamTexture(_deviceName, 3840, 2160, 30)
+                : new WebCamTexture(_deviceName);
+            _camTexture.Play();
+            // 画面中央 (QR を写す位置) にピントを合わせ続ける (非対応環境では無視される)
+            _camTexture.autoFocusPoint = new Vector2(0.5f, 0.5f);
+            _cameraStartedAt = Time.time;
+            _orientationApplied = false;
+            _preview.texture = _camTexture;
+        }
+
         /// <summary>
         /// Android のカメラ映像はセンサー基準で回転して届くため、プレビューの回転・ミラー・
         /// アスペクト比を補正する (映像サイズ確定後に1回だけ)。
@@ -184,55 +283,206 @@ namespace YukaNavi.UI
             _orientationApplied = true;
             int angle = _camTexture.videoRotationAngle;
             _preview.rectTransform.localEulerAngles = new Vector3(0f, 0f, -angle);
-            _preview.uvRect = _camTexture.videoVerticallyMirrored
-                ? new Rect(0f, 1f, 1f, -1f)
-                : new Rect(0f, 0f, 1f, 1f);
+            ApplyPreviewUv();
 
-            // 映像のアスペクト比を保ちつつ、回転後の見た目が 920x920 に収まるようにする
-            const float box = 920f;
-            float aspect = (float)_camTexture.width / _camTexture.height;
+            // 映像のアスペクト比を保ちつつ、回転後の見た目がプレビュー領域に収まるようにする
+            var areaRect = ((RectTransform)_preview.rectTransform.parent).rect;
+            float texAspect = (float)_camTexture.width / _camTexture.height;
             bool quarterTurn = (angle % 180) != 0;
-            // 画面上の見た目サイズ (90/270度回転時は縦横が入れ替わる)
-            float dispW = quarterTurn ? box / aspect : box;
-            float dispH = quarterTurn ? box : box / aspect;
-            float scale = Mathf.Min(box / dispW, box / dispH, 1f);
-            dispW *= scale;
-            dispH *= scale;
+            float dispAspect = quarterTurn ? 1f / texAspect : texAspect; // 画面上の縦横比
+            float fitW = areaRect.width;
+            float fitH = fitW / dispAspect;
+            if (fitH > areaRect.height)
+            {
+                fitH = areaRect.height;
+                fitW = fitH * dispAspect;
+            }
             // sizeDelta は回転前の軸で指定する (90/270度回転時は幅と高さが入れ替わって見える)
             _preview.rectTransform.sizeDelta = quarterTurn
-                ? new Vector2(dispH, dispW)
-                : new Vector2(dispW, dispH);
+                ? new Vector2(fitH, fitW)
+                : new Vector2(fitW, fitH);
+        }
+
+        /// <summary>2本指のピンチイン/アウトでズームを変える (スライダーと連動)。</summary>
+        void UpdatePinchZoom()
+        {
+            var touchscreen = Touchscreen.current;
+            if (touchscreen == null || _zoomSlider == null)
+            {
+                return;
+            }
+            int active = 0;
+            Vector2 p0 = default, p1 = default;
+            foreach (var touch in touchscreen.touches)
+            {
+                if (!touch.press.isPressed)
+                {
+                    continue;
+                }
+                if (active == 0)
+                {
+                    p0 = touch.position.ReadValue();
+                }
+                else if (active == 1)
+                {
+                    p1 = touch.position.ReadValue();
+                }
+                active++;
+            }
+            if (active < 2)
+            {
+                _pinchLastDist = 0f;
+                return;
+            }
+            float dist = Vector2.Distance(p0, p1);
+            if (_pinchLastDist > 0f)
+            {
+                // 画面幅ぶん指を広げたときスライダー全域 (1.0x→3.0x) 動く感度
+                float delta = (dist - _pinchLastDist) / Screen.width
+                    * (_zoomSlider.maxValue - _zoomSlider.minValue);
+                _zoomSlider.value += delta; // 表示・uvRect の更新は onValueChanged が行う
+            }
+            _pinchLastDist = dist;
+        }
+
+        /// <summary>
+        /// 映像とデコード対象を中央 1/_zoom に切り出す (デジタルズーム)。
+        /// 遠くの QR がフレーム内で相対的に大きくなり、読み取りやすくなる。
+        /// </summary>
+        void ApplyPreviewUv()
+        {
+            float size = 1f / _zoom;
+            float inset = (1f - size) * 0.5f;
+            bool mirrored = _camTexture != null && _camTexture.videoVerticallyMirrored;
+            _preview.uvRect = mirrored
+                ? new Rect(inset, 1f - inset, size, -size)
+                : new Rect(inset, inset, size, size);
         }
 
         void TryDecode()
         {
             var pixels = _camTexture.GetPixels32();
-            var bytes = new byte[pixels.Length * 4];
-            for (int i = 0; i < pixels.Length; i++)
+            int fullW = _camTexture.width;
+            int fullH = _camTexture.height;
+            // ズーム中は中央だけを切り出してデコードする (表示と同じ範囲)
+            int cropW = Mathf.Clamp(Mathf.RoundToInt(fullW / _zoom), 1, fullW);
+            int cropH = Mathf.Clamp(Mathf.RoundToInt(fullH / _zoom), 1, fullH);
+            int x0 = (fullW - cropW) / 2;
+            int y0 = (fullH - cropH) / 2;
+            var result = DecodePixels(pixels, x0, y0, cropW, cropH, fullW);
+            if (!HandleDecodeResult(result))
             {
-                int o = i * 4;
-                bytes[o] = pixels[i].r;
-                bytes[o + 1] = pixels[i].g;
-                bytes[o + 2] = pixels[i].b;
-                bytes[o + 3] = pixels[i].a;
+                // カメラ解像度を添えて表示する (低解像度だと拡大しても読めないため、
+                // 高解像度要求が効いているかを実機で確認できるように)
+                SetStatus("QRコードを探しています... ("
+                    + fullW + "×" + fullH + ")", false);
             }
-            var source = new RGBLuminanceSource(bytes, _camTexture.width, _camTexture.height,
+        }
+
+        /// <summary>ピクセル配列の指定範囲を ZXing でデコードする (ライブ/写真共通)。</summary>
+        ZXing.Result DecodePixels(Color32[] pixels, int x0, int y0, int cw, int ch, int fullW)
+        {
+            var bytes = new byte[cw * ch * 4];
+            for (int y = 0; y < ch; y++)
+            {
+                int src = (y0 + y) * fullW + x0;
+                int dst = y * cw * 4;
+                for (int x = 0; x < cw; x++)
+                {
+                    var p = pixels[src + x];
+                    int o = dst + x * 4;
+                    bytes[o] = p.r;
+                    bytes[o + 1] = p.g;
+                    bytes[o + 2] = p.b;
+                    bytes[o + 3] = p.a;
+                }
+            }
+            var source = new RGBLuminanceSource(bytes, cw, ch,
                 RGBLuminanceSource.BitmapFormat.RGBA32);
-            var result = _reader.Decode(source);
+            return _reader.Decode(source);
+        }
+
+        /// <summary>
+        /// デコード結果の処理 (ライブ/写真共通)。何か読めたら true
+        /// (ゆかりの URL なら接続設定へ戻り、URL 以外ならその旨を表示する)。
+        /// </summary>
+        bool HandleDecodeResult(ZXing.Result result)
+        {
             if (result == null)
             {
-                SetStatus("QRコードを探しています...", false);
-                return;
+                return false;
             }
             string text = (result.Text ?? "").Trim();
             if (!text.StartsWith("http://") && !text.StartsWith("https://"))
             {
                 SetStatus("ゆかりの QR ではないようです: " + text, true);
-                return;
+                return true;
             }
             LastScannedText = text;
             Se.Play(Se.Confirm);
             Manager.Back();
+            return true;
+        }
+
+        /// <summary>
+        /// OS のカメラアプリで写真を撮り、その静止画から QR を読み取る。
+        /// カメラアプリの光学ズーム・オートフォーカス・フル解像度が使えるため、
+        /// ライブ映像で読めない距離でも読み取れる。
+        /// </summary>
+        void TakePhoto()
+        {
+            Se.Play(Se.Tap);
+            // Android のカメラは排他のため、OS カメラアプリと取り合わないよう
+            // 先にライブ映像を完全に解放する (掴んだまま撮影に行くと、以後
+            // カメラを開けなくなる端末がある)
+            StopCameraTexture();
+            SetStatus("カメラアプリで QR を大きく写して撮影してください", false);
+            NativeCamera.TakePicture(path =>
+            {
+                if (path == null)
+                {
+                    RestartLiveCamera(); // 撮影キャンセル
+                    return;
+                }
+                var tex = NativeCamera.LoadImageAtPath(path, 4096,
+                    markTextureNonReadable: false);
+                if (tex == null)
+                {
+                    SetStatus("写真を読み込めませんでした", true);
+                    RestartLiveCamera();
+                    return;
+                }
+                var pixels = tex.GetPixels32();
+                int w = tex.width;
+                int h = tex.height;
+                Destroy(tex);
+                EnsureReader();
+                var result = DecodePixels(pixels, 0, 0, w, h, w);
+                if (!HandleDecodeResult(result))
+                {
+                    SetStatus("写真から QR を見つけられませんでした。もう少し大きく写してください", true);
+                    RestartLiveCamera();
+                }
+            }, maxSize: 4096);
+        }
+
+        /// <summary>カメラアプリから戻ったあと、ライブ映像を作り直して再開する。</summary>
+        void RestartLiveCamera()
+        {
+            if (_camTexture == null)
+            {
+                StartCoroutine(RestartLiveCameraRoutine());
+            }
+        }
+
+        IEnumerator RestartLiveCameraRoutine()
+        {
+            // カメラアプリ側がカメラデバイスを解放するのを少し待ってから起動する
+            yield return new WaitForSeconds(0.5f);
+            if (_camTexture == null)
+            {
+                StartCamera();
+            }
         }
 
         void SetStatus(string message, bool isError)
