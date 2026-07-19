@@ -1,0 +1,34 @@
+# Unity Build Automation (UBA) 用のカスタム Fastlane レーン。
+# Assets/ucb_xcode_fastlane.json の post_build から呼ばれ、
+# ビルドされた .ipa を TestFlight (App Store Connect) へアップロードする。
+#
+# 使い方: UBA の iOS ビルドターゲット設定 >
+#   - Advanced settings > Platform specific settings (iOS) >
+#     Custom Fastlane configuration path = Assets/ucb_xcode_fastlane.json
+#   - Advanced settings > Environment variables に以下を設定:
+#     ASC_KEY_ID      = App Store Connect API キーの Key ID
+#     ASC_ISSUER_ID   = Issuer ID (App Store Connect > ユーザとアクセス > 統合)
+#     ASC_KEY_CONTENT = AuthKey_<KeyID>.p8 の中身を base64 化した文字列
+
+lane :upload_testflight do |options|
+  if ENV["ASC_KEY_ID"].to_s.empty? || ENV["ASC_ISSUER_ID"].to_s.empty? || ENV["ASC_KEY_CONTENT"].to_s.empty?
+    UI.user_error!("ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_CONTENT が未設定です (UBA の Environment variables を確認)")
+  end
+
+  api_key = app_store_connect_api_key(
+    key_id: ENV["ASC_KEY_ID"],
+    issuer_id: ENV["ASC_ISSUER_ID"],
+    key_content: ENV["ASC_KEY_CONTENT"],
+    is_key_content_base64: true
+  )
+
+  ipa_path = Dir[File.join(options[:output_directory], "**", "*.ipa")].first
+  UI.user_error!(".ipa が見つかりません: #{options[:output_directory]}") if ipa_path.nil?
+  UI.message("TestFlight へアップロード: #{ipa_path}")
+
+  upload_to_testflight(
+    api_key: api_key,
+    ipa: ipa_path,
+    skip_waiting_for_build_processing: true
+  )
+end
