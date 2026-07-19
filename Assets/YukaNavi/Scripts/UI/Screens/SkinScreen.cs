@@ -38,6 +38,10 @@ namespace YukaNavi.UI
         /// <summary>0=そのまま (新規時はアプリ標準) / 1=画像を選択 / 2=アプリ標準の盤に戻す</summary>
         int _recordMode;
         InputField _talkInput;
+        ScrollRect _modalScroll;
+        RectTransform _modalCard;
+        RectTransform _modalFrame;
+        bool _talkWasFocused;
         Text _createErrorText;
         Button _charNoneButton;
         Button _bgmNoneButton;
@@ -280,11 +284,8 @@ namespace YukaNavi.UI
             cardFrame.anchorMin = new Vector2(0.5f, 0f);
             cardFrame.anchorMax = new Vector2(0.5f, 1f);
             cardFrame.pivot = new Vector2(0.5f, 0.5f);
-            // 上 40px / 下はナビバー + 20px を空ける (下部の保存ボタンがナビバーに隠れないように)
-            float topMargin = 40f;
-            float bottomMargin = GlobalNav.BarHeight + 20f;
-            cardFrame.anchoredPosition = new Vector2(0f, (bottomMargin - topMargin) / 2f);
-            cardFrame.sizeDelta = new Vector2(940f, -(topMargin + bottomMargin));
+            _modalFrame = cardFrame;
+            ApplyModalKeyboardLayout(false); // 上 40px / 下はナビバー + 20px を空ける
             UiFactory.Roundify(cardFrame.GetComponent<Image>());
             UiFactory.AddShadow(cardFrame.gameObject, 8f);
             // カード内タップがオーバーレイに抜けないようにする
@@ -316,6 +317,8 @@ namespace YukaNavi.UI
             modalScroll.horizontal = false;
             modalScroll.movementType = ScrollRect.MovementType.Elastic;
             modalScroll.scrollSensitivity = 30f;
+            _modalScroll = modalScroll;
+            _modalCard = card;
 
             // 各行の縦位置・高さは文字の大きさ設定 (FontScale) に合わせて積み上げる
             float y = 22f;
@@ -456,7 +459,9 @@ namespace YukaNavi.UI
             _talkInput.lineType = InputField.LineType.MultiLineNewline;
             ((Text)_talkInput.textComponent).alignment = TextAnchor.UpperLeft;
             ((Text)_talkInput.placeholder).alignment = TextAnchor.UpperLeft;
-            float talkInputH = Mathf.Max(130f, UiFactory.LineHeight(26) * 2f + 30f);
+            // 複数行のセリフを書きやすいよう広めに (実機フィードバック対応)。
+            // スクリーンキーボードに隠れない対応は Update のフォーカス監視で行う
+            float talkInputH = Mathf.Max(240f, UiFactory.LineHeight(26) * 4f + 30f);
             SetCardRow(_talkInput.GetComponent<RectTransform>(), -y, talkInputH);
             y += talkInputH + 14f;
 
@@ -768,6 +773,70 @@ namespace YukaNavi.UI
             rect.offsetMin = new Vector2(50f, rect.offsetMin.y);
             rect.offsetMax = new Vector2(-50f, rect.offsetMax.y);
             rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
+        }
+
+        /// <summary>
+        /// セリフ入力のフォーカスを監視し、スクリーンキーボードに隠れないよう
+        /// モーダルの高さ調整と欄までのスクロールを行う。
+        /// </summary>
+        void Update()
+        {
+            bool focused = _talkInput != null && _createModal != null
+                && _createModal.activeSelf && _talkInput.isFocused;
+            if (focused == _talkWasFocused)
+            {
+                return;
+            }
+            _talkWasFocused = focused;
+            ApplyModalKeyboardLayout(focused);
+            if (focused)
+            {
+                StartCoroutine(ScrollTalkIntoViewRoutine());
+            }
+        }
+
+        /// <summary>
+        /// セリフ入力中はモーダルの下端をスクリーンキーボードの上あたりまで持ち上げる
+        /// (Unity はキーボード表示で画面をリサイズしないため、そのままでは下半分が隠れる)。
+        /// </summary>
+        void ApplyModalKeyboardLayout(bool keyboardOpen)
+        {
+            if (_modalFrame == null)
+            {
+                return;
+            }
+            const float topMargin = 40f;
+            float bottomMargin = keyboardOpen
+                ? ((RectTransform)_createModal.transform).rect.height * 0.48f
+                : GlobalNav.BarHeight + 20f;
+            _modalFrame.anchoredPosition = new Vector2(0f, (bottomMargin - topMargin) / 2f);
+            _modalFrame.sizeDelta = new Vector2(940f, -(topMargin + bottomMargin));
+        }
+
+        System.Collections.IEnumerator ScrollTalkIntoViewRoutine()
+        {
+            yield return null; // モーダルの高さ変更のレイアウト確定を待つ
+            ScrollModalTo((RectTransform)_talkInput.transform);
+            yield return new WaitForSeconds(0.35f); // キーボード表示後にもう一度 (端末差対策)
+            if (_talkInput != null && _talkInput.isFocused)
+            {
+                ScrollModalTo((RectTransform)_talkInput.transform);
+            }
+        }
+
+        void ScrollModalTo(RectTransform target)
+        {
+            if (_modalScroll == null || _modalCard == null)
+            {
+                return;
+            }
+            Canvas.ForceUpdateCanvases();
+            float contentH = _modalCard.rect.height;
+            float viewportH = _modalScroll.viewport.rect.height;
+            float scrollable = Mathf.Max(contentH - viewportH, 1f);
+            float targetTop = -target.anchoredPosition.y;
+            _modalScroll.verticalNormalizedPosition =
+                1f - Mathf.Clamp01((targetTop - 30f) / scrollable);
         }
 
         /// <summary>背景調整プレビュー (枠 + ドラッグ + 回転/ズームボタン)。</summary>
