@@ -86,7 +86,7 @@ namespace YukaNavi.UI
             y -= titleH + 8f;
 
             const string captionLine1 = "ゆかりサーバーの URL を入力してください";
-            const string captionLine2 = "(ykr.moe はポート番号だけでもOK)";
+            const string captionLine2 = "(ykr.moe の部屋はポート番号だけでOK · 例: 11080)";
             var caption = UiFactory.CreateText(content, "Caption",
                 captionLine1 + "\n" + captionLine2, 28, UiFactory.TextDark);
             float captionH = (UiFactory.EstimateWrapLines(captionLine1, 28, 900f)
@@ -99,7 +99,7 @@ namespace YukaNavi.UI
                 UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
             SetTopRect(urlLabel.rectTransform, y, labelH);
             y -= labelH + 8f;
-            _urlInput = UiFactory.CreateInputField(content, "UrlInput", "http://192.168.x.x/ か ポート番号");
+            _urlInput = UiFactory.CreateInputField(content, "UrlInput", "ポート番号 か http://192.168.x.x/");
             SetTopRect(_urlInput.GetComponent<RectTransform>(), y, 84f);
             // URL 欄の右に QR 読み取りボタンを置く
             var urlRect = _urlInput.GetComponent<RectTransform>();
