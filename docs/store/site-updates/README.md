@@ -1,9 +1,10 @@
 # ykr.moe 公式サイトへの修正提案
 
-ykr.moe/apps/yukanavi/ で公開中のページ 3 点の修正版。
-1つ前のコミットが公開中ページのスナップショットなので、git の差分で変更点を確認できる。
+ykr.moe/apps/yukanavi/ で公開中のページのうち、修正が必要な 2 点の修正版。
+スナップショットコミット (公開中ページの取り込み) との git 差分で変更点を確認できる。
 
-**適用方法**: この 3 ファイルを ykr.moe の `/apps/yukanavi/` に上書き配置する。
+**適用方法**: この 2 ファイルを ykr.moe の `/apps/yukanavi/` に上書き配置する。
+(index.html は修正不要のため含めていない)
 
 ## privacy.html — ストア申告との整合と実装反映
 
@@ -21,15 +22,7 @@ ykr.moe/apps/yukanavi/ で公開中のページ 3 点の修正版。
 ## support.html
 
 - QR の FAQ にズームスライダー / ピンチ操作 / 「写真で読み取る」の案内を追加 (実装済み機能の反映)
-- お問い合わせの GitHub Issues リンクを KaraokeRequestorWeb に変更
-  — **旧リンク先の YukaNavi リポジトリは非公開のため、一般ユーザーには 404 になる**
-- 関連リンクから非公開の YukaNavi リポジトリを除去し、ゆかり (KaraokeRequestorWeb) に一本化
-
-## index.html
-
-- アプリ情報の「GitHubプロジェクト」リンクを KaraokeRequestorWeb に変更 (同じく非公開リポジトリ 404 対策)
 
 ## 備考
 
-- YukaNavi リポジトリを将来公開する場合は、support.html / index.html のリンクを戻してもよい
 - release-status (「Android版 公開準備中」) はストア公開時にストアバッジ / リンクへ差し替える想定 (今回は変更していない)
