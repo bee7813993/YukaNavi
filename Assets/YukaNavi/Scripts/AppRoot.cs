@@ -27,6 +27,13 @@ namespace YukaNavi
         }
 
         ScreenManager _screens;
+
+        /// <summary>画面マネージャ (エディタのスクショ自動撮影などが使う)。</summary>
+        public ScreenManager Screens
+        {
+            get { return _screens; }
+        }
+
         AudioSource _bgmSource;
         RectTransform _screenLayer;
         float _appliedSafeTop = -1f;
