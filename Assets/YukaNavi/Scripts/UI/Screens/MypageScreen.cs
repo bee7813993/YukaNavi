@@ -328,7 +328,10 @@ namespace YukaNavi.UI
             // テキスト幅 ≈ リスト幅 1040 - バッジ 118 - 削除ボタン 160
             int nameLines = UiFactory.EstimateWrapLines(item.Songfile, 29, 740f);
             float nameHeight = nameLines * UiFactory.LineHeight(29);
-            float rowHeight = Mathf.Max(20f + nameHeight + 36f + 14f, 136f);
+            // 2行目 (日付) の高さも FontScale 込みで確保する
+            // (固定値だと大きい文字サイズ設定で Truncate が1行も描けず文字が消える)
+            float subHeight = UiFactory.LineHeight(22);
+            float rowHeight = Mathf.Max(20f + nameHeight + subHeight + 6f + 14f, 136f);
 
             var rowGo = new GameObject("Row");
             rowGo.transform.SetParent(_listContent, false);
@@ -399,7 +402,7 @@ namespace YukaNavi.UI
             subRect.anchoredPosition = new Vector2(0f, 12f);
             subRect.offsetMin = new Vector2(118f, subRect.offsetMin.y);
             subRect.offsetMax = new Vector2(-160f, subRect.offsetMax.y);
-            subRect.sizeDelta = new Vector2(subRect.sizeDelta.x, 30f);
+            subRect.sizeDelta = new Vector2(subRect.sizeDelta.x, subHeight);
             sub.verticalOverflow = VerticalWrapMode.Truncate;
 
             // 削除 (2度押し確認)
