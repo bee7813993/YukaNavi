@@ -9,7 +9,9 @@ namespace YukaNavi.UI
     /// <summary>
     /// 画面下部に常時表示するナビゲーションバー (戻る / メニュー / ホーム) と、
     /// メニューボタンで画面いっぱいに展開するメニュー (リンクラ型)。
-    /// メニューは上部に主要機能の大バナー、下部に機能グリッドを置き、背景はホームが透ける。
+    /// メニューは上部に主要機能の大バナー、下部に機能グリッドを置く。
+    /// 背景の透過はホーム表示中のみ (他画面ではフォームの文字が透けて読みづらく、
+    /// App Store 審査でも「画面が重なって見える」と指摘されたため、ほぼ不透明にする)。
     /// </summary>
     public class GlobalNav : MonoBehaviour
     {
@@ -22,6 +24,7 @@ namespace YukaNavi.UI
         GameObject _menuPanel;
         RectTransform _menuContent;
         CanvasGroup _menuGroup;
+        Image _menuOverlay;
         Image _menuButtonIcon;
         Sprite _menuSprite;
         Sprite _closeSprite;
@@ -97,9 +100,10 @@ namespace YukaNavi.UI
             var panelRect = _menuPanel.AddComponent<RectTransform>();
             UiFactory.StretchFull(panelRect);
             _menuGroup = _menuPanel.AddComponent<CanvasGroup>(); // 開閉フェード用
-            // ホームが透けるオーバーレイ (リンクラ風に透過多め)
-            var overlay = _menuPanel.AddComponent<Image>();
-            overlay.color = new Color(0.95f, 0.93f, 0.99f, 0.55f);
+            // オーバーレイ。透過度は開くたびに OpenMenu が現在の画面に合わせて決める
+            // (ホームの上では壁紙が透ける演出、他画面の上ではほぼ不透明)
+            _menuOverlay = _menuPanel.AddComponent<Image>();
+            _menuOverlay.color = new Color(0.95f, 0.93f, 0.99f, 0.97f);
 
             // 中身 (ナビバーの上・画面端に余白)
             _menuContent = UiFactory.CreatePanel(panelRect, "Content");
@@ -291,6 +295,12 @@ namespace YukaNavi.UI
         void OpenMenu()
         {
             _menuOpen = true;
+            // ホームの上では壁紙・キャラが透ける演出 (リンクラ風)。それ以外の画面の上では
+            // 下のフォームの文字が透けて読みづらいため、ほぼ不透明にして重なりを断つ
+            bool overHome = _screens.Current is HomeScreen;
+            var c = _menuOverlay.color;
+            c.a = overHome ? 0.55f : 0.97f;
+            _menuOverlay.color = c;
             _menuPanel.SetActive(true);
             if (_closeSprite != null)
             {
@@ -303,7 +313,12 @@ namespace YukaNavi.UI
             _menuAnim = StartCoroutine(MenuRoutine(true));
         }
 
-        void CloseMenu()
+        /// <summary>
+        /// メニューを閉じる (開いていなければ何もしない)。ナビ以外の経路で画面を
+        /// 切り替えるとき (共有インテント等) にも呼ぶ — メニューの透過度は開いた時点の
+        /// 画面に合わせて決まるため、下の画面だけ差し替わると表示が食い違う。
+        /// </summary>
+        public void CloseMenu()
         {
             if (!_menuOpen && !_menuPanel.activeSelf)
             {

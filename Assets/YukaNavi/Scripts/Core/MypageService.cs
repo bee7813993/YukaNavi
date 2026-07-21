@@ -441,6 +441,32 @@ namespace YukaNavi.Core
         }
 
         /// <summary>
+        /// Google 連携データの削除 (App Store ガイドライン対応)。Drive 上の mypage_data.json を
+        /// 削除し、トークンを失効させてログアウトする。Drive の削除に失敗したら中断して例外
+        /// (ログイン状態は維持され、再試行できる)。失効の失敗は無視してログアウトまで進む。
+        /// 端末内のデータは残る。
+        /// </summary>
+        public static async Task DeleteDriveDataAsync()
+        {
+            // 予約済みの自動 push を無効化し、次のログインで pull するまで push を止める
+            // (削除後に debounce 中の push が走ると Drive にファイルを作り直してしまう)
+            _pushSerial++;
+            _pulledThisSession = false;
+            try
+            {
+                await GoogleDrive.DeleteAsync();
+            }
+            catch (GoogleAuthException)
+            {
+                HandleAuthLost();
+                throw;
+            }
+            await GoogleAccount.RevokeAndLogoutAsync();
+            PlayerPrefs.DeleteKey(DriveSyncedAtKey);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>
         /// ローカル変更の自動 push。10秒の debounce で連続変更をまとめる。
         /// このセッションで Drive をまだ読んでいない間は push しない
         /// (取り込み前のローカルデータで Drive 側を上書きして消さないため)。
@@ -453,7 +479,8 @@ namespace YukaNavi.Core
             }
             int serial = ++_pushSerial;
             await Task.Delay(10000);
-            if (serial != _pushSerial || !GoogleAccount.IsLoggedIn)
+            // _pulledThisSession は待機中に連携データ削除で false に戻ることがあるため再確認
+            if (serial != _pushSerial || !_pulledThisSession || !GoogleAccount.IsLoggedIn)
             {
                 return;
             }
