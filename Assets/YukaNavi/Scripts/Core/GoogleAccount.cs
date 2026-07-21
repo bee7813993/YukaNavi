@@ -90,10 +90,36 @@ namespace YukaNavi.Core
             PlayerPrefs.Save();
         }
 
+        const string RevokeUrl = "https://oauth2.googleapis.com/revoke";
+
         /// <summary>
-        /// ブラウザで Google ログインする。relay の認証ページを開き、完了を app_poll の
-        /// ポーリングで待つ (2秒間隔・最大5分)。成功でトークンを端末に保存して true。
-        /// 中止・タイムアウト・失敗で false (理由は LastLoginError)。
+        /// Google のトークンを失効させてからログアウトする (連携データ削除用)。
+        /// 失効はベストエフォート: 通信エラーや失効済み (HTTP 400) でも必ずローカルの
+        /// トークンは消す。
+        /// </summary>
+        public static async Task RevokeAndLogoutAsync()
+        {
+            var token = Load();
+            string target = token == null ? null
+                : (!string.IsNullOrEmpty(token.RefreshToken) ? token.RefreshToken : token.AccessToken);
+            if (!string.IsNullOrEmpty(target))
+            {
+                try
+                {
+                    await HttpAsync("POST", RevokeUrl + "?token=" + UnityWebRequest.EscapeURL(target));
+                }
+                catch (System.Exception)
+                {
+                    // 失効に失敗してもローカルのログアウトは続行する
+                }
+            }
+            Logout();
+        }
+
+        /// <summary>
+        /// ブラウザ (iOS はアプリ内シート) で Google ログインする。relay の認証ページを開き、
+        /// 完了を app_poll のポーリングで待つ (2秒間隔・最大5分)。成功でトークンを端末に
+        /// 保存して true。中止・タイムアウト・失敗で false (理由は LastLoginError)。
         /// </summary>
         public static async Task<bool> LoginAsync()
         {
@@ -108,15 +134,31 @@ namespace YukaNavi.Core
             {
                 string session = NewSession();
                 string relay = AppConfig.GoogleRelayUrl;
-                Application.OpenURL(relay + "?action=app_auth&session=" + session);
+                if (!InAppBrowser.Open(relay + "?action=app_auth&session=" + session))
+                {
+                    LastLoginError = "認証ページを開けませんでした。中継サーバー URL を確認してください";
+                    return false;
+                }
 
                 long deadline = Now() + 300;
+                long sheetClosedAt = 0; // iOS: ユーザーがシートを閉じた時刻 (0 = 閉じていない)
                 while (Now() < deadline)
                 {
                     await Task.Delay(2000);
                     if (_cancelRequested)
                     {
                         return false;
+                    }
+                    // iOS: ユーザーがアプリ内シートを自分で閉じた → 猶予付きで中止扱いにする。
+                    // 認証完了と同時に閉じた場合の取りこぼしを防ぐため、猶予内はポーリングを
+                    // 続け、その間に "ok" が来ればそのまま成功にする
+                    if (InAppBrowser.ConsumeUserClosed())
+                    {
+                        sheetClosedAt = Now();
+                    }
+                    if (sheetClosedAt != 0 && Now() >= sheetClosedAt + 5)
+                    {
+                        return false; // 中止扱い (LastLoginError = null → 呼び出し側は中止表示)
                     }
                     string json;
                     try
@@ -156,6 +198,7 @@ namespace YukaNavi.Core
             }
             finally
             {
+                InAppBrowser.Dismiss(); // 成功・失敗・中止・タイムアウトのどの経路でもシートを閉じる
                 _loginInProgress = false;
             }
         }

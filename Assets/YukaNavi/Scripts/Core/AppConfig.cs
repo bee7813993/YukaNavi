@@ -64,13 +64,24 @@ namespace YukaNavi.Core
         /// <summary>
         /// Google 認証の中継サーバー URL (高度な設定。通常は変更不要)。
         /// 空を保存すると既定に戻る。自前の relay を立てる場合だけ差し替える。
+        /// スキーム無しで保存された場合は https:// を補う (iOS のアプリ内シート
+        /// [SFSafariViewController] は http/https 以外の URL で開けないため)。
         /// </summary>
         public static string GoogleRelayUrl
         {
             get
             {
                 string url = PlayerPrefs.GetString(KeyGoogleRelayUrl, "").Trim();
-                return url == "" ? DefaultGoogleRelayUrl : url;
+                if (url == "")
+                {
+                    return DefaultGoogleRelayUrl;
+                }
+                if (!url.StartsWith("http://", System.StringComparison.OrdinalIgnoreCase)
+                    && !url.StartsWith("https://", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    url = "https://" + url;
+                }
+                return url;
             }
             set { PlayerPrefs.SetString(KeyGoogleRelayUrl, (value ?? "").Trim()); PlayerPrefs.Save(); }
         }

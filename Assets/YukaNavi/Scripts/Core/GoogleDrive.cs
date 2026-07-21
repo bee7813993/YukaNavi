@@ -56,6 +56,19 @@ namespace YukaNavi.Core
             }
         }
 
+        /// <summary>Drive のマイページデータを削除する。ファイルがまだ無ければ何もしない。</summary>
+        public static async Task DeleteAsync()
+        {
+            string token = await GoogleAccount.GetAccessTokenAsync();
+            string id = await FindFileIdAsync(token);
+            if (id == null)
+            {
+                return;
+            }
+            await RequestAsync("DELETE", FilesUrl + "/" + UnityWebRequest.EscapeURL(id),
+                null, null, token);
+        }
+
         static async Task<string> FindFileIdAsync(string token)
         {
             string url = FilesUrl + "?spaces=appDataFolder"
