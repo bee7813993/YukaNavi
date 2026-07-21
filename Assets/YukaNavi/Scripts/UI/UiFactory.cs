@@ -524,6 +524,15 @@ namespace YukaNavi.UI
         public static float SafeBottom;
 
         /// <summary>
+        /// Canvas の実効幅 (Canvas 単位)。CanvasScaler が Expand のため、9:16 より横に
+        /// 広い端末 (iPad 等) では基準幅 1080 より大きくなる (11インチ iPad で約 1341)。
+        /// 画面幅いっぱいに伸ばす要素の折り返し幅の見積もりにはこちらを使う。
+        /// </summary>
+        public static float CanvasWidth =>
+            Mathf.Max(AppRoot.CanvasRefWidth,
+                AppRoot.CanvasRefHeight * Screen.width / Screen.height);
+
+        /// <summary>
         /// バーの白背景をセーフエリア外 (ノッチの裏) まで上に伸ばす。
         /// 中身はバー本体 (セーフエリア内) のままなので座標系は変わらない。
         /// </summary>

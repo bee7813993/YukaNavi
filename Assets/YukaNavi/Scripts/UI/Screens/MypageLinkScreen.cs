@@ -52,7 +52,7 @@ namespace YukaNavi.UI
             const string guide3 = "連携すると、このサーバーではWeb版と同じマイページになります。";
             foreach (string line in new[] { guide1, guide2, guide3 })
             {
-                float h = UiFactory.EstimateWrapLines(line, 26, 900f) * UiFactory.LineHeight(26);
+                float h = UiFactory.EstimateWrapLines(line, 26, UiFactory.CanvasWidth - 180f) * UiFactory.LineHeight(26);
                 var text = UiFactory.CreateText(unlinked, "Guide", line, 26, UiFactory.TextDark,
                     TextAnchor.MiddleLeft);
                 SetRow(text.rectTransform, uy, h);
@@ -84,7 +84,7 @@ namespace YukaNavi.UI
 
             const string linkedGuide = "このサーバーではWeb版と同じマイページを使っています。"
                 + "履歴・お気に入りの追加は自動で同期されます。";
-            float lg = UiFactory.EstimateWrapLines(linkedGuide, 26, 900f) * UiFactory.LineHeight(26);
+            float lg = UiFactory.EstimateWrapLines(linkedGuide, 26, UiFactory.CanvasWidth - 180f) * UiFactory.LineHeight(26);
             var linkedText = UiFactory.CreateText(linked, "Guide", linkedGuide, 26,
                 UiFactory.TextDark, TextAnchor.UpperLeft);
             SetRow(linkedText.rectTransform, ly, lg);
@@ -124,7 +124,7 @@ namespace YukaNavi.UI
 
             const string googleGuide = "Google にログインすると、マイページを Google Drive に"
                 + "自動保存し、どの部屋でも同じデータを使えます (Web版のGoogle連携と共通)。";
-            float ggH = UiFactory.EstimateWrapLines(googleGuide, 24, 900f) * UiFactory.LineHeight(24);
+            float ggH = UiFactory.EstimateWrapLines(googleGuide, 24, UiFactory.CanvasWidth - 180f) * UiFactory.LineHeight(24);
             var googleGuideText = UiFactory.CreateText(transform, "GoogleGuide", googleGuide, 24,
                 UiFactory.TextMuted, TextAnchor.UpperLeft);
             SetRow(googleGuideText.rectTransform, gy, ggH);
@@ -146,7 +146,7 @@ namespace YukaNavi.UI
             _googleBusyGroup = gBusy.gameObject;
             float by = gy;
             const string busyGuide = "ブラウザで Google の認証を進めてください...";
-            float bh = UiFactory.EstimateWrapLines(busyGuide, 26, 900f) * UiFactory.LineHeight(26);
+            float bh = UiFactory.EstimateWrapLines(busyGuide, 26, UiFactory.CanvasWidth - 180f) * UiFactory.LineHeight(26);
             var busyText = UiFactory.CreateText(gBusy, "BusyGuide", busyGuide, 26,
                 UiFactory.TextDark, TextAnchor.MiddleLeft);
             SetRow(busyText.rectTransform, by, bh);
@@ -206,7 +206,7 @@ namespace YukaNavi.UI
             // 連携データの削除 (審査ガイドライン: アカウントデータ削除の提供。2度押し確認)
             const string deleteGuide = "Drive 上のバックアップを削除し、Google 連携を解除します"
                 + " (端末内のデータは残ります)";
-            float dgH = UiFactory.EstimateWrapLines(deleteGuide, 22, 900f) * UiFactory.LineHeight(22);
+            float dgH = UiFactory.EstimateWrapLines(deleteGuide, 22, UiFactory.CanvasWidth - 180f) * UiFactory.LineHeight(22);
             var deleteGuideText = UiFactory.CreateText(gIn, "GoogleDeleteGuide", deleteGuide, 22,
                 UiFactory.TextMuted, TextAnchor.UpperLeft);
             SetRow(deleteGuideText.rectTransform, iy, dgH);
