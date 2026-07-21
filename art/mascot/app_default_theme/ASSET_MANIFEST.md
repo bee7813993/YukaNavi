@@ -27,7 +27,9 @@ KaraokeRequestorWeb 操作アプリ向けの「ゆかり」ちゃんデフォル
 | 季節ホーム背景: 冬・野外ステージ横 | `backgrounds/seasonal/yukanavi_home_background_winter_outdoor_landscape_1920x1080.png` | 1920x1080, RGB。透過立ち絵重ね用 |
 | ホーム背景ループ動画 rich | `videos/yukanavi_home_background_loop_rich_portrait_1080x1920.mp4` | 1080x1920, H.264 mp4, 15秒, 24fps, 音声なし。葉揺れ・照明・ミラーボール光あり |
 | 横持ちホーム背景ループ動画 rich | `videos/yukanavi_home_background_loop_rich_landscape_1920x1080.mp4` | 1920x1080, H.264 mp4, 15秒, 24fps, 音声なし。葉揺れ・照明・ミラーボール光あり |
-| スプラッシュ縦 | `splash/yukanavi_splash_portrait_1080x1920.png` | 1080x1920, RGB。ロゴ+ゆかりちゃん |
+| 起動ロゴ動画 YFRTeam 縦 | `videos/yfrteam_startup_logo_scanbar_v4_portrait_1080x1920.mp4` | 1080x1920, H.264 mp4, 3秒, 30fps, 音声なし。白黒ロゴ演出、通過スキャンバー強め |
+| 起動ロゴ動画 YFRTeam 横 | `videos/yfrteam_startup_logo_scanbar_v4_landscape_1920x1080.mp4` | 1920x1080, H.264 mp4, 3秒, 30fps, 音声なし。白黒ロゴ演出、通過スキャンバー強め |
+| スプラッシュ縦 | `splash/yukanavi_splash_portrait_1080x1920.png` | 1080x1920, RGB。ロゴ+ゆかりちゃん。中央820x1440を安全域とし、上下240px・左右130pxは背景装飾のみ |
 | スプラッシュ横 | `splash/yukanavi_splash_landscape_1920x1080.png` | 1920x1080, RGB。ロゴ+ゆかりちゃん |
 
 ## 中優先
@@ -82,8 +84,10 @@ KaraokeRequestorWeb 操作アプリ向けの「ゆかり」ちゃんデフォル
 - UIアイコン確認用プレビュー: `ui/yukanavi_ui_icons_preview.png`
 - メニュー大バナー確認用プレビュー: `ui/yukanavi_menu_banners_preview.png`
 - レコード画像確認用プレビュー: `player/yukanavi_record_disc_preview.png`
+- 起動ロゴ動画確認用プレビュー: `videos/yfrteam_startup_logo_scanbar_v4_portrait_preview.png` / `videos/yfrteam_startup_logo_scanbar_v4_landscape_preview.png`
 - ゆかりなし背景確認用プレビュー: `yukanavi_backgrounds_no_character_preview.png`
 - 季節背景確認用プレビュー: `yukanavi_seasonal_backgrounds_preview.png`
 - ホーム背景ループ動画確認用プレビュー: `yukanavi_home_background_loop_rich_preview.png`
 - 表情・ポーズ追加素材確認用プレビュー: `yukanavi_interaction_assets_preview.png`
 - スプラッシュ確認用プレビュー: `yukanavi_splash_preview.png`
+- スプラッシュ縦・安全域確認用: `splash/yukanavi_splash_portrait_safe_area_check.png`（緑枠が中央820x1440）
