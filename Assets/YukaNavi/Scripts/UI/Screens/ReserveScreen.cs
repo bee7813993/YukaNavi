@@ -1155,37 +1155,100 @@ namespace YukaNavi.UI
                 SelectId = _editId, // 負なら新規、既存 id なら差し替え (変更)
             };
             string kind = string.IsNullOrEmpty(_entry.Kind) ? "動画" : _entry.Kind;
+            int newId;
             try
             {
-                int newId = await AppConfig.CreateClient().PostRequestAsync(
+                newId = await AppConfig.CreateClient().PostRequestAsync(
                     _entry.Filename, _entry.FullPath, name,
                     (_commentInput.text ?? "").Trim(), kind, options);
-                _completedId = newId > 0 ? newId : _editId;
-                if (_editId < 0)
-                {
-                    LocalMypage.AddHistory(_entry.FullPath, _entry.Line1, kind);
-                }
-                // 曲情報の修正があれば予約行へ反映する (予約一覧の表示 + サーバーの修正ログ)
-                if (_correction != null && _completedId > 0)
-                {
-                    try
-                    {
-                        await AppConfig.CreateClient()
-                            .CorrectSongMetadataAsync(_completedId, _correction);
-                    }
-                    catch (System.Exception e)
-                    {
-                        UiFactory.ShowToast("曲情報の修正の保存に失敗: " + e.Message, true);
-                    }
-                }
-                ShowComplete();
             }
             catch (System.Exception e)
             {
-                _errorText.text = "予約に失敗: " + e.Message;
-                Se.Play(Se.Error);
-                _submitButton.interactable = true;
+                // タイムアウトの場合、サーバー側では処理が続いていて予約が登録されて
+                // いることが多い (盲目的に再送させると二重予約になる)。新規予約なら
+                // 予約一覧を確認し、受理されていれば成功として扱う
+                var apiEx = e as ApiException;
+                int recoveredId = 0;
+                if (_editId < 0 && apiEx != null && apiEx.OutcomeUnknown)
+                {
+                    _errorText.text = "応答がないため予約一覧を確認しています…";
+                    recoveredId = await FindAcceptedRequestAsync(name);
+                }
+                if (recoveredId <= 0)
+                {
+                    _errorText.text = apiEx != null && apiEx.OutcomeUnknown
+                        ? "サーバーの応答がありませんでした。予約が入っている場合があるため、"
+                          + "予約一覧を確認してからもう一度お試しください"
+                        : "予約に失敗: " + e.Message;
+                    Se.Play(Se.Error);
+                    _submitButton.interactable = true;
+                    return;
+                }
+                newId = recoveredId;
             }
+            _completedId = newId > 0 ? newId : _editId;
+            if (_editId < 0)
+            {
+                LocalMypage.AddHistory(_entry.FullPath, _entry.Line1, kind);
+            }
+            // 曲情報の修正があれば予約行へ反映する (予約一覧の表示 + サーバーの修正ログ)
+            if (_correction != null && _completedId > 0)
+            {
+                try
+                {
+                    await AppConfig.CreateClient()
+                        .CorrectSongMetadataAsync(_completedId, _correction);
+                }
+                catch (System.Exception e)
+                {
+                    UiFactory.ShowToast("曲情報の修正の保存に失敗: " + e.Message, true);
+                }
+            }
+            ShowComplete();
+        }
+
+        /// <summary>
+        /// 予約投稿がタイムアウトしたとき、実際には受理されていないかを予約一覧で確認する。
+        /// サーバーの処理完了を少し待ちながら数回確認し、同じ曲・同じ名前の未再生の
+        /// 予約が見つかればその id を返す (見つからなければ 0)。
+        /// </summary>
+        async Task<int> FindAcceptedRequestAsync(string singerName)
+        {
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                if (attempt > 0)
+                {
+                    await Task.Delay(3000);
+                }
+                try
+                {
+                    var list = await AppConfig.CreateClient().GetRequestsAsync(30, 0);
+                    if (list.Items == null)
+                    {
+                        continue;
+                    }
+                    foreach (var item in list.Items)
+                    {
+                        if (item.Nowplaying != "未再生" || item.Singer != singerName)
+                        {
+                            continue;
+                        }
+                        // fullpath は旧サーバーでは返らないためファイル名でも照合する
+                        bool sameFile = !string.IsNullOrEmpty(item.FullPath)
+                            ? item.FullPath == _entry.FullPath
+                            : item.Songfile == _entry.Filename;
+                        if (sameFile)
+                        {
+                            return item.Id;
+                        }
+                    }
+                }
+                catch (System.Exception)
+                {
+                    // サーバーがまだ塞がっている間は失敗する。少し待って再確認
+                }
+            }
+            return 0;
         }
 
         void ShowComplete()

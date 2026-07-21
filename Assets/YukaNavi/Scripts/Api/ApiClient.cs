@@ -27,6 +27,12 @@ namespace YukaNavi.Api
         /// <summary>タイムアウト秒</summary>
         public int TimeoutSeconds = 10;
 
+        /// <summary>
+        /// 予約投稿 (exec.php) のタイムアウト秒。exec.php はサーバー側で動画の長さ解析
+        /// などに時間がかかることがあるため、他の API より長めに待つ。
+        /// </summary>
+        public int PostTimeoutSeconds = 30;
+
         public ApiClient(string baseUrl, string easyPass = null)
         {
             BaseUrl = baseUrl;
@@ -285,7 +291,7 @@ namespace YukaNavi.Api
             using (var req = UnityWebRequest.Post(url, form))
             {
                 req.SetRequestHeader("X-Requested-With", "XMLHttpRequest");
-                req.timeout = TimeoutSeconds;
+                req.timeout = PostTimeoutSeconds;
                 ApplyCookies(req);
                 var op = req.SendWebRequest();
                 while (!op.isDone)
@@ -294,7 +300,14 @@ namespace YukaNavi.Api
                 }
                 if (req.result != UnityWebRequest.Result.Success)
                 {
-                    throw new ApiException($"{req.error} ({url})", (int)req.responseCode);
+                    // タイムアウトはサーバー側で処理が続いていて予約が登録されている
+                    // 可能性がある (呼び出し側が予約一覧で受理を確認できるよう印を付ける)
+                    bool timedOut = req.error != null
+                        && req.error.IndexOf("timeout", StringComparison.OrdinalIgnoreCase) >= 0;
+                    throw new ApiException($"{req.error} ({url})", (int)req.responseCode)
+                    {
+                        OutcomeUnknown = timedOut,
+                    };
                 }
                 // 応答は {"newid":N}。先頭に改行が付くため trim する
                 string text = (req.downloadHandler.text ?? "").Trim();
@@ -688,6 +701,12 @@ namespace YukaNavi.Api
     {
         /// <summary>HTTP ステータスコード (通信自体の失敗やアプリ層エラーは 0)。</summary>
         public int HttpStatus;
+
+        /// <summary>
+        /// タイムアウト等で応答を受け取れなかったが、サーバー側では処理が完了して
+        /// いる可能性がある (予約投稿で受理確認が必要な場合に true)。
+        /// </summary>
+        public bool OutcomeUnknown;
 
         public ApiException(string message, int httpStatus = 0) : base(message)
         {

@@ -580,7 +580,17 @@ namespace YukaNavi.UI
         {
             if (result.Items == null || result.Items.Count == 0)
             {
-                SetStatus("見つかりませんでした", false);
+                if (query.Kind == QueryKind.ListerAnyword && !string.IsNullOrEmpty(query.Keyword))
+                {
+                    // アニソンDB 未収録の曲 (新曲など) はリスターDB検索では見つからない。
+                    // ファイルはあるかもしれないのでファイル名検索への誘導を出す
+                    SetStatus("リスターDBでは見つかりませんでした", false);
+                    _ = AddEverythingFallbackRowAsync(query.Keyword);
+                }
+                else
+                {
+                    SetStatus("見つかりませんでした", false);
+                }
                 return;
             }
             int shown = Mathf.Min(result.Items.Count, MaxRows);
@@ -594,6 +604,74 @@ namespace YukaNavi.UI
                 : _groupSongs
                     ? $"{result.Total} 曲・{result.FilesTotal} ファイル"
                     : $"{result.Total} ファイル", false);
+        }
+
+        /// <summary>
+        /// リスターDB検索が0件のとき、同じキーワードでのファイル名 (Everything) 検索への
+        /// 誘導を出す。アニソンDBにまだ登録されていない曲はリスターDB検索に出ないため、
+        /// ファイル自体はあるのに「見つからない」ように見えるのを防ぐ。
+        /// </summary>
+        async Task AddEverythingFallbackRowAsync(string keyword)
+        {
+            int serial = _searchSerial;
+            try
+            {
+                // Everything 検索がサーバーで使えない構成では出さない (判定不能時は出す)
+                var caps = await AppState.EnsureCapabilitiesAsync();
+                if (caps.Features != null && !caps.Features.EverythingSearch)
+                {
+                    return;
+                }
+            }
+            catch (System.Exception)
+            {
+            }
+            if (serial != _searchSerial)
+            {
+                return; // 別の検索が始まっていたら何もしない
+            }
+
+            float noteHeight = UiFactory.LineHeight(24) * 2f;
+            float buttonHeight = Mathf.Max(96f, UiFactory.LineHeight(30) + 28f);
+
+            var rowGo = new GameObject("EverythingFallback");
+            rowGo.transform.SetParent(_listContent, false);
+            rowGo.AddComponent<RectTransform>();
+            var le = rowGo.AddComponent<LayoutElement>();
+            le.preferredHeight = 12f + noteHeight + 16f + buttonHeight + 8f;
+
+            var note = UiFactory.CreateText(rowGo.transform, "Note",
+                "アニソンDBにまだ登録されていない曲は\nリスターDB検索では見つかりません", 24,
+                UiFactory.TextMuted);
+            var noteRect = note.rectTransform;
+            noteRect.anchorMin = new Vector2(0f, 1f);
+            noteRect.anchorMax = new Vector2(1f, 1f);
+            noteRect.pivot = new Vector2(0.5f, 1f);
+            noteRect.anchoredPosition = new Vector2(0f, -12f);
+            noteRect.sizeDelta = new Vector2(-40f, noteHeight);
+
+            string label = "ファイル名 (Everything) でさがす";
+            var button = UiFactory.CreateSoftButton(rowGo.transform, "Search", label, 30);
+            var buttonRect = button.GetComponent<RectTransform>();
+            buttonRect.anchorMin = new Vector2(0.5f, 0f);
+            buttonRect.anchorMax = new Vector2(0.5f, 0f);
+            buttonRect.pivot = new Vector2(0.5f, 0f);
+            buttonRect.anchoredPosition = new Vector2(0f, 8f);
+            buttonRect.sizeDelta = new Vector2(
+                Mathf.Min(UiFactory.EstimateTextWidth(label, 30) + 80f, 980f), buttonHeight);
+            button.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Tap);
+                _queryStack.Add(new SearchQuery
+                {
+                    Kind = QueryKind.Everything,
+                    Keyword = keyword,
+                    Label = "検索: " + keyword,
+                });
+                _ = RunCurrentAsync();
+            });
+
+            _rows.Add(rowGo);
         }
 
         // カード内テキストの折り返し幅 (画面幅 1080 - リスト余白 - カード内余白の概算)

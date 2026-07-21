@@ -456,22 +456,27 @@ namespace YukaNavi.UI
             img.color = CardBg;
             Roundify(img);
             AddShadow(rowGo, 3f);
+            // 領域は FontScale 込みの行高から計算する
+            // (固定値だと大きい文字サイズ設定で Truncate が1行も描けず文字が消える)
+            float titleHeight = LineHeight(30);
+            float subHeight = LineHeight(22);
+            float rowHeight = Mathf.Max(124f, 10f + titleHeight + 4f + subHeight + 12f);
             var le = rowGo.AddComponent<LayoutElement>();
-            le.preferredHeight = 124f;
+            le.preferredHeight = rowHeight;
             var button = rowGo.AddComponent<Button>();
             rowGo.AddComponent<PressEffect>();
             button.onClick.AddListener(() => onTap());
 
             var titleText = CreateText(rowGo.transform, "Title", title, 30, TextDark, TextAnchor.UpperLeft);
             StretchFull(titleText.rectTransform);
-            titleText.rectTransform.offsetMin = new Vector2(24f, 48f);
+            titleText.rectTransform.offsetMin = new Vector2(24f, rowHeight - 10f - titleHeight);
             titleText.rectTransform.offsetMax = new Vector2(-70f, -10f);
             titleText.verticalOverflow = VerticalWrapMode.Truncate;
 
             var subText = CreateText(rowGo.transform, "Sub", sub, 22, TextMuted, TextAnchor.LowerLeft);
             StretchFull(subText.rectTransform);
             subText.rectTransform.offsetMin = new Vector2(24f, 12f);
-            subText.rectTransform.offsetMax = new Vector2(-70f, -78f);
+            subText.rectTransform.offsetMax = new Vector2(-70f, -(rowHeight - 12f - subHeight));
             subText.verticalOverflow = VerticalWrapMode.Truncate;
 
             var arrow = CreateText(rowGo.transform, "Arrow", "›", 44, PrimaryPale);
