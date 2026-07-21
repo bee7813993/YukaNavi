@@ -53,6 +53,7 @@ namespace YukaNavi.UI
         readonly List<GameObject> _rows = new List<GameObject>();
         /// <summary>取得時の年齢制限曲設定。変更されていたら OnShow で引き直す。</summary>
         bool _loadedIncludeAgeLimit;
+        GameObject _ageLimitModal;
         Text _titleText;
         Text _statusText;
         InputField _searchInput;
@@ -211,6 +212,8 @@ namespace YukaNavi.UI
             scrollRectT.anchorMax = new Vector2(1f, 1f);
             scrollRectT.offsetMin = new Vector2(20f, GlobalNav.BarHeight + 16f);
             scrollRectT.offsetMax = new Vector2(-20f, -338f);
+
+            BuildAgeLimitModal(); // 最後に作って最前面にする
         }
 
         /// <summary>いまの検索条件を保存/解除する。保存はチップとして検索トップに並ぶ。</summary>
@@ -583,18 +586,25 @@ namespace YukaNavi.UI
 
         void ShowSongsResult(SearchQuery query, ListerIndexSongsDto result)
         {
+            // 年齢制限フィルタで隠れた曲があるときだけオプトイン導線を出す (Web 版のチェック相当)。
+            // 一度有効化した利用者には、逆に戻すための「表示中」行を出す
+            bool offerAgeLimit = !AppConfig.IncludeAgeLimit && result.AgelimitHidden > 0;
+
             if (result.Items == null || result.Items.Count == 0)
             {
-                if (query.Kind == QueryKind.ListerAnyword && !string.IsNullOrEmpty(query.Keyword))
+                bool anywordFallback = query.Kind == QueryKind.ListerAnyword
+                    && !string.IsNullOrEmpty(query.Keyword);
+                SetStatus(anywordFallback ? "リスターDBでは見つかりませんでした" : "見つかりませんでした", false);
+                if (offerAgeLimit)
+                {
+                    // 年齢制限フィルタで隠れている曲の案内 (ファイル名検索誘導より上に出す)
+                    AddAgeLimitOptInRow(result.AgelimitHidden);
+                }
+                if (anywordFallback)
                 {
                     // アニソンDB 未収録の曲 (新曲など) はリスターDB検索では見つからない。
                     // ファイルはあるかもしれないのでファイル名検索への誘導を出す
-                    SetStatus("リスターDBでは見つかりませんでした", false);
                     _ = AddEverythingFallbackRowAsync(query.Keyword);
-                }
-                else
-                {
-                    SetStatus("見つかりませんでした", false);
                 }
                 return;
             }
@@ -602,6 +612,14 @@ namespace YukaNavi.UI
             for (int i = 0; i < shown; i++)
             {
                 AddSongCard(query, result.Items[i]);
+            }
+            if (offerAgeLimit)
+            {
+                AddAgeLimitOptInRow(result.AgelimitHidden);
+            }
+            else if (AppConfig.IncludeAgeLimit)
+            {
+                AddAgeLimitShowingRow();
             }
             string unit = _groupSongs ? "曲" : "ファイル";
             SetStatus(result.Total > shown
@@ -677,6 +695,177 @@ namespace YukaNavi.UI
             });
 
             _rows.Add(rowGo);
+        }
+
+        // ---- 年齢制限曲のオプトイン (Web 版のチェックボックスと同じ仕組み) ----
+
+        /// <summary>
+        /// 年齢制限フィルタで隠れた曲があるときの案内行。タップで有効化 (初回のみ
+        /// 18 歳以上の確認モーダルを挟む) して同じ条件で再検索する。
+        /// </summary>
+        void AddAgeLimitOptInRow(int hiddenCount)
+        {
+            float noteHeight = UiFactory.LineHeight(24);
+            float buttonHeight = Mathf.Max(96f, UiFactory.LineHeight(30) + 28f);
+
+            var rowGo = new GameObject("AgeLimitOptIn");
+            rowGo.transform.SetParent(_listContent, false);
+            rowGo.AddComponent<RectTransform>();
+            var le = rowGo.AddComponent<LayoutElement>();
+            le.preferredHeight = 12f + noteHeight + 16f + buttonHeight + 8f;
+
+            var note = UiFactory.CreateText(rowGo.transform, "Note",
+                $"年齢制限のある作品の曲が {hiddenCount} 曲あります", 24,
+                UiFactory.TextMuted);
+            var noteRect = note.rectTransform;
+            noteRect.anchorMin = new Vector2(0f, 1f);
+            noteRect.anchorMax = new Vector2(1f, 1f);
+            noteRect.pivot = new Vector2(0.5f, 1f);
+            noteRect.anchoredPosition = new Vector2(0f, -12f);
+            noteRect.sizeDelta = new Vector2(-40f, noteHeight);
+
+            string label = "年齢制限曲を表示する";
+            var button = UiFactory.CreateSoftButton(rowGo.transform, "Show", label, 30);
+            UiFactory.FitLabel(button.GetComponentInChildren<Text>()); // 大きい文字設定でも1行に収める
+            var buttonRect = button.GetComponent<RectTransform>();
+            buttonRect.anchorMin = new Vector2(0.5f, 0f);
+            buttonRect.anchorMax = new Vector2(0.5f, 0f);
+            buttonRect.pivot = new Vector2(0.5f, 0f);
+            buttonRect.anchoredPosition = new Vector2(0f, 8f);
+            buttonRect.sizeDelta = new Vector2(
+                Mathf.Min(UiFactory.EstimateTextWidth(label, 30) + 80f, 980f), buttonHeight);
+            button.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Tap);
+                if (!AppConfig.AgeLimitAccepted)
+                {
+                    _ageLimitModal.SetActive(true); // 初回のみ 18 歳以上の確認を出す
+                    return;
+                }
+                EnableAgeLimit();
+            });
+
+            _rows.Add(rowGo);
+        }
+
+        /// <summary>
+        /// 年齢制限曲を表示中の利用者向けの行。タップで無効化して同じ条件で再検索する
+        /// (設定を戻す導線として、曲のある結果一覧の末尾に出す)。
+        /// </summary>
+        void AddAgeLimitShowingRow()
+        {
+            float buttonHeight = Mathf.Max(72f, UiFactory.LineHeight(24) + 20f);
+
+            var rowGo = new GameObject("AgeLimitShowing");
+            rowGo.transform.SetParent(_listContent, false);
+            rowGo.AddComponent<RectTransform>();
+            var le = rowGo.AddComponent<LayoutElement>();
+            le.preferredHeight = 8f + buttonHeight + 8f;
+
+            string label = "✓ 年齢制限曲を表示中（タップで非表示に）";
+            var button = UiFactory.CreateSoftButton(rowGo.transform, "Hide", label, 24);
+            UiFactory.FitLabel(button.GetComponentInChildren<Text>()); // 大きい文字設定でも1行に収める
+            var buttonRect = button.GetComponent<RectTransform>();
+            buttonRect.anchorMin = new Vector2(0.5f, 0f);
+            buttonRect.anchorMax = new Vector2(0.5f, 0f);
+            buttonRect.pivot = new Vector2(0.5f, 0f);
+            buttonRect.anchoredPosition = new Vector2(0f, 8f);
+            buttonRect.sizeDelta = new Vector2(
+                Mathf.Min(UiFactory.EstimateTextWidth(label, 24) + 80f, 980f), buttonHeight);
+            button.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Tap);
+                AppConfig.IncludeAgeLimit = false;
+                _ = RunCurrentAsync();
+            });
+
+            _rows.Add(rowGo);
+        }
+
+        void EnableAgeLimit()
+        {
+            AppConfig.IncludeAgeLimit = true;
+            _ = RunCurrentAsync();
+        }
+
+        void BuildAgeLimitModal()
+        {
+            _ageLimitModal = new GameObject("AgeLimitModal");
+            _ageLimitModal.transform.SetParent(transform, false);
+            UiFactory.StretchFull(_ageLimitModal.AddComponent<RectTransform>());
+            var overlay = _ageLimitModal.AddComponent<Image>();
+            overlay.color = new Color(0f, 0f, 0f, 0.55f);
+            var overlayButton = _ageLimitModal.AddComponent<Button>();
+            overlayButton.transition = Selectable.Transition.None;
+            overlayButton.onClick.AddListener(CloseAgeLimitModal);
+
+            const string bodyText =
+                "年齢制限のある作品のタイアップ曲を\n検索結果に表示します。\n18歳以上の方のみ有効にしてください。";
+            float y = 28f;
+            float titleH = UiFactory.LineHeight(34);
+            // 大きい文字設定では折り返しが増えるため行数を実測して確保する
+            float bodyH = UiFactory.EstimateWrapLines(bodyText, 26, 780f) * UiFactory.LineHeight(26);
+            float cardH = y + titleH + 16f + bodyH + 28f + 92f + 28f;
+
+            var card = UiFactory.CreatePanel(_ageLimitModal.transform, "Card", Color.white);
+            card.anchorMin = card.anchorMax = new Vector2(0.5f, 0.5f);
+            card.pivot = new Vector2(0.5f, 0.5f);
+            card.sizeDelta = new Vector2(880f, cardH);
+            UiFactory.Roundify(card.GetComponent<Image>());
+            UiFactory.AddShadow(card.gameObject, 6f);
+            var cardButton = card.gameObject.AddComponent<Button>(); // カード内タップの抜け防止
+            cardButton.transition = Selectable.Transition.None;
+
+            var title = UiFactory.CreateText(card, "Title", "年齢制限曲の表示", 34, UiFactory.PrimaryDark);
+            SetModalRow(title.rectTransform, -y, titleH);
+            y += titleH + 16f;
+
+            var body = UiFactory.CreateText(card, "Body", bodyText, 26, UiFactory.TextDark);
+            SetModalRow(body.rectTransform, -y, bodyH);
+            y += bodyH + 28f;
+
+            var okButton = UiFactory.CreateButton(card, "Ok", "表示する", UiFactory.Primary, Color.white, 30);
+            var okRect = okButton.GetComponent<RectTransform>();
+            okRect.anchorMin = okRect.anchorMax = new Vector2(0.5f, 1f);
+            okRect.pivot = new Vector2(0.5f, 1f);
+            okRect.anchoredPosition = new Vector2(-190f, -y);
+            okRect.sizeDelta = new Vector2(340f, 92f);
+            okButton.onClick.AddListener(AcceptAgeLimit);
+
+            var cancelButton = UiFactory.CreateSoftButton(card, "Cancel", "やめる", 30);
+            var cancelRect = cancelButton.GetComponent<RectTransform>();
+            cancelRect.anchorMin = cancelRect.anchorMax = new Vector2(0.5f, 1f);
+            cancelRect.pivot = new Vector2(0.5f, 1f);
+            cancelRect.anchoredPosition = new Vector2(190f, -y);
+            cancelRect.sizeDelta = new Vector2(340f, 92f);
+            cancelButton.onClick.AddListener(CloseAgeLimitModal);
+
+            _ageLimitModal.SetActive(false);
+        }
+
+        void AcceptAgeLimit()
+        {
+            Se.Play(Se.Confirm);
+            AppConfig.AgeLimitAccepted = true;
+            _ageLimitModal.SetActive(false);
+            EnableAgeLimit();
+        }
+
+        void CloseAgeLimitModal()
+        {
+            Se.Play(Se.Tap);
+            _ageLimitModal.SetActive(false);
+        }
+
+        static void SetModalRow(RectTransform rect, float y, float height)
+        {
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, y);
+            rect.offsetMin = new Vector2(50f, rect.offsetMin.y);
+            rect.offsetMax = new Vector2(-50f, rect.offsetMax.y);
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
         }
 
         // カード内テキストの折り返し幅 (画面幅 1080 - リスト余白 - カード内余白の概算)
