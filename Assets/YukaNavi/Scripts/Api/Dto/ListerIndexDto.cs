@@ -59,6 +59,8 @@ namespace YukaNavi.Api
         [JsonProperty("total")] public int Total;
         /// <summary>ファイル数</summary>
         [JsonProperty("files_total")] public int FilesTotal;
+        /// <summary>年齢制限フィルタで隠れた曲数 (旧サーバーは常に 0)</summary>
+        [JsonProperty("agelimit_hidden")] public int AgelimitHidden;
         [JsonProperty("items")] public List<ListerSongGroupDto> Items;
     }
 

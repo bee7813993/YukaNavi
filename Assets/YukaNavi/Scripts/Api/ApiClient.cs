@@ -33,6 +33,12 @@ namespace YukaNavi.Api
         /// </summary>
         public int PostTimeoutSeconds = 30;
 
+        /// <summary>
+        /// 年齢制限のある作品のタイアップ曲も検索結果に含めるか。サーバーは既定で除外
+        /// するため、true のとき lister_index 系の全呼び出しに include_agelimit=1 を付ける。
+        /// </summary>
+        public bool IncludeAgeLimit;
+
         public ApiClient(string baseUrl, string easyPass = null)
         {
             BaseUrl = baseUrl;
@@ -81,44 +87,58 @@ namespace YukaNavi.Api
             }
         }
 
+        /// <summary>
+        /// lister_index.php のパスを組み立てる。年齢制限曲を含める設定のときは
+        /// include_agelimit=1 を付与する (全モード共通)。
+        /// </summary>
+        string ListerIndexPath(string query)
+        {
+            string path = "api/lister_index.php?" + query;
+            if (IncludeAgeLimit)
+            {
+                path += "&include_agelimit=1";
+            }
+            return path;
+        }
+
         /// <summary>期別インデックス: 年ごとの曲数。</summary>
         public Task<ListerYearsDto> GetListerYearsAsync()
-            => GetApiAsync<ListerYearsDto>("api/lister_index.php?mode=years");
+            => GetApiAsync<ListerYearsDto>(ListerIndexPath("mode=years"));
 
         /// <summary>期別インデックス: 指定年の期ごとの曲数・作品数。</summary>
         public Task<ListerQuartersDto> GetListerQuartersAsync(int year)
-            => GetApiAsync<ListerQuartersDto>("api/lister_index.php?mode=quarters&year=" + year);
+            => GetApiAsync<ListerQuartersDto>(ListerIndexPath("mode=quarters&year=" + year));
 
         /// <summary>期別インデックス: 期内の作品一覧。quarter: 1=冬 2=春 3=夏 4=秋。</summary>
         public Task<ListerProgramsDto> GetListerProgramsAsync(int year, int quarter)
             => GetApiAsync<ListerProgramsDto>(
-                "api/lister_index.php?mode=programs&year=" + year + "&quarter=" + quarter);
+                ListerIndexPath("mode=programs&year=" + year + "&quarter=" + quarter));
 
         /// <summary>シリーズ内の作品一覧 (シリーズでの再検索用)。</summary>
         public Task<ListerProgramsDto> GetListerGroupProgramsAsync(string group)
             => GetApiAsync<ListerProgramsDto>(
-                "api/lister_index.php?mode=programs&group=" + UnityWebRequest.EscapeURL(group));
+                ListerIndexPath("mode=programs&group=" + UnityWebRequest.EscapeURL(group)));
 
         /// <summary>頭文字インデックス: 頭文字ごとの名前数。target: program | artist | group。</summary>
         public Task<ListerInitialsDto> GetListerInitialsAsync(string target)
             => GetApiAsync<ListerInitialsDto>(
-                "api/lister_index.php?mode=initials&target=" + target);
+                ListerIndexPath("mode=initials&target=" + target));
 
         /// <summary>
         /// 頭文字インデックス: 名前一覧。initial (頭文字) か keyword (部分一致) のどちらかで絞る。
         /// </summary>
         public Task<ListerNamesDto> GetListerNamesAsync(string target, string initial = null, string keyword = null)
         {
-            string path = "api/lister_index.php?mode=names&target=" + target;
+            string query = "mode=names&target=" + target;
             if (!string.IsNullOrEmpty(initial))
             {
-                path += "&initial=" + UnityWebRequest.EscapeURL(initial);
+                query += "&initial=" + UnityWebRequest.EscapeURL(initial);
             }
             else if (!string.IsNullOrEmpty(keyword))
             {
-                path += "&keyword=" + UnityWebRequest.EscapeURL(keyword);
+                query += "&keyword=" + UnityWebRequest.EscapeURL(keyword);
             }
-            return GetApiAsync<ListerNamesDto>(path);
+            return GetApiAsync<ListerNamesDto>(ListerIndexPath(query));
         }
 
         /// <summary>
@@ -130,36 +150,36 @@ namespace YukaNavi.Api
             string program = null, string artist = null, string group = null, string worker = null,
             string anyword = null, string order = null, bool flat = false)
         {
-            string path = "api/lister_index.php?mode=songs";
+            string query = "mode=songs";
             if (!string.IsNullOrEmpty(order))
             {
-                path += "&order=" + order;
+                query += "&order=" + order;
             }
             if (flat)
             {
-                path += "&flat=1"; // グルーピングせずファイル単位で返す
+                query += "&flat=1"; // グルーピングせずファイル単位で返す
             }
             if (!string.IsNullOrEmpty(program))
             {
-                path += "&program=" + UnityWebRequest.EscapeURL(program);
+                query += "&program=" + UnityWebRequest.EscapeURL(program);
             }
             if (!string.IsNullOrEmpty(artist))
             {
-                path += "&artist=" + UnityWebRequest.EscapeURL(artist);
+                query += "&artist=" + UnityWebRequest.EscapeURL(artist);
             }
             if (!string.IsNullOrEmpty(group))
             {
-                path += "&group=" + UnityWebRequest.EscapeURL(group);
+                query += "&group=" + UnityWebRequest.EscapeURL(group);
             }
             if (!string.IsNullOrEmpty(worker))
             {
-                path += "&worker=" + UnityWebRequest.EscapeURL(worker);
+                query += "&worker=" + UnityWebRequest.EscapeURL(worker);
             }
             if (!string.IsNullOrEmpty(anyword))
             {
-                path += "&anyword=" + UnityWebRequest.EscapeURL(anyword);
+                query += "&anyword=" + UnityWebRequest.EscapeURL(anyword);
             }
-            return GetApiAsync<ListerIndexSongsDto>(path);
+            return GetApiAsync<ListerIndexSongsDto>(ListerIndexPath(query));
         }
 
         /// <summary>
