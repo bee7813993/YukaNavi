@@ -41,6 +41,8 @@ namespace YukaNavi.UI
         Text _quarterNavLabel;
         readonly List<GameObject> _rows = new List<GameObject>();
         int _loadSerial;
+        /// <summary>取得時の年齢制限曲設定。変更されていたら OnShow で引き直す。</summary>
+        bool _loadedIncludeAgeLimit;
 
         /// <summary>期別リストを最初 (年一覧) から開く。</summary>
         public static void Open(ScreenManager manager)
@@ -138,8 +140,9 @@ namespace YukaNavi.UI
                 _titleText.text = _yearly ? "年代別リスト" : "期別リスト";
                 _ = ShowYearsAsync();
             }
-            else if (_rows.Count == 0)
+            else if (_rows.Count == 0 || _loadedIncludeAgeLimit != AppConfig.IncludeAgeLimit)
             {
+                // 行が消えている (RebuildAll) か、年齢制限曲の設定が変わっていたら引き直す
                 _ = ReloadCurrentAsync();
             }
         }
@@ -249,6 +252,7 @@ namespace YukaNavi.UI
             _level = Level.Years;
             _breadcrumbText.text = "リリース年をえらんでください";
             _quarterNav.SetActive(false);
+            _loadedIncludeAgeLimit = AppConfig.IncludeAgeLimit;
             int serial = ++_loadSerial;
             SetStatus("", false);
             ShowLoading();
@@ -299,6 +303,7 @@ namespace YukaNavi.UI
             _year = year;
             _breadcrumbText.text = $"期別 ＞ {year} 年";
             _quarterNav.SetActive(false);
+            _loadedIncludeAgeLimit = AppConfig.IncludeAgeLimit;
             int serial = ++_loadSerial;
             SetStatus("", false);
             ShowLoading();
@@ -349,6 +354,7 @@ namespace YukaNavi.UI
             _quarterNavLabel.text = quarter == 0 ? $"{year} 年" : $"{year} 年　{QuarterLabel(quarter)}";
             _prevButton.GetComponentInChildren<Text>().text = quarter == 0 ? "◀ 前の年" : "◀ 前の期";
             _nextButton.GetComponentInChildren<Text>().text = quarter == 0 ? "次の年 ▶" : "次の期 ▶";
+            _loadedIncludeAgeLimit = AppConfig.IncludeAgeLimit;
             int serial = ++_loadSerial;
             SetStatus("", false);
             ShowLoading();

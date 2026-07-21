@@ -51,6 +51,8 @@ namespace YukaNavi.UI
 
         readonly List<SearchQuery> _queryStack = new List<SearchQuery>();
         readonly List<GameObject> _rows = new List<GameObject>();
+        /// <summary>取得時の年齢制限曲設定。変更されていたら OnShow で引き直す。</summary>
+        bool _loadedIncludeAgeLimit;
         Text _titleText;
         Text _statusText;
         InputField _searchInput;
@@ -366,9 +368,11 @@ namespace YukaNavi.UI
                 _pending = null;
                 _ = RunCurrentAsync();
             }
-            else if (_rows.Count == 0 && _queryStack.Count > 0)
+            else if ((_rows.Count == 0 || _loadedIncludeAgeLimit != AppConfig.IncludeAgeLimit)
+                && _queryStack.Count > 0)
             {
-                // RebuildAll (テーマ変更) 等で行が消えていたら現在の条件で引き直す
+                // RebuildAll (テーマ変更) で行が消えていたときと、
+                // 年齢制限曲の設定が変わっていたときは現在の条件で引き直す
                 _ = RunCurrentAsync();
             }
         }
@@ -416,6 +420,7 @@ namespace YukaNavi.UI
                 return;
             }
             var query = _queryStack[_queryStack.Count - 1];
+            _loadedIncludeAgeLimit = AppConfig.IncludeAgeLimit;
             int serial = ++_searchSerial;
             _titleText.text = (ReserveScreen.EditSession != null ? "差しかえ｜" : "") + query.Label;
             _searchInput.text = query.Keyword ?? ""; // 完全一致検索中は空 (プレースホルダー表示)

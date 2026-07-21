@@ -13,6 +13,8 @@ namespace YukaNavi.Core
         const string KeySkinId = "yukanavi.skin_id";
         const string KeyMypageUserId = "yukanavi.mypage_userid";
         const string KeyGoogleRelayUrl = "yukanavi.google_relay_url";
+        const string KeyIncludeAgeLimit = "yukanavi.include_agelimit";
+        const string KeyAgeLimitAccepted = "yukanavi.agelimit_accepted";
 
         /// <summary>
         /// 既定の接続先。実機は空欄 (初回にユーザーが入力する。ポート番号だけの
@@ -83,6 +85,23 @@ namespace YukaNavi.Core
         }
 
         /// <summary>
+        /// 年齢制限のある作品のタイアップ曲をリスターDB検索の結果に含めるか。
+        /// サーバーは既定で除外するため、オンのときだけ include_agelimit=1 を送る。
+        /// </summary>
+        public static bool IncludeAgeLimit
+        {
+            get { return PlayerPrefs.GetInt(KeyIncludeAgeLimit, 0) == 1; }
+            set { PlayerPrefs.SetInt(KeyIncludeAgeLimit, value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
+        /// <summary>年齢制限曲表示の確認 (18歳以上) に一度同意したか。以降は確認なしで切替できる。</summary>
+        public static bool AgeLimitAccepted
+        {
+            get { return PlayerPrefs.GetInt(KeyAgeLimitAccepted, 0) == 1; }
+            set { PlayerPrefs.SetInt(KeyAgeLimitAccepted, value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
+        /// <summary>
         /// マイページのユーザー ID (UUID)。初回アクセス時に生成して永続化する。
         /// Web 版の Cookie YkariUserID に相当し、同じ値を送ることでデータを共有できる。
         /// </summary>
@@ -139,6 +158,7 @@ namespace YukaNavi.Core
             var client = new ApiClient(ServerUrl, EasyPass);
             client.UserId = EffectiveMypageUserId;
             client.Username = Username;
+            client.IncludeAgeLimit = IncludeAgeLimit;
             return client;
         }
     }

@@ -32,6 +32,8 @@ namespace YukaNavi.UI
         RectTransform _listContent;
         readonly List<GameObject> _rows = new List<GameObject>();
         int _loadSerial;
+        /// <summary>取得時の年齢制限曲設定。変更されていたら OnShow で引き直す。</summary>
+        bool _loadedIncludeAgeLimit;
 
         /// <summary>target: program (作品名) / artist (歌手名) / group (シリーズ名)</summary>
         public static void Open(ScreenManager manager, string target)
@@ -122,8 +124,10 @@ namespace YukaNavi.UI
                 _searchInput.text = "";
                 _ = ShowInitialsAsync();
             }
-            else if (_rows.Count == 0)
+            else if (_rows.Count == 0 || _loadedIncludeAgeLimit != AppConfig.IncludeAgeLimit)
             {
+                // 行が消えている (RebuildAll) か、年齢制限曲の設定が変わっていたら
+                // 頭文字グリッドから引き直す (名前数の表示も変わるため)
                 _ = ShowInitialsAsync();
             }
         }
@@ -171,6 +175,7 @@ namespace YukaNavi.UI
         async Task ShowInitialsAsync()
         {
             _level = Level.Initials;
+            _loadedIncludeAgeLimit = AppConfig.IncludeAgeLimit;
             int serial = ++_loadSerial;
             SetStatus("", false);
             ShowLoading();
@@ -295,6 +300,7 @@ namespace YukaNavi.UI
         async Task ShowNamesAsync(string initial, string keyword)
         {
             _level = Level.Names;
+            _loadedIncludeAgeLimit = AppConfig.IncludeAgeLimit;
             int serial = ++_loadSerial;
             SetStatus("", false);
             ShowLoading();

@@ -15,13 +15,20 @@ namespace YukaNavi.UI
         public const string ModePrefKey = "search.lister_mode";
 
         bool _listerMode = true;
+        bool _listerAvailable = true;
         Button _listerTab;
         Button _fileTab;
+        Button _ageLimitToggle;
+        Text _ageLimitToggleLabel;
+        GameObject _ageLimitModal;
         Text _topTitle;
         InputField _searchInput;
         GameObject _urlCard;
         RectTransform _chipContent;
         Text _chipHint;
+
+        /// <summary>トグルのオフ色 (SearchResultScreen の「曲でまとめる」と同じ)。</summary>
+        static readonly Color ToggleOffColor = new Color(0.75f, 0.73f, 0.80f);
         readonly System.Collections.Generic.List<GameObject> _chips =
             new System.Collections.Generic.List<GameObject>();
 
@@ -73,6 +80,18 @@ namespace YukaNavi.UI
             _listerTab.onClick.AddListener(() => SetMode(true));
             _fileTab.onClick.AddListener(() => SetMode(false));
 
+            // 年齢制限曲を含めるか (リスターDB検索のみ)。初回オン時は確認モーダルを出す
+            _ageLimitToggle = UiFactory.CreateButton(transform, "AgeLimitToggle",
+                "年齢制限曲を含める", ToggleOffColor, Color.white, 24);
+            _ageLimitToggleLabel = _ageLimitToggle.GetComponentInChildren<Text>();
+            UiFactory.FitLabel(_ageLimitToggleLabel); // 大きい文字設定でも1行に収める
+            var ageToggleRect = _ageLimitToggle.GetComponent<RectTransform>();
+            ageToggleRect.anchorMin = ageToggleRect.anchorMax = new Vector2(0f, 1f);
+            ageToggleRect.pivot = new Vector2(0f, 1f);
+            ageToggleRect.anchoredPosition = new Vector2(20f, -402f);
+            ageToggleRect.sizeDelta = new Vector2(400f, 52f);
+            _ageLimitToggle.onClick.AddListener(ToggleAgeLimit);
+
             // 他の方法でさがす
             var wayLabel = UiFactory.CreateText(transform, "WaysLabel", "他の方法でさがす", 26,
                 UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
@@ -80,7 +99,7 @@ namespace YukaNavi.UI
             wayLabelRect.anchorMin = new Vector2(0f, 1f);
             wayLabelRect.anchorMax = new Vector2(1f, 1f);
             wayLabelRect.pivot = new Vector2(0.5f, 1f);
-            wayLabelRect.anchoredPosition = new Vector2(0f, -428f);
+            wayLabelRect.anchoredPosition = new Vector2(0f, -462f);
             wayLabelRect.offsetMin = new Vector2(28f, wayLabelRect.offsetMin.y);
             wayLabelRect.offsetMax = new Vector2(-28f, wayLabelRect.offsetMax.y);
             wayLabelRect.sizeDelta = new Vector2(wayLabelRect.sizeDelta.x, 36f);
@@ -89,7 +108,7 @@ namespace YukaNavi.UI
             grid.anchorMin = new Vector2(0f, 1f);
             grid.anchorMax = new Vector2(1f, 1f);
             grid.pivot = new Vector2(0.5f, 1f);
-            grid.anchoredPosition = new Vector2(0f, -474f);
+            grid.anchoredPosition = new Vector2(0f, -506f);
             grid.offsetMin = new Vector2(20f, grid.offsetMin.y);
             grid.offsetMax = new Vector2(-20f, grid.offsetMax.y);
             // カードの高さは文字の大きさ設定に追従 (ラベル1行 + キャプション2行)
@@ -119,7 +138,10 @@ namespace YukaNavi.UI
             _urlCard = AddWayCard(grid, "URLでリクエスト", "YouTube等のURLを\n直接再生する",
                 () => UrlRequestScreen.Open(Manager)).gameObject;
 
+            BuildAgeLimitModal(); // 最後に作って最前面にする
+
             _listerMode = PlayerPrefs.GetInt(ModePrefKey, 1) == 1;
+            UpdateAgeLimitToggle();
             ApplyMode();
         }
 
@@ -154,6 +176,7 @@ namespace YukaNavi.UI
             {
                 return;
             }
+            _listerAvailable = lister;
             _listerTab.gameObject.SetActive(lister);
             _fileTab.gameObject.SetActive(everything);
             _urlCard.SetActive(internet);
@@ -161,13 +184,12 @@ namespace YukaNavi.UI
             if (!lister && _listerMode && everything)
             {
                 _listerMode = false;
-                ApplyMode();
             }
             else if (!everything && !_listerMode && lister)
             {
                 _listerMode = true;
-                ApplyMode();
             }
+            ApplyMode(); // 年齢制限トグルの表示可否も追従させる
         }
 
         /// <summary>保存ワードのチップ行 (横スクロール) を作る。</summary>
@@ -305,6 +327,110 @@ namespace YukaNavi.UI
             UiFactory.SetSegmentSelected(new[] { _listerTab, _fileTab }, _listerMode ? 0 : 1);
             var placeholder = (Text)_searchInput.placeholder;
             placeholder.text = _listerMode ? "曲名・歌手・作品名など" : "ファイル名の一部";
+            // 年齢制限トグルはリスターDB検索のときだけ意味を持つ
+            _ageLimitToggle.gameObject.SetActive(_listerMode && _listerAvailable);
+        }
+
+        // ---- 年齢制限曲のオプトイン (Web 版のチェックボックスと同じ仕組み) ----
+
+        void ToggleAgeLimit()
+        {
+            Se.Play(Se.Tap);
+            if (!AppConfig.IncludeAgeLimit && !AppConfig.AgeLimitAccepted)
+            {
+                _ageLimitModal.SetActive(true); // 初回のみ 18 歳以上の確認を出す
+                return;
+            }
+            AppConfig.IncludeAgeLimit = !AppConfig.IncludeAgeLimit;
+            UpdateAgeLimitToggle();
+        }
+
+        void UpdateAgeLimitToggle()
+        {
+            bool on = AppConfig.IncludeAgeLimit;
+            _ageLimitToggle.image.color = on ? UiFactory.Primary : ToggleOffColor;
+            _ageLimitToggleLabel.text = on ? "✓ 年齢制限曲を含める" : "年齢制限曲を含める";
+        }
+
+        void BuildAgeLimitModal()
+        {
+            _ageLimitModal = new GameObject("AgeLimitModal");
+            _ageLimitModal.transform.SetParent(transform, false);
+            UiFactory.StretchFull(_ageLimitModal.AddComponent<RectTransform>());
+            var overlay = _ageLimitModal.AddComponent<Image>();
+            overlay.color = new Color(0f, 0f, 0f, 0.55f);
+            var overlayButton = _ageLimitModal.AddComponent<Button>();
+            overlayButton.transition = Selectable.Transition.None;
+            overlayButton.onClick.AddListener(CloseAgeLimitModal);
+
+            const string bodyText =
+                "年齢制限のある作品のタイアップ曲を\n検索結果に表示します。\n18歳以上の方のみ有効にしてください。";
+            float y = 28f;
+            float titleH = UiFactory.LineHeight(34);
+            // 大きい文字設定では折り返しが増えるため行数を実測して確保する
+            float bodyH = UiFactory.EstimateWrapLines(bodyText, 26, 780f) * UiFactory.LineHeight(26);
+            float cardH = y + titleH + 16f + bodyH + 28f + 92f + 28f;
+
+            var card = UiFactory.CreatePanel(_ageLimitModal.transform, "Card", Color.white);
+            card.anchorMin = card.anchorMax = new Vector2(0.5f, 0.5f);
+            card.pivot = new Vector2(0.5f, 0.5f);
+            card.sizeDelta = new Vector2(880f, cardH);
+            UiFactory.Roundify(card.GetComponent<Image>());
+            UiFactory.AddShadow(card.gameObject, 6f);
+            var cardButton = card.gameObject.AddComponent<Button>(); // カード内タップの抜け防止
+            cardButton.transition = Selectable.Transition.None;
+
+            var title = UiFactory.CreateText(card, "Title", "年齢制限曲の表示", 34, UiFactory.PrimaryDark);
+            SetModalRow(title.rectTransform, -y, titleH);
+            y += titleH + 16f;
+
+            var body = UiFactory.CreateText(card, "Body", bodyText, 26, UiFactory.TextDark);
+            SetModalRow(body.rectTransform, -y, bodyH);
+            y += bodyH + 28f;
+
+            var okButton = UiFactory.CreateButton(card, "Ok", "表示する", UiFactory.Primary, Color.white, 30);
+            var okRect = okButton.GetComponent<RectTransform>();
+            okRect.anchorMin = okRect.anchorMax = new Vector2(0.5f, 1f);
+            okRect.pivot = new Vector2(0.5f, 1f);
+            okRect.anchoredPosition = new Vector2(-190f, -y);
+            okRect.sizeDelta = new Vector2(340f, 92f);
+            okButton.onClick.AddListener(AcceptAgeLimit);
+
+            var cancelButton = UiFactory.CreateSoftButton(card, "Cancel", "やめる", 30);
+            var cancelRect = cancelButton.GetComponent<RectTransform>();
+            cancelRect.anchorMin = cancelRect.anchorMax = new Vector2(0.5f, 1f);
+            cancelRect.pivot = new Vector2(0.5f, 1f);
+            cancelRect.anchoredPosition = new Vector2(190f, -y);
+            cancelRect.sizeDelta = new Vector2(340f, 92f);
+            cancelButton.onClick.AddListener(CloseAgeLimitModal);
+
+            _ageLimitModal.SetActive(false);
+        }
+
+        void AcceptAgeLimit()
+        {
+            Se.Play(Se.Confirm);
+            AppConfig.AgeLimitAccepted = true;
+            AppConfig.IncludeAgeLimit = true;
+            _ageLimitModal.SetActive(false);
+            UpdateAgeLimitToggle();
+        }
+
+        void CloseAgeLimitModal()
+        {
+            Se.Play(Se.Tap);
+            _ageLimitModal.SetActive(false);
+        }
+
+        static void SetModalRow(RectTransform rect, float y, float height)
+        {
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, y);
+            rect.offsetMin = new Vector2(50f, rect.offsetMin.y);
+            rect.offsetMax = new Vector2(-50f, rect.offsetMax.y);
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
         }
 
         void RunSearch()
