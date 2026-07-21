@@ -628,6 +628,15 @@ namespace YukaNavi.UI
             float s = Mathf.Clamp(saved.Scale, HomeLayoutStore.MinScale, HomeLayoutStore.MaxScale);
             item.Group.localScale = new Vector3(s, s, 1f);
             item.Group.gameObject.SetActive(saved.Visible);
+            if (saved.Visible)
+            {
+                // キャンバス幅が端末で異なる (iPad/スマホ) ため、別端末やスキン配布で保存された
+                // 座標は画面外になりうる。ドラッグ時と同じクランプで画面内へ引き戻す
+                Canvas.ForceUpdateCanvases(); // 直後の GetWorldCorners を今の配置で評価させる
+                var canvas = GetComponentInParent<Canvas>();
+                float scale = (canvas != null && canvas.scaleFactor > 0f) ? canvas.scaleFactor : 1f;
+                HomeDraggable.ClampIntoBounds(item.Group, (RectTransform)transform, scale);
+            }
         }
 
         /// <summary>パーツの今の位置・大きさ・表示を現在のスキンに保存する。</summary>

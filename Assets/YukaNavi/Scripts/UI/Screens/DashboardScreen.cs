@@ -1143,6 +1143,7 @@ namespace YukaNavi.UI
                 scaler.referenceResolution = on ? new Vector2(1920f, 1080f) : new Vector2(1080f, 1920f);
             }
             AppRoot.CanvasRefWidth = on ? 1920f : 1080f;
+            AppRoot.CanvasRefHeight = on ? 1080f : 1920f;
         }
 
         /// <summary>接続 QR とアプリ入手 QR を (必要なら) 生成し直す。</summary>

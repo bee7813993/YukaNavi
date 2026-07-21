@@ -344,7 +344,8 @@ namespace YukaNavi.UI
 
         float AddWrapped(RectTransform card, string label, float y, int fontSize, Color color)
         {
-            int lines = UiFactory.EstimateWrapLines(label, fontSize, 960f);
+            // 折り返し幅 = 実効キャンバス幅 - リスト余白・カード内余白の概算 (1080 時 960)
+            int lines = UiFactory.EstimateWrapLines(label, fontSize, UiFactory.CanvasWidth - 120f);
             float height = lines * UiFactory.LineHeight(fontSize) + 4f;
             var text = UiFactory.CreateText(card, "Text", UiFactory.NoWordWrap(label),
                 fontSize, color, TextAnchor.UpperLeft);

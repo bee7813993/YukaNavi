@@ -22,6 +22,10 @@ namespace YukaNavi.UI
         GameObject _googleBusyGroup; // Google: ブラウザ認証待ち
         GameObject _googleInGroup;   // Google: ログイン済み
         Text _googleInfoText;
+        Button _deleteButton;        // 連携データ削除 (2度押し確認)
+        Text _deleteLabel;
+        bool _deleteArmed;
+        bool _deleteBusy;
 
         public override void BuildUi()
         {
@@ -48,7 +52,7 @@ namespace YukaNavi.UI
             const string guide3 = "連携すると、このサーバーではWeb版と同じマイページになります。";
             foreach (string line in new[] { guide1, guide2, guide3 })
             {
-                float h = UiFactory.EstimateWrapLines(line, 26, 900f) * UiFactory.LineHeight(26);
+                float h = UiFactory.EstimateWrapLines(line, 26, UiFactory.CanvasWidth - 180f) * UiFactory.LineHeight(26);
                 var text = UiFactory.CreateText(unlinked, "Guide", line, 26, UiFactory.TextDark,
                     TextAnchor.MiddleLeft);
                 SetRow(text.rectTransform, uy, h);
@@ -80,7 +84,7 @@ namespace YukaNavi.UI
 
             const string linkedGuide = "このサーバーではWeb版と同じマイページを使っています。"
                 + "履歴・お気に入りの追加は自動で同期されます。";
-            float lg = UiFactory.EstimateWrapLines(linkedGuide, 26, 900f) * UiFactory.LineHeight(26);
+            float lg = UiFactory.EstimateWrapLines(linkedGuide, 26, UiFactory.CanvasWidth - 180f) * UiFactory.LineHeight(26);
             var linkedText = UiFactory.CreateText(linked, "Guide", linkedGuide, 26,
                 UiFactory.TextDark, TextAnchor.UpperLeft);
             SetRow(linkedText.rectTransform, ly, lg);
@@ -120,7 +124,7 @@ namespace YukaNavi.UI
 
             const string googleGuide = "Google にログインすると、マイページを Google Drive に"
                 + "自動保存し、どの部屋でも同じデータを使えます (Web版のGoogle連携と共通)。";
-            float ggH = UiFactory.EstimateWrapLines(googleGuide, 24, 900f) * UiFactory.LineHeight(24);
+            float ggH = UiFactory.EstimateWrapLines(googleGuide, 24, UiFactory.CanvasWidth - 180f) * UiFactory.LineHeight(24);
             var googleGuideText = UiFactory.CreateText(transform, "GoogleGuide", googleGuide, 24,
                 UiFactory.TextMuted, TextAnchor.UpperLeft);
             SetRow(googleGuideText.rectTransform, gy, ggH);
@@ -142,7 +146,7 @@ namespace YukaNavi.UI
             _googleBusyGroup = gBusy.gameObject;
             float by = gy;
             const string busyGuide = "ブラウザで Google の認証を進めてください...";
-            float bh = UiFactory.EstimateWrapLines(busyGuide, 26, 900f) * UiFactory.LineHeight(26);
+            float bh = UiFactory.EstimateWrapLines(busyGuide, 26, UiFactory.CanvasWidth - 180f) * UiFactory.LineHeight(26);
             var busyText = UiFactory.CreateText(gBusy, "BusyGuide", busyGuide, 26,
                 UiFactory.TextDark, TextAnchor.MiddleLeft);
             SetRow(busyText.rectTransform, by, bh);
@@ -197,6 +201,34 @@ namespace YukaNavi.UI
                 UiFactory.ShowToast("ログアウトしました (Drive 上のデータはそのまま残ります)");
                 UpdateState();
             });
+            iy += 84f + 24f;
+
+            // 連携データの削除 (審査ガイドライン: アカウントデータ削除の提供。2度押し確認)
+            const string deleteGuide = "Drive 上のバックアップを削除し、Google 連携を解除します"
+                + " (端末内のデータは残ります)";
+            float dgH = UiFactory.EstimateWrapLines(deleteGuide, 22, UiFactory.CanvasWidth - 180f) * UiFactory.LineHeight(22);
+            var deleteGuideText = UiFactory.CreateText(gIn, "GoogleDeleteGuide", deleteGuide, 22,
+                UiFactory.TextMuted, TextAnchor.UpperLeft);
+            SetRow(deleteGuideText.rectTransform, iy, dgH);
+            iy += dgH + 8f;
+
+            _deleteButton = UiFactory.CreateButton(gIn, "GoogleDelete", "連携データを削除",
+                UiFactory.Danger, Color.white, 26);
+            SetRow(_deleteButton.GetComponent<RectTransform>(), iy, 84f);
+            _deleteLabel = _deleteButton.GetComponentInChildren<Text>();
+            _deleteArmed = false;
+            _deleteButton.onClick.AddListener(() =>
+            {
+                if (!_deleteArmed)
+                {
+                    _deleteArmed = true;
+                    _deleteLabel.text = "本当に削除する？";
+                    Se.Play(Se.Tap);
+                    return;
+                }
+                ResetDeleteButton();
+                _ = DeleteGoogleDataAsync();
+            });
 
             UpdateState();
         }
@@ -215,7 +247,18 @@ namespace YukaNavi.UI
 
         public override void OnShow()
         {
+            ResetDeleteButton(); // 画面を離れて戻ったら2度押し確認をやり直し
             UpdateState();
+        }
+
+        /// <summary>削除ボタンの2度押し確認を最初の状態に戻す。</summary>
+        void ResetDeleteButton()
+        {
+            _deleteArmed = false;
+            if (_deleteLabel != null)
+            {
+                _deleteLabel.text = "連携データを削除";
+            }
         }
 
         void UpdateState()
@@ -328,6 +371,52 @@ namespace YukaNavi.UI
                 UiFactory.ShowToast("同期に失敗: " + e.Message, true);
             }
             HideLoading();
+            UpdateState();
+        }
+
+        /// <summary>
+        /// Google 連携データの削除。Drive 上のバックアップを消し、アクセス権を失効させて
+        /// ログアウトする (端末内のデータは残る)。
+        /// </summary>
+        async System.Threading.Tasks.Task DeleteGoogleDataAsync()
+        {
+            if (_deleteBusy)
+            {
+                return; // 実行中の連打を無視 (ローディング表示は入力を遮らないため)
+            }
+            _deleteBusy = true;
+            _deleteButton.interactable = false;
+            Se.Play(Se.Tap);
+            ShowLoading("削除中...");
+            try
+            {
+                await MypageService.DeleteDriveDataAsync();
+                if (this == null)
+                {
+                    return;
+                }
+                HideLoading();
+                Se.Play(Se.Confirm);
+                UiFactory.ShowToast("Drive 上のバックアップを削除し、連携を解除しました");
+            }
+            catch (System.Exception e)
+            {
+                if (this == null)
+                {
+                    return;
+                }
+                HideLoading();
+                Se.Play(Se.Error);
+                UiFactory.ShowToast("削除に失敗: " + e.Message, true);
+            }
+            finally
+            {
+                _deleteBusy = false;
+                if (this != null && _deleteButton != null)
+                {
+                    _deleteButton.interactable = true;
+                }
+            }
             UpdateState();
         }
 

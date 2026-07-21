@@ -522,7 +522,8 @@ namespace YukaNavi.UI
                 button.onClick.AddListener(() => ReserveScreen.Open(Manager, entry));
 
                 // ファイル名は文章ではないので半角スペースで折り返さず、行数に合わせて全文表示する
-                int nameLines = UiFactory.EstimateWrapLines(item.Name, 28, 990f);
+                int nameLines = UiFactory.EstimateWrapLines(item.Name, 28,
+                    UiFactory.CanvasWidth - 90f);
                 float nameHeight = nameLines * UiFactory.LineHeight(28) + 4f;
                 bool hasWorker = !string.IsNullOrEmpty(item.Worker);
                 float workerHeight = hasWorker ? UiFactory.LineHeight(26) + 6f : 0f;
@@ -868,8 +869,8 @@ namespace YukaNavi.UI
             rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
         }
 
-        // カード内テキストの折り返し幅 (画面幅 1080 - リスト余白 - カード内余白の概算)
-        const float CardTextWidth = 980f;
+        // カード内テキストの折り返し幅 (実効キャンバス幅 - リスト余白 - カード内余白の概算)
+        static float CardTextWidth => UiFactory.CanvasWidth - 100f;
 
         static int WrapLines(string text, int fontSize, float width)
         {

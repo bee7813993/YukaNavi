@@ -64,9 +64,13 @@ namespace YukaNavi
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080f, 1920f);
-            // 幅基準で固定する。0.5 (中間) だと 9:16 より細長い端末で Canvas の実効幅が
-            // 1080 を下回り、固定幅のカードやグリッドが左右にはみ出す
-            scaler.matchWidthOrHeight = 0f;
+            // Expand: Canvas の実効サイズが基準解像度を必ず包含するようにする。
+            // - 9:16 より細長い端末は幅 1080 基準 (従来の matchWidthOrHeight = 0 と同じ。
+            //   0.5 [中間] だと実効幅が 1080 を下回り固定幅のカードがはみ出すため)
+            // - iPad 等の 9:16 より横に広い端末は高さ 1920 基準になり、縦 1920 前提の
+            //   レイアウトが潰れない (幅基準のままだと実効高が約 1547 になり全画面が過密。
+            //   App Store 審査で iPad の Guideline 4 [crowded UI] 指摘を受けた対策)
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
             canvasGo.AddComponent<GraphicRaycaster>();
 
             // セーフエリア (ノッチ・パンチホールカメラ・下部ホームバー) を Canvas 単位に換算
@@ -367,16 +371,20 @@ namespace YukaNavi
         }
 
         /// <summary>
-        /// 現在の Canvas 基準幅 (幅基準スケール)。通常は縦持ちの 1080。
-        /// 横向きのダッシュボード表示中は 1920 に切り替わる (DashboardScreen が設定)。
+        /// 現在の Canvas 基準解像度。通常は縦持ちの 1080x1920。
+        /// 横向きのダッシュボード表示中は 1920x1080 に切り替わる (DashboardScreen が設定)。
         /// </summary>
         public static float CanvasRefWidth = 1080f;
+        public static float CanvasRefHeight = 1920f;
 
-        /// <summary>Screen.safeArea を Canvas 単位 (幅基準) の上下インセットに換算する。</summary>
+        /// <summary>Screen.safeArea を Canvas 単位の上下インセットに換算する。</summary>
         static void ReadSafeInsets(out float top, out float bottom)
         {
             var safe = Screen.safeArea;
-            float toCanvas = CanvasRefWidth / Screen.width; // 幅基準スケール (matchWidthOrHeight = 0)
+            // Expand スケール: 幅・高さのうち「基準解像度に対して不足する側」が基準になる
+            // (縦長端末は幅、iPad のような横に広い端末は高さ)
+            float toCanvas = Mathf.Max(CanvasRefWidth / Screen.width,
+                CanvasRefHeight / Screen.height);
             top = Mathf.Max(0f, (Screen.height - safe.yMax) * toCanvas);
             bottom = Mathf.Max(0f, safe.yMin * toCanvas);
         }
@@ -422,6 +430,10 @@ namespace YukaNavi
             if (string.IsNullOrEmpty(url) || !AppConfig.IsConfigured)
             {
                 return;
+            }
+            if (GlobalNav.Instance != null)
+            {
+                GlobalNav.Instance.CloseMenu(); // メニュー越しに画面が替わると透過度が食い違う
             }
             UrlRequestScreen.OpenWithUrl(_screens, url);
         }

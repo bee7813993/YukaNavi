@@ -89,8 +89,8 @@ namespace YukaNavi.UI
             const string captionLine2 = "(ykr.moe の部屋はポート番号だけでOK · 例: 11080)";
             var caption = UiFactory.CreateText(content, "Caption",
                 captionLine1 + "\n" + captionLine2, 28, UiFactory.TextDark);
-            float captionH = (UiFactory.EstimateWrapLines(captionLine1, 28, 900f)
-                + UiFactory.EstimateWrapLines(captionLine2, 28, 900f)) * UiFactory.LineHeight(28);
+            float captionH = (UiFactory.EstimateWrapLines(captionLine1, 28, UiFactory.CanvasWidth - 180f)
+                + UiFactory.EstimateWrapLines(captionLine2, 28, UiFactory.CanvasWidth - 180f)) * UiFactory.LineHeight(28);
             SetTopRect(caption.rectTransform, y, captionH);
             y -= captionH + 28f;
 
@@ -123,7 +123,7 @@ namespace YukaNavi.UI
             const string passLabelText = "かんたん認証パスワード (不要なら空欄)";
             var passLabel = UiFactory.CreateText(content, "PassLabel",
                 passLabelText, 30, UiFactory.PrimaryDark, TextAnchor.UpperLeft);
-            float passLabelH = UiFactory.EstimateWrapLines(passLabelText, 30, 900f)
+            float passLabelH = UiFactory.EstimateWrapLines(passLabelText, 30, UiFactory.CanvasWidth - 180f)
                 * UiFactory.LineHeight(30);
             SetTopRect(passLabel.rectTransform, y, passLabelH);
             y -= passLabelH + 8f;
@@ -189,7 +189,7 @@ namespace YukaNavi.UI
             const string relayLabelText = "Google認証の中継サーバー URL (空欄で標準に戻る)";
             var relayLabel = UiFactory.CreateText(advGroup, "RelayLabel", relayLabelText, 24,
                 UiFactory.TextMuted, TextAnchor.UpperLeft);
-            float relayLabelH = UiFactory.EstimateWrapLines(relayLabelText, 24, 900f)
+            float relayLabelH = UiFactory.EstimateWrapLines(relayLabelText, 24, UiFactory.CanvasWidth - 180f)
                 * UiFactory.LineHeight(24);
             SetTopRect(relayLabel.rectTransform, y, relayLabelH);
             y -= relayLabelH + 8f;
