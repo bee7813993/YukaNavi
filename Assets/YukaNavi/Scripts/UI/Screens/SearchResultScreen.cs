@@ -1062,6 +1062,10 @@ namespace YukaNavi.UI
             // Android で音声トラック初期化に失敗して映像ごと止まることがあるため)
             _previewAudio = _previewModal.AddComponent<AudioSource>();
             _previewAudio.playOnAwake = false;
+            // 2D 再生に固定する。AudioSource モードは spatialBlend/距離減衰で
+            // 音が極端に小さくなる既知バグがあるため明示的に無効化する
+            _previewAudio.spatialBlend = 0f;
+            _previewAudio.dopplerLevel = 0f;
             _previewAudio.mute = true; // Web 版と同じくミュートで開始
 
             _previewPlayer = _previewModal.AddComponent<VideoPlayer>();
