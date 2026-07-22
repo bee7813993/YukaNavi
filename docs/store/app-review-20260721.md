@@ -16,33 +16,33 @@ Submission ID: c25a1f62-8d49-49a0-9fd8-d6c4fd867301 / 対象: 1.0.0 (5) /
 
 ## 再提出前チェックリスト
 
-- [ ] `ykr.moe:11004` の部屋サーバー稼働確認 (審査期間中は常時稼働)
+- [x] `ykr.moe:11004` の部屋サーバー稼働確認 (審査期間中は常時稼働) — 2026-07-22 実測 OK (server_info が JSON 応答)
 - [ ] `ykr.moe:11004` の外形監視 (uptime monitor) を設定し、ダウン時に通知が来ることを確認
-- [ ] IPv6 で疎通: `curl -6 http://ykr.moe:11004/api/server_info.php` が JSON を返す
-- [ ] IPv4 で疎通: `curl -4 http://ykr.moe:11004/api/server_info.php` が JSON を返す
+- [x] IPv6 で疎通: `curl -6 http://ykr.moe:11004/api/server_info.php` が JSON を返す — 2026-07-22 実測 OK (AAAA レコードあり)
+- [x] IPv4 で疎通: `curl -4 http://ykr.moe:11004/api/server_info.php` が JSON を返す — 2026-07-22 実測 OK
 - [ ] NAT64 疎通 (Apple 審査網の再現): macOS の「インターネット共有 > NAT64 ネットワークを作成」で IPv6-only の Wi-Fi を作り、実機 iPhone からアプリで `http://ykr.moe:11004` に接続・検索できる
-  ※ この項目を実施しない場合は、返信文の NAT64 検証の一文を削除すること (事実と異なる主張をしない)
+  ※ 未実施のため返信文から NAT64 検証の一文は削除済み (2026-07-22)。実施した場合は「We have verified connectivity from an IPv6-only (NAT64) network.」を 2.1(a) の段落末尾に戻してよい
 - [ ] デモ部屋がかんたん認証なしで入れる設定になっている (審査メモの手順どおり素通りできる)
 - [ ] TestFlight ビルドで確認: カメラ許可ダイアログが日英併記の具体文言になっている
 - [ ] TestFlight ビルドで確認: Google ログインがアプリ内シートで開き、完了で自動的に閉じる。シートのキャンセルで数秒後に「ログインを中止しました」
 - [ ] TestFlight ビルドで確認: マイページ > 連携 > 連携データを削除 が動作する
 - [ ] iPad (実機または Simulator) で確認: 設定画面の上でメニューを開いても下の文字が透けない。ホーム・検索・設定が過密にならない
 - [ ] App Store Connect の返信欄に下記の返信文を投稿してから Resubmit
-- [ ] プライバシーポリシー (ykr.moe/apps/yukanavi/privacy.html) にアプリ内削除手段の記述を反映 (`site-updates/` 参照)
+- [x] プライバシーポリシー (ykr.moe/apps/yukanavi/privacy.html) にアプリ内削除手段の記述を反映 (`site-updates/` 参照) — 2026-07-22 反映済み
 
 ## App Review への返信文案 (App Store Connect のメッセージ欄に投稿)
 
 > Thank you for the detailed review. We have addressed every issue in the new build and would like to add context for two of them.
 >
 > **Guideline 4.8 (Login Services)**
-> The "Sign in with Google" option in our app is not a general login service and does not create or authenticate an app account. It exists solely so that users can back up their own data (song history / favorites) to their own Google Drive (the hidden appDataFolder of their Google account). It is entirely optional: every feature of the app works without signing in, and no functionality other than the Google Drive backup itself is gated behind it. We believe this falls under the Guideline 4.8 exception for apps that use a third-party service login specifically to access that service's content ("your app is a client for a specific third-party service and users are required to sign in to their mail, social media, or other third-party account directly to access their content"): a Sign in with Apple account cannot access the user's Google Drive, so an equivalent-login option cannot provide this feature. The app has no account system of its own — users are identified toward their own karaoke server only by an anonymous, locally generated UUID.
+> The "Sign in with Google" option in our app is not a general login service and does not create or authenticate an app account. It exists solely so that users can back up their own data (song history, favorites, and other My Page data such as the "sing later" list and saved searches) to their own Google Drive (the hidden appDataFolder of their Google account). It is entirely optional: every feature of the app works without signing in, and no functionality other than the Google Drive backup itself is gated behind it. We believe this falls under the Guideline 4.8 exception for apps that use a third-party service login specifically to access that service's content ("your app is a client for a specific third-party service and users are required to sign in to their mail, social media, or other third-party account directly to access their content"): a Sign in with Apple account cannot access the user's Google Drive, so an equivalent-login option cannot provide this feature. The app has no account system of its own — users are identified toward their own karaoke server only by an anonymous, locally generated UUID.
 >
 > In addition, in this build we have:
 > - moved the Google authentication into an in-app SFSafariViewController (no more hand-off to the default browser), per Guideline 4;
 > - added an in-app "Delete linked data" action (My Page > Link) that deletes the backup file from the user's Google Drive, revokes the OAuth grant, and signs the user out.
 >
 > **Guideline 2.1(a) (server connection)**
-> The demo server (http://ykr.moe:11004) suffered an unrelated operational outage during the review window — we sincerely apologize. It has been restored, is reachable over both IPv4 and IPv6, is now monitored, and will be kept online for the duration of the review. We have verified connectivity from an IPv6-only (NAT64) network.
+> The demo server (http://ykr.moe:11004) suffered an unrelated operational outage during the review window — we sincerely apologize. It has been restored, we have verified it is reachable over both IPv4 and IPv6, and it will be kept online and monitored for the duration of the review.
 >
 > **Guideline 4 (iPad layout)**
 > We fixed the menu overlay issue shown in your screenshot: the full-screen menu background is now nearly opaque over every content screen, so the underlying screen no longer shows through. (Only over the home screen — which displays the user's chosen wallpaper and mascot — does the menu retain a deliberate, decorative translucency.) The UI now also scales with the 4:3 iPad aspect ratio so that screens are no longer crowded.
