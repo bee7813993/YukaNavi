@@ -1031,6 +1031,13 @@ namespace YukaNavi.UI
 
             _previewSlider = UiFactory.CreateSlider(_previewModal.transform, "Seek", 0f, 1f,
                 wholeNumbers: false);
+            // CreateSlider は 44px のつまみだけが当たり判定 (トラック/塗りは
+            // raycastTarget=false)。そのままだとバーの余白タップが背後の overlay
+            // (外タップ=閉じる) に抜け、シーク操作でプレビューが閉じてしまう。
+            // スライダー領域全体を覆う透明の当たり判定を足して塞ぎ、バー全域で掴めるようにする。
+            // (この Image は子のトラック/つまみより後ろに描画されるので見た目は変わらない)
+            var sliderHit = _previewSlider.gameObject.AddComponent<Image>();
+            sliderHit.color = new Color(0f, 0f, 0f, 0f);
             var sliderRect = _previewSlider.GetComponent<RectTransform>();
             sliderRect.anchorMin = new Vector2(0f, 0f);
             sliderRect.anchorMax = new Vector2(1f, 0f);
