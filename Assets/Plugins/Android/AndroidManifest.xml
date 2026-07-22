@@ -6,7 +6,10 @@
   エントリポイントは GameActivity (ProjectSettings の androidApplicationEntry: 2)。
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application>
+    <!-- 動画プレビュー (preview_video_stream.php) は HTTP のため、Android 9+ の
+         cleartext ブロックを解除する。VideoPlayer のネイティブ再生はこの属性に従う
+         (UnityWebRequest の insecureHttpOption とは別レイヤー) -->
+    <application android:usesCleartextTraffic="true">
         <activity android:name="com.unity3d.player.UnityPlayerGameActivity"
                   android:theme="@style/BaseUnityGameActivityTheme"
                   android:exported="true">

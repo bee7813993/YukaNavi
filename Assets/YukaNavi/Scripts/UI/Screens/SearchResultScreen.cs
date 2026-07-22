@@ -61,6 +61,11 @@ namespace YukaNavi.UI
         GameObject _previewModal;
         VideoPlayer _previewPlayer;
         RenderTexture _previewTexture;
+        AudioSource _previewAudio;
+        Slider _previewSlider;
+        Text _previewTimeText;
+        bool _previewSuppressSlider; // Update からの value 設定を onValueChanged が無視するため
+        float _previewLastSeekAt = -1f; // 直近のユーザー操作時刻 (この直後は自動追従を止める)
         Text _titleText;
         Text _statusText;
         InputField _searchInput;
@@ -993,13 +998,12 @@ namespace YukaNavi.UI
             muteButton.onClick.AddListener(() =>
             {
                 Se.Play(Se.Tap);
-                if (_previewPlayer == null)
+                if (_previewAudio == null)
                 {
                     return;
                 }
-                bool mute = !_previewPlayer.GetDirectAudioMute(0);
-                _previewPlayer.SetDirectAudioMute(0, mute);
-                muteLabel.text = mute ? "音を出す" : "ミュートにする";
+                _previewAudio.mute = !_previewAudio.mute;
+                muteLabel.text = _previewAudio.mute ? "音を出す" : "ミュートにする";
             });
 
             var closeButton = UiFactory.CreateSoftButton(_previewModal.transform, "Close",
@@ -1012,6 +1016,32 @@ namespace YukaNavi.UI
             closeRect.sizeDelta = new Vector2(300f, 84f);
             closeButton.onClick.AddListener(ClosePreviewModal);
 
+            // シークバー (経過 / 全体 の時間表示 + スライダー。ボタンの上に置く)
+            float sliderY = buttonY + 84f + 20f;
+            _previewTimeText = UiFactory.CreateText(_previewModal.transform, "Time",
+                "0:00 / 0:00", 22, Color.white);
+            var timeRect = _previewTimeText.rectTransform;
+            timeRect.anchorMin = new Vector2(0f, 0f);
+            timeRect.anchorMax = new Vector2(1f, 0f);
+            timeRect.pivot = new Vector2(0.5f, 0f);
+            timeRect.anchoredPosition = new Vector2(0f, sliderY + 44f);
+            timeRect.offsetMin = new Vector2(40f, timeRect.offsetMin.y);
+            timeRect.offsetMax = new Vector2(-40f, timeRect.offsetMax.y);
+            timeRect.sizeDelta = new Vector2(timeRect.sizeDelta.x, UiFactory.LineHeight(22));
+
+            _previewSlider = UiFactory.CreateSlider(_previewModal.transform, "Seek", 0f, 1f,
+                wholeNumbers: false);
+            var sliderRect = _previewSlider.GetComponent<RectTransform>();
+            sliderRect.anchorMin = new Vector2(0f, 0f);
+            sliderRect.anchorMax = new Vector2(1f, 0f);
+            sliderRect.pivot = new Vector2(0.5f, 0f);
+            sliderRect.anchoredPosition = new Vector2(0f, sliderY);
+            sliderRect.offsetMin = new Vector2(40f, sliderRect.offsetMin.y);
+            sliderRect.offsetMax = new Vector2(-40f, sliderRect.offsetMax.y);
+            sliderRect.sizeDelta = new Vector2(sliderRect.sizeDelta.x, 40f);
+            _previewSlider.value = 0f;
+            _previewSlider.onValueChanged.AddListener(OnPreviewSeek);
+
             // 再生 URL (Web 版と同じエンドポイント。Range 対応済みでシークも効く)
             string url = AppConfig.ServerUrl.TrimEnd('/')
                 + "/preview_video_stream.php?path=" + UnityWebRequest.EscapeURL(fullPath);
@@ -1021,14 +1051,21 @@ namespace YukaNavi.UI
                 url += "&easypass=" + UnityWebRequest.EscapeURL(AppConfig.EasyPass);
             }
 
+            // 音声は AudioSource 経由で出す (Direct は 5.1ch 音声を iOS で無音にする・
+            // Android で音声トラック初期化に失敗して映像ごと止まることがあるため)
+            _previewAudio = _previewModal.AddComponent<AudioSource>();
+            _previewAudio.playOnAwake = false;
+            _previewAudio.mute = true; // Web 版と同じくミュートで開始
+
             _previewPlayer = _previewModal.AddComponent<VideoPlayer>();
             _previewPlayer.renderMode = VideoRenderMode.RenderTexture;
             _previewPlayer.playOnAwake = false;
             _previewPlayer.isLooping = false;
             _previewPlayer.source = VideoSource.Url;
             _previewPlayer.url = url;
-            _previewPlayer.audioOutputMode = VideoAudioOutputMode.Direct;
-            _previewPlayer.SetDirectAudioMute(0, true); // Web 版と同じくミュートで開始
+            _previewPlayer.audioOutputMode = VideoAudioOutputMode.AudioSource;
+            _previewPlayer.EnableAudioTrack(0, true);
+            _previewPlayer.SetTargetAudioSource(0, _previewAudio);
             _previewPlayer.errorReceived += (vp, message) =>
             {
                 if (statusText != null)
@@ -1054,12 +1091,10 @@ namespace YukaNavi.UI
                 _previewTexture = new RenderTexture(w, h, 0);
                 vp.targetTexture = _previewTexture;
                 videoImage.texture = _previewTexture;
-                // ミュート開始をトラック確定後にも再適用する (環境による取りこぼし防止)
-                vp.SetDirectAudioMute(0, muteLabel.text == "音を出す");
-                // 上下の UI を避けた領域に contain で収める (中心は利用可能領域の中心へ)
+                // 上下の UI (タイトル / シークバー + ボタン) を避けた領域に contain で収める
                 var modalRect = ((RectTransform)_previewModal.transform).rect;
                 float topInset = topY + UiFactory.LineHeight(28) + 30f;
-                float bottomInset = buttonY + 84f + 30f;
+                float bottomInset = sliderY + 44f + UiFactory.LineHeight(22) + 20f;
                 float availW = modalRect.width - 60f;
                 float availH = modalRect.height - topInset - bottomInset;
                 float scale = Mathf.Min(availW / w, availH / h);
@@ -1070,6 +1105,56 @@ namespace YukaNavi.UI
                 vp.Play();
             };
             _previewPlayer.Prepare();
+        }
+
+        /// <summary>シークバー操作: 動画を該当位置へ移動する。</summary>
+        void OnPreviewSeek(float value)
+        {
+            if (_previewSuppressSlider || _previewPlayer == null || !_previewPlayer.isPrepared)
+            {
+                return; // Update からの自動追従 or 準備前は無視
+            }
+            double length = _previewPlayer.length;
+            if (length > 0)
+            {
+                _previewPlayer.time = value * length;
+                _previewLastSeekAt = Time.unscaledTime;
+                if (_previewTimeText != null)
+                {
+                    _previewTimeText.text = FormatTime(value * length) + " / " + FormatTime(length);
+                }
+            }
+        }
+
+        void Update()
+        {
+            if (_previewPlayer == null || _previewSlider == null || !_previewPlayer.isPrepared)
+            {
+                return;
+            }
+            double length = _previewPlayer.length;
+            if (length <= 0)
+            {
+                return;
+            }
+            // 直近にユーザーが操作した直後は、シーク完了までスライダーを動かさない
+            if (Time.unscaledTime - _previewLastSeekAt < 0.4f)
+            {
+                return;
+            }
+            _previewSuppressSlider = true;
+            _previewSlider.value = (float)(_previewPlayer.time / length);
+            _previewSuppressSlider = false;
+            if (_previewTimeText != null)
+            {
+                _previewTimeText.text = FormatTime(_previewPlayer.time) + " / " + FormatTime(length);
+            }
+        }
+
+        static string FormatTime(double seconds)
+        {
+            int total = Mathf.Max(0, (int)seconds);
+            return (total / 60) + ":" + (total % 60).ToString("00");
         }
 
         void ClosePreviewModal()
@@ -1091,6 +1176,9 @@ namespace YukaNavi.UI
                 Destroy(_previewModal);
                 _previewModal = null;
             }
+            _previewAudio = null;
+            _previewSlider = null;
+            _previewTimeText = null;
             // モーダルが RebuildAll 等で先に破棄されていても確実に元へ戻す (冪等)
             Bgm.SetSuppressed(false);
             Screen.sleepTimeout = SleepTimeout.SystemSetting;
@@ -1107,6 +1195,9 @@ namespace YukaNavi.UI
             // RenderTexture はアセットのため自前で破棄する
             _previewModal = null;
             _previewPlayer = null;
+            _previewAudio = null;
+            _previewSlider = null;
+            _previewTimeText = null;
             if (_previewTexture != null)
             {
                 _previewTexture.Release();
