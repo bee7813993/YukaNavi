@@ -20,6 +20,34 @@ namespace YukaNavi.UI
         /// <summary>アプリ入手 QR の宛先。ストア公開後はストア URL に差し替える。</summary>
         const string AppDownloadUrl = "https://ykr.moe/apps/yukanavi/";
 
+        /// <summary>
+        /// ダッシュボードを案内する端末か (タブレット / PC / エディタ)。
+        /// スマホは横向きにしても物理的な縦幅が足りず実用にならないため、
+        /// メニューに入口を出さない (スマホはリモコン画面が同等の役割を持つ)。
+        /// </summary>
+        public static bool DeviceSupported
+        {
+            get
+            {
+#if UNITY_EDITOR || UNITY_STANDALONE
+                return true;
+#else
+                if (SystemInfo.deviceModel.StartsWith("iPad"))
+                {
+                    return true;
+                }
+                float dpi = Screen.dpi;
+                if (dpi <= 0f)
+                {
+                    return true; // 物理サイズを判定できない端末は従来どおり出す
+                }
+                float w = Screen.width / dpi;
+                float h = Screen.height / dpi;
+                return Mathf.Sqrt(w * w + h * h) >= 7f; // 対角 7 インチ以上をタブレット扱い
+#endif
+            }
+        }
+
         const float NowPollIntervalSeconds = 2f;
         const float ListPollIntervalSeconds = 3f;
         const float EndConfirmWindowSeconds = 3f;
