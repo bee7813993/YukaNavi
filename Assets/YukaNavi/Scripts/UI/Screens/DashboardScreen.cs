@@ -11,13 +11,39 @@ namespace YukaNavi.UI
     /// <summary>
     /// タブレット据え置き用ライブダッシュボード (横向き)。
     /// 左はリモコン画面 (PlayerScreen) と同じデザインのプレイヤー (レコード盤+操作)、
-    /// 右に予約キュー・履歴・接続 QR を表示する。Web 版 player_live_dashboard.php のアプリ版。
+    /// 右に予約リスト (再生済 → 再生中 → これから を1本の時系列で表示) と接続 QR を
+    /// 表示する。Web 版 player_live_dashboard.php のアプリ版。
     /// 表示中は画面の向きを横に固定し、スリープも止める (OnHide で元に戻す)。
     /// </summary>
     public class DashboardScreen : ScreenBase
     {
         /// <summary>アプリ入手 QR の宛先。ストア公開後はストア URL に差し替える。</summary>
         const string AppDownloadUrl = "https://ykr.moe/apps/yukanavi/";
+
+        /// <summary>
+        /// ダッシュボードを案内する端末か (物理対角 約 7 インチ以上 = タブレット級)。
+        /// スマホは横向きにしても物理的な縦幅が足りず実用にならないため、
+        /// メニューに入口を出さない (スマホはリモコン画面が同等の役割を持つ)。
+        /// PC・エディタも同じ物理サイズ判定で自然に表示側になる。
+        /// </summary>
+        public static bool DeviceSupported
+        {
+            get
+            {
+                if (SystemInfo.deviceModel.StartsWith("iPad"))
+                {
+                    return true;
+                }
+                float dpi = Screen.dpi;
+                if (dpi <= 0f)
+                {
+                    return true; // 物理サイズを判定できない環境は従来どおり出す
+                }
+                float w = Screen.width / dpi;
+                float h = Screen.height / dpi;
+                return Mathf.Sqrt(w * w + h * h) >= 7f; // 対角 7 インチ以上をタブレット扱い
+            }
+        }
 
         const float NowPollIntervalSeconds = 2f;
         const float ListPollIntervalSeconds = 3f;
@@ -68,13 +94,13 @@ namespace YukaNavi.UI
         Text _compText;
         InputField _codeInput;
 
-        // 右: キュー / 履歴
+        // 右: 予約リスト (再生済〜再生中〜これから)
         RectTransform _queueContent;
         Text _queueCountText;
         readonly List<GameObject> _rows = new List<GameObject>();
-        RectTransform _historyBody;
-        readonly List<GameObject> _historyRows = new List<GameObject>();
         string _listSignature;
+        /// <summary>統合リストに残す再生済みの件数 (コンパクト行で先頭に並べる)。</summary>
+        const int MaxPlayedRows = 3;
 
         // ヘッダー
         Text _roomText;
@@ -175,8 +201,7 @@ namespace YukaNavi.UI
             // まずは MPC 想定で構築 (capabilities 取得後、差分があれば作り直す)
             BuildControls(isFoobar: false, useKeychange: false);
 
-            // 右カラム: QUEUE (可変) / HISTORY / REQUEST URL
-            const float histH = 150f;
+            // 右カラム: 予約リスト (再生済〜再生中〜これから、可変) / REQUEST URL
             const float reqH = 210f;
             var right = UiFactory.CreatePanel(body, "Right");
             right.anchorMin = new Vector2(0f, 0f);
@@ -187,17 +212,9 @@ namespace YukaNavi.UI
             var queueCard = CreateCard(right, "QueueCard");
             queueCard.anchorMin = new Vector2(0f, 0f);
             queueCard.anchorMax = new Vector2(1f, 1f);
-            queueCard.offsetMin = new Vector2(0f, histH + 16f + reqH + 16f);
+            queueCard.offsetMin = new Vector2(0f, reqH + 16f);
             queueCard.offsetMax = new Vector2(0f, 0f);
             BuildQueueCard(queueCard);
-
-            var historyCard = CreateCard(right, "HistoryCard");
-            historyCard.anchorMin = new Vector2(0f, 0f);
-            historyCard.anchorMax = new Vector2(1f, 0f);
-            historyCard.pivot = new Vector2(0.5f, 0f);
-            historyCard.offsetMin = new Vector2(0f, reqH + 16f);
-            historyCard.offsetMax = new Vector2(0f, reqH + 16f + histH);
-            BuildHistoryCard(historyCard);
 
             var requestCard = CreateCard(right, "RequestCard");
             requestCard.anchorMin = new Vector2(0f, 0f);
@@ -878,7 +895,7 @@ namespace YukaNavi.UI
         void BuildQueueCard(RectTransform card)
         {
             float y = 18f;
-            var caption = UiFactory.CreateText(card, "Caption", "つぎの予約", 26,
+            var caption = UiFactory.CreateText(card, "Caption", "予約リスト", 26,
                 UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
             SetTopRect(caption.rectTransform, y, UiFactory.LineHeight(26));
 
@@ -893,19 +910,6 @@ namespace YukaNavi.UI
             scroll.offsetMin = new Vector2(12f, 12f);
             scroll.offsetMax = new Vector2(-12f, -y);
             _listSignature = null;
-        }
-
-        void BuildHistoryCard(RectTransform card)
-        {
-            var caption = UiFactory.CreateText(card, "Caption", "うたった曲", 26,
-                UiFactory.PrimaryDark, TextAnchor.MiddleLeft);
-            SetTopRect(caption.rectTransform, 14f, UiFactory.LineHeight(26));
-
-            _historyBody = UiFactory.CreatePanel(card, "Body");
-            _historyBody.anchorMin = new Vector2(0f, 0f);
-            _historyBody.anchorMax = new Vector2(1f, 1f);
-            _historyBody.offsetMin = new Vector2(24f, 10f);
-            _historyBody.offsetMax = new Vector2(-24f, -(14f + UiFactory.LineHeight(26) + 6f));
         }
 
         void BuildRequestCard(RectTransform card)
@@ -1079,7 +1083,6 @@ namespace YukaNavi.UI
         {
             // 子 (行・QR 画像・盤スプライト) は RebuildAll が破棄するので、参照と自前リソースを片付ける
             _rows.Clear();
-            _historyRows.Clear();
             _controlCards.Clear();
             _advancedCard = null;
             DestroyQrTextures();
@@ -1537,7 +1540,7 @@ namespace YukaNavi.UI
                 _queueCountText.text = count;
             }
 
-            // 再生中 (先頭ハイライト) + 未再生 (再生順)、履歴 = 再生済み (新しい順)
+            // 再生済み (直近 MaxPlayedRows 件) → 再生中 → 未再生 (再生順) を1本のリストで表示する
             RequestItemDto playing = null;
             var pending = new List<RequestItemDto>();
             var played = new List<RequestItemDto>();
@@ -1558,18 +1561,26 @@ namespace YukaNavi.UI
                 }
             }
             pending.Sort((a, b) => a.Position.CompareTo(b.Position));
+            if (played.Count > MaxPlayedRows)
+            {
+                played.RemoveRange(MaxPlayedRows, played.Count - MaxPlayedRows);
+            }
+            played.Reverse(); // 表示は古い順 (上から時系列で 再生済 → 再生中 → 予約 と流れる)
 
+            // 曲情報の修正 (song_name 等) も行へ反映されるようシグネチャに含める
             var sig = new System.Text.StringBuilder();
-            sig.Append(playing != null ? playing.Id : 0).Append('|');
+            sig.Append(playing != null ? playing.Id : 0).Append(':')
+               .Append(playing != null ? playing.SongName : "").Append('|');
             foreach (var item in pending)
             {
                 sig.Append(item.Id).Append(':').Append(item.Reqorder).Append(':')
-                   .Append(item.Singer).Append('|');
+                   .Append(item.Singer).Append(':').Append(item.SongName).Append(':')
+                   .Append(item.Secret).Append('|');
             }
             sig.Append('#');
-            for (int i = 0; i < played.Count && i < 3; i++)
+            foreach (var item in played)
             {
-                sig.Append(played[i].Id).Append('|');
+                sig.Append(item.Id).Append(':').Append(item.SongName).Append('|');
             }
             if (sig.ToString() == _listSignature)
             {
@@ -1583,28 +1594,40 @@ namespace YukaNavi.UI
             }
             _rows.Clear();
 
-            if (playing == null && pending.Count == 0)
+            if (playing == null && pending.Count == 0 && played.Count == 0)
             {
                 var empty = UiFactory.CreateText(_queueContent, "Empty",
                     "予約はまだありません", 28, UiFactory.TextMuted);
                 var layout = empty.gameObject.AddComponent<LayoutElement>();
                 layout.preferredHeight = UiFactory.LineHeight(28) + 40f;
                 _rows.Add(empty.gameObject);
-            }
-            else
-            {
-                if (playing != null)
-                {
-                    AddQueueRow(playing, 0);
-                }
-                // 番号は「つぎにうたう順」の連番 (サーバーの Position は再生中の曲が 1 を占有する)
-                for (int i = 0; i < pending.Count; i++)
-                {
-                    AddQueueRow(pending[i], i + 1);
-                }
+                return;
             }
 
-            UpdateHistoryRows(played);
+            float playedHeight = 0f;
+            foreach (var item in played)
+            {
+                playedHeight += AddPlayedRow(item) + 14f; // 14 = リストの行間
+            }
+            if (playing != null)
+            {
+                AddQueueRow(playing, 0);
+            }
+            // 番号は「つぎにうたう順」の連番 (サーバーの Position は再生中の曲が 1 を占有する)
+            for (int i = 0; i < pending.Count; i++)
+            {
+                AddQueueRow(pending[i], i + 1);
+            }
+
+            // 再生済で埋まって「再生中・これから」が見えないままにならないよう、
+            // リストが表示域に収まらないときは再生済ぶんを上へ送った位置で表示する
+            // (上へスクロールすれば再生済も見える)
+            Canvas.ForceUpdateCanvases();
+            var viewport = (RectTransform)_queueContent.parent;
+            float overflow = _queueContent.rect.height - viewport.rect.height;
+            float scrollY = overflow > 0f ? Mathf.Min(playedHeight, overflow) : 0f;
+            _queueContent.anchoredPosition = new Vector2(
+                _queueContent.anchoredPosition.x, scrollY);
         }
 
         static bool IsPending(RequestItemDto item)
@@ -1629,6 +1652,34 @@ namespace YukaNavi.UI
                 work = string.IsNullOrEmpty(work) ? item.Kind : work + " · " + item.Kind;
             }
             return work;
+        }
+
+        /// <summary>
+        /// 再生済みのコンパクト行 (✓ 曲名 — うたう人)。使った行の高さを返す。
+        /// 主役の「再生中・これから」を圧迫しないよう1行の薄い表示にする。
+        /// </summary>
+        float AddPlayedRow(RequestItemDto item)
+        {
+            string title = !string.IsNullOrEmpty(item.SongName)
+                ? item.SongName : (item.DisplayName ?? item.Songfile ?? "");
+            string label = "✓  " + title
+                + (string.IsNullOrEmpty(item.Singer) ? "" : " — " + item.Singer);
+            float rowH = 10f + UiFactory.LineHeight(22) + 10f;
+
+            var row = UiFactory.CreatePanel(_queueContent, "Played" + item.Id,
+                new Color(UiFactory.PanelBg.r, UiFactory.PanelBg.g, UiFactory.PanelBg.b, 0.45f));
+            UiFactory.Roundify(row.GetComponent<Image>());
+            row.gameObject.AddComponent<LayoutElement>().preferredHeight = rowH;
+
+            var text = UiFactory.CreateText(row, "Label", label, 22,
+                UiFactory.TextMuted, TextAnchor.MiddleLeft);
+            UiFactory.StretchFull(text.rectTransform);
+            text.rectTransform.offsetMin = new Vector2(24f, 0f);
+            text.rectTransform.offsetMax = new Vector2(-24f, 0f);
+            UiFactory.FitLabel(text);
+
+            _rows.Add(row.gameObject);
+            return rowH;
         }
 
         /// <summary>キュー行 (order 0 = 再生中のハイライト行)。</summary>
@@ -1698,48 +1749,6 @@ namespace YukaNavi.UI
             }
 
             _rows.Add(row.gameObject);
-        }
-
-        /// <summary>履歴 (再生済みの直近3件) を作り直す。</summary>
-        void UpdateHistoryRows(List<RequestItemDto> played)
-        {
-            if (_historyBody == null)
-            {
-                return;
-            }
-            foreach (var row in _historyRows)
-            {
-                Destroy(row);
-            }
-            _historyRows.Clear();
-
-            if (played.Count == 0)
-            {
-                var empty = UiFactory.CreateText(_historyBody, "Empty", "履歴なし", 24,
-                    UiFactory.TextMuted);
-                UiFactory.StretchFull(empty.rectTransform);
-                _historyRows.Add(empty.gameObject);
-                return;
-            }
-            float lineH = UiFactory.LineHeight(22) + 6f;
-            for (int i = 0; i < played.Count && i < 3; i++)
-            {
-                var item = played[i];
-                string title = !string.IsNullOrEmpty(item.SongName)
-                    ? item.SongName : (item.DisplayName ?? item.Songfile ?? "");
-                string label = title + (string.IsNullOrEmpty(item.Singer)
-                    ? "" : " — " + item.Singer);
-                var text = UiFactory.CreateText(_historyBody, "Hist" + i, label, 22,
-                    UiFactory.TextMuted, TextAnchor.MiddleLeft);
-                var rect = text.rectTransform;
-                rect.anchorMin = new Vector2(0f, 1f);
-                rect.anchorMax = new Vector2(1f, 1f);
-                rect.pivot = new Vector2(0.5f, 1f);
-                rect.anchoredPosition = new Vector2(0f, -i * lineH);
-                rect.sizeDelta = new Vector2(0f, UiFactory.LineHeight(22));
-                UiFactory.FitLabel(text);
-                _historyRows.Add(text.gameObject);
-            }
         }
 
         static string FormatMs(float ms)

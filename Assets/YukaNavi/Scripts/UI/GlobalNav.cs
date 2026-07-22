@@ -17,8 +17,12 @@ namespace YukaNavi.UI
     {
         /// <summary>
         /// バーの高さ (下のセーフエリア込み)。各画面はこの分だけ下部を空けてレイアウトする。
+        /// 横向き (ダッシュボード表示中) は縦の余裕がないため低くする。
+        /// 向きが変わると AppRoot が RebuildAll + GlobalNav.Rebuild を行うため、
+        /// バー本体と各画面のレイアウトは常にこの値へ追従する。
         /// </summary>
-        public static float BarHeight => 140f + UiFactory.SafeBottom;
+        public static float BarHeight =>
+            (Screen.width > Screen.height ? 92f : 140f) + UiFactory.SafeBottom;
 
         ScreenManager _screens;
         GameObject _menuPanel;
@@ -141,7 +145,9 @@ namespace YukaNavi.UI
             gridLayout.cellSize = new Vector2(486f, cellH);
             gridLayout.spacing = new Vector2(24f, 24f);
             gridLayout.childAlignment = TextAnchor.LowerCenter;
-            int itemCount = landscape ? 8 : 6; // 横向きはバナー代替の2項目が増える
+            // ダッシュボードはタブレット級の端末にだけ案内する (スマホでは実用にならない)
+            bool showDashboard = DashboardScreen.DeviceSupported;
+            int itemCount = (landscape ? 7 : 5) + (showDashboard ? 1 : 0); // 横向きはバナー代替の2項目が増える
             int rowCount = Mathf.CeilToInt(itemCount / (float)gridLayout.constraintCount);
             grid.sizeDelta = new Vector2(0f, cellH * rowCount + 24f * (rowCount - 1));
 
@@ -163,8 +169,11 @@ namespace YukaNavi.UI
                 "Art/UI/Icons/yukanavi_icon_settings_256", () => _screens.Show<ConnectScreen>());
             AddGridItem(grid, "Web版を開く", "ブラウザで表示",
                 "Art/UI/Icons/yukanavi_icon_room_door_256", OpenWebVersion);
-            AddGridItem(grid, "ダッシュボード", "タブレット据え置き表示",
-                "Art/UI/Icons/yukanavi_icon_queue_256", () => _screens.Show<DashboardScreen>());
+            if (showDashboard)
+            {
+                AddGridItem(grid, "ダッシュボード", "タブレット据え置き表示",
+                    "Art/UI/Icons/yukanavi_icon_queue_256", () => _screens.Show<DashboardScreen>());
+            }
 
             _menuPanel.SetActive(false);
         }
