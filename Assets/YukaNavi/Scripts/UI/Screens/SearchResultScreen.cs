@@ -937,7 +937,7 @@ namespace YukaNavi.UI
 
         /// <summary>
         /// 全画面のプレビューモーダルを開いて再生する。Web 版と同じくミュートで
-        /// 再生を開始し、モーダル内のボタンで音を出せる。外タップ・閉じるで終了。
+        /// 再生を開始し、モーダル内のボタンで音を出せる。「閉じる」ボタン・戻るで終了。
         /// </summary>
         void OpenPreviewModal(string fullPath, string title)
         {
@@ -950,11 +950,11 @@ namespace YukaNavi.UI
             _previewModal = new GameObject("PreviewModal");
             _previewModal.transform.SetParent(transform, false);
             UiFactory.StretchFull(_previewModal.AddComponent<RectTransform>());
+            // 暗幕 (raycastTarget=true で背後の検索リストへのタップも遮る)。
+            // 「外タップで閉じる」はシークバー操作などが誤って閉じる原因になるため付けない。
+            // 閉じるのは「閉じる」ボタンと戻る (OnBackRequested) だけにする。
             var overlay = _previewModal.AddComponent<Image>();
             overlay.color = new Color(0f, 0f, 0f, 0.85f);
-            var overlayButton = _previewModal.AddComponent<Button>();
-            overlayButton.transition = Selectable.Transition.None;
-            overlayButton.onClick.AddListener(ClosePreviewModal);
 
             // Screens レイヤーは上側を SafeTop ぶんインセット済みのため、ここでは足さない
             float topY = 30f;
