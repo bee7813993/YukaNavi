@@ -1,7 +1,9 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.UI;
+using UnityEngine.Video;
 using YukaNavi.Api;
 using YukaNavi.Core;
 
@@ -54,6 +56,11 @@ namespace YukaNavi.UI
         /// <summary>取得時の年齢制限曲設定。変更されていたら OnShow で引き直す。</summary>
         bool _loadedIncludeAgeLimit;
         GameObject _ageLimitModal;
+        /// <summary>動画プレビュー可否 (capabilities の preview。取得失敗・旧サーバーは false)</summary>
+        bool _previewEnabled;
+        GameObject _previewModal;
+        VideoPlayer _previewPlayer;
+        RenderTexture _previewTexture;
         Text _titleText;
         Text _statusText;
         InputField _searchInput;
@@ -380,9 +387,22 @@ namespace YukaNavi.UI
             }
         }
 
-        /// <summary>ナビの「戻る」: 検索履歴が残っていれば1つ前の条件に戻る。</summary>
+        /// <summary>
+        /// ナビの「戻る」: モーダルが開いていればそれを閉じ、
+        /// 検索履歴が残っていれば1つ前の条件に戻る。
+        /// </summary>
         public override bool OnBackRequested()
         {
+            if (_previewModal != null)
+            {
+                ClosePreviewModal();
+                return true;
+            }
+            if (_ageLimitModal != null && _ageLimitModal.activeSelf)
+            {
+                CloseAgeLimitModal();
+                return true;
+            }
             if (_queryStack.Count > 1)
             {
                 _queryStack.RemoveAt(_queryStack.Count - 1);
@@ -425,6 +445,20 @@ namespace YukaNavi.UI
             var query = _queryStack[_queryStack.Count - 1];
             _loadedIncludeAgeLimit = AppConfig.IncludeAgeLimit;
             int serial = ++_searchSerial;
+            // プレビュー可否 (サーバーがアクセス元と online_preview 設定から判定して返す)
+            try
+            {
+                var caps = await AppState.EnsureCapabilitiesAsync();
+                _previewEnabled = caps.Features != null && caps.Features.Preview;
+            }
+            catch (System.Exception)
+            {
+                _previewEnabled = false; // 未接続・旧サーバーはプレビューなし
+            }
+            if (serial != _searchSerial)
+            {
+                return; // 取得待ちの間に別の検索が始まっていたら何もしない
+            }
             _titleText.text = (ReserveScreen.EditSession != null ? "差しかえ｜" : "") + query.Label;
             _searchInput.text = query.Keyword ?? ""; // 完全一致検索中は空 (プレースホルダー表示)
             UpdateSaveButton(query);
@@ -526,17 +560,21 @@ namespace YukaNavi.UI
                     UiFactory.CanvasWidth - 90f);
                 float nameHeight = nameLines * UiFactory.LineHeight(28) + 4f;
                 bool hasWorker = !string.IsNullOrEmpty(item.Worker);
-                float workerHeight = hasWorker ? UiFactory.LineHeight(26) + 6f : 0f;
-                le.preferredHeight = Mathf.Max(nameHeight + workerHeight + 28f, 112f);
+                bool showPreview = _previewEnabled && CanPreview(item.FullPath);
+                float linkRowHeight = (hasWorker || showPreview)
+                    ? UiFactory.LineHeight(26) + 6f : 0f;
+                le.preferredHeight = Mathf.Max(nameHeight + linkRowHeight + 28f, 112f);
 
                 var nameText = UiFactory.CreateText(rowGo.transform, "Name",
                     UiFactory.NoWordWrap(item.Name), 28,
                     UiFactory.TextDark, TextAnchor.MiddleLeft);
                 UiFactory.StretchFull(nameText.rectTransform);
-                nameText.rectTransform.offsetMin = new Vector2(24f, 6f + workerHeight);
+                nameText.rectTransform.offsetMin = new Vector2(24f, 6f + linkRowHeight);
                 nameText.rectTransform.offsetMax = new Vector2(-24f, -6f);
                 nameText.verticalOverflow = VerticalWrapMode.Overflow;
 
+                float previewWidth = showPreview
+                    ? EstimateWidth("▶ プレビュー", 26) + 40f : 0f;
                 // 動画制作者 (ListerDB 照会結果)。タップで制作者の再検索へ
                 if (hasWorker)
                 {
@@ -549,12 +587,33 @@ namespace YukaNavi.UI
                     linkRect.pivot = new Vector2(0f, 0f);
                     linkRect.anchoredPosition = new Vector2(24f, 10f);
                     linkRect.sizeDelta = new Vector2(
-                        Mathf.Min(EstimateWidth(label, 26) + 10f, 900f), UiFactory.LineHeight(26));
+                        Mathf.Min(EstimateWidth(label, 26) + 10f, 900f - previewWidth),
+                        UiFactory.LineHeight(26));
                     link.verticalOverflow = VerticalWrapMode.Truncate;
                     link.raycastTarget = true;
                     var linkButton = link.gameObject.AddComponent<Button>();
                     linkButton.transition = Selectable.Transition.None;
                     linkButton.onClick.AddListener(() => PushExact("worker", worker));
+                }
+
+                if (showPreview)
+                {
+                    // プレビューリンク (リンク行の右寄せ。行本体のタップより優先)。
+                    // 文字行より上下に広げてタップしやすくする (見た目は中央の1行のまま)
+                    var plink = UiFactory.CreateText(rowGo.transform, "Preview",
+                        "▶ プレビュー", 26, UiFactory.Primary, TextAnchor.MiddleRight);
+                    var pRect = plink.rectTransform;
+                    pRect.anchorMin = pRect.anchorMax = new Vector2(1f, 0f);
+                    pRect.pivot = new Vector2(1f, 0f);
+                    pRect.anchoredPosition = new Vector2(-24f, 0f);
+                    pRect.sizeDelta = new Vector2(
+                        EstimateWidth("▶ プレビュー", 26) + 24f, UiFactory.LineHeight(26) + 20f);
+                    plink.raycastTarget = true;
+                    string path = item.FullPath;
+                    string title = item.Name;
+                    var pButton = plink.gameObject.AddComponent<Button>();
+                    pButton.transition = Selectable.Transition.None;
+                    pButton.onClick.AddListener(() => OpenPreviewModal(path, title));
                 }
 
                 _rows.Add(rowGo);
@@ -869,6 +928,195 @@ namespace YukaNavi.UI
             rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
         }
 
+        // ---- 動画プレビュー (Web 版 preview_video_stream.php をそのまま再生) ----
+
+        /// <summary>
+        /// 全画面のプレビューモーダルを開いて再生する。Web 版と同じくミュートで
+        /// 再生を開始し、モーダル内のボタンで音を出せる。外タップ・閉じるで終了。
+        /// </summary>
+        void OpenPreviewModal(string fullPath, string title)
+        {
+            Se.Play(Se.Tap);
+            ClosePreviewModal();
+            // プレビュー中は BGM を止め、画面も消灯させない
+            Bgm.SetSuppressed(true);
+            Screen.sleepTimeout = SleepTimeout.NeverSleep;
+
+            _previewModal = new GameObject("PreviewModal");
+            _previewModal.transform.SetParent(transform, false);
+            UiFactory.StretchFull(_previewModal.AddComponent<RectTransform>());
+            var overlay = _previewModal.AddComponent<Image>();
+            overlay.color = new Color(0f, 0f, 0f, 0.85f);
+            var overlayButton = _previewModal.AddComponent<Button>();
+            overlayButton.transition = Selectable.Transition.None;
+            overlayButton.onClick.AddListener(ClosePreviewModal);
+
+            // Screens レイヤーは上側を SafeTop ぶんインセット済みのため、ここでは足さない
+            float topY = 30f;
+            var titleText = UiFactory.CreateText(_previewModal.transform, "Title",
+                title, 28, Color.white);
+            var titleRect = titleText.rectTransform;
+            titleRect.anchorMin = new Vector2(0f, 1f);
+            titleRect.anchorMax = new Vector2(1f, 1f);
+            titleRect.pivot = new Vector2(0.5f, 1f);
+            titleRect.anchoredPosition = new Vector2(0f, -topY);
+            titleRect.offsetMin = new Vector2(40f, titleRect.offsetMin.y);
+            titleRect.offsetMax = new Vector2(-40f, titleRect.offsetMax.y);
+            titleRect.sizeDelta = new Vector2(titleRect.sizeDelta.x, UiFactory.LineHeight(28));
+            UiFactory.FitLabel(titleText);
+
+            var statusText = UiFactory.CreateText(_previewModal.transform, "Status",
+                "読み込み中...", 28, Color.white);
+            UiFactory.StretchFull(statusText.rectTransform);
+
+            var videoGo = new GameObject("Video");
+            videoGo.transform.SetParent(_previewModal.transform, false);
+            var videoImage = videoGo.AddComponent<RawImage>();
+            videoImage.raycastTarget = false;
+            videoImage.enabled = false; // 実サイズ確定まで非表示
+            var videoRect = videoImage.rectTransform;
+            videoRect.anchorMin = videoRect.anchorMax = new Vector2(0.5f, 0.5f);
+            videoRect.pivot = new Vector2(0.5f, 0.5f);
+            videoRect.anchoredPosition = Vector2.zero;
+
+            // 下部ボタン: ミュート切替 / 閉じる (常時前面のナビバーの上に出す)
+            float buttonY = GlobalNav.BarHeight + 24f;
+            var muteButton = UiFactory.CreateSoftButton(_previewModal.transform, "Mute",
+                "音を出す", 26);
+            var muteLabel = muteButton.GetComponentInChildren<Text>();
+            UiFactory.FitLabel(muteLabel);
+            var muteRect = muteButton.GetComponent<RectTransform>();
+            muteRect.anchorMin = muteRect.anchorMax = new Vector2(0.5f, 0f);
+            muteRect.pivot = new Vector2(1f, 0f);
+            muteRect.anchoredPosition = new Vector2(-12f, buttonY);
+            muteRect.sizeDelta = new Vector2(300f, 84f);
+            muteButton.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Tap);
+                if (_previewPlayer == null)
+                {
+                    return;
+                }
+                bool mute = !_previewPlayer.GetDirectAudioMute(0);
+                _previewPlayer.SetDirectAudioMute(0, mute);
+                muteLabel.text = mute ? "音を出す" : "ミュートにする";
+            });
+
+            var closeButton = UiFactory.CreateSoftButton(_previewModal.transform, "Close",
+                "閉じる", 26);
+            UiFactory.FitLabel(closeButton.GetComponentInChildren<Text>());
+            var closeRect = closeButton.GetComponent<RectTransform>();
+            closeRect.anchorMin = closeRect.anchorMax = new Vector2(0.5f, 0f);
+            closeRect.pivot = new Vector2(0f, 0f);
+            closeRect.anchoredPosition = new Vector2(12f, buttonY);
+            closeRect.sizeDelta = new Vector2(300f, 84f);
+            closeButton.onClick.AddListener(ClosePreviewModal);
+
+            // 再生 URL (Web 版と同じエンドポイント。Range 対応済みでシークも効く)
+            string url = AppConfig.ServerUrl.TrimEnd('/')
+                + "/preview_video_stream.php?path=" + UnityWebRequest.EscapeURL(fullPath);
+            if (!string.IsNullOrEmpty(AppConfig.EasyPass))
+            {
+                // 現状サーバーは見ないが、将来の認証追加に備えてクエリで付けておく (無害)
+                url += "&easypass=" + UnityWebRequest.EscapeURL(AppConfig.EasyPass);
+            }
+
+            _previewPlayer = _previewModal.AddComponent<VideoPlayer>();
+            _previewPlayer.renderMode = VideoRenderMode.RenderTexture;
+            _previewPlayer.playOnAwake = false;
+            _previewPlayer.isLooping = false;
+            _previewPlayer.source = VideoSource.Url;
+            _previewPlayer.url = url;
+            _previewPlayer.audioOutputMode = VideoAudioOutputMode.Direct;
+            _previewPlayer.SetDirectAudioMute(0, true); // Web 版と同じくミュートで開始
+            _previewPlayer.errorReceived += (vp, message) =>
+            {
+                if (statusText != null)
+                {
+                    statusText.gameObject.SetActive(true); // 再生開始後のエラーも見えるように
+                    statusText.text = "再生できませんでした";
+                }
+                Debug.Log("[YukaNavi] プレビュー再生エラー: " + message);
+            };
+            _previewPlayer.prepareCompleted += vp =>
+            {
+                if (_previewModal == null || statusText == null)
+                {
+                    return; // 準備中に閉じられた
+                }
+                int w = (int)vp.width;
+                int h = (int)vp.height;
+                if (w <= 0 || h <= 0)
+                {
+                    w = 16;
+                    h = 9;
+                }
+                _previewTexture = new RenderTexture(w, h, 0);
+                vp.targetTexture = _previewTexture;
+                videoImage.texture = _previewTexture;
+                // ミュート開始をトラック確定後にも再適用する (環境による取りこぼし防止)
+                vp.SetDirectAudioMute(0, muteLabel.text == "音を出す");
+                // 上下の UI を避けた領域に contain で収める (中心は利用可能領域の中心へ)
+                var modalRect = ((RectTransform)_previewModal.transform).rect;
+                float topInset = topY + UiFactory.LineHeight(28) + 30f;
+                float bottomInset = buttonY + 84f + 30f;
+                float availW = modalRect.width - 60f;
+                float availH = modalRect.height - topInset - bottomInset;
+                float scale = Mathf.Min(availW / w, availH / h);
+                videoRect.sizeDelta = new Vector2(w * scale, h * scale);
+                videoRect.anchoredPosition = new Vector2(0f, (bottomInset - topInset) * 0.5f);
+                videoImage.enabled = true;
+                statusText.gameObject.SetActive(false);
+                vp.Play();
+            };
+            _previewPlayer.Prepare();
+        }
+
+        void ClosePreviewModal()
+        {
+            if (_previewPlayer != null)
+            {
+                _previewPlayer.Stop();
+                Destroy(_previewPlayer);
+                _previewPlayer = null;
+            }
+            if (_previewTexture != null)
+            {
+                _previewTexture.Release();
+                Destroy(_previewTexture);
+                _previewTexture = null;
+            }
+            if (_previewModal != null)
+            {
+                Destroy(_previewModal);
+                _previewModal = null;
+            }
+            // モーダルが RebuildAll 等で先に破棄されていても確実に元へ戻す (冪等)
+            Bgm.SetSuppressed(false);
+            Screen.sleepTimeout = SleepTimeout.SystemSetting;
+        }
+
+        public override void OnHide()
+        {
+            ClosePreviewModal(); // 画面遷移で再生 (音声含む) を確実に止める
+        }
+
+        public override void OnRebuild()
+        {
+            // モーダルと VideoPlayer は RebuildAll が子ごと破棄する。
+            // RenderTexture はアセットのため自前で破棄する
+            _previewModal = null;
+            _previewPlayer = null;
+            if (_previewTexture != null)
+            {
+                _previewTexture.Release();
+                Destroy(_previewTexture);
+                _previewTexture = null;
+            }
+            Bgm.SetSuppressed(false);
+            Screen.sleepTimeout = SleepTimeout.SystemSetting;
+        }
+
         // カード内テキストの折り返し幅 (実効キャンバス幅 - リスト余白 - カード内余白の概算)
         static float CardTextWidth => UiFactory.CanvasWidth - 100f;
 
@@ -1000,9 +1248,16 @@ namespace YukaNavi.UI
         const float BlockTextWidth = 950f;
         const int FileNameFontSize = 24;
 
+        /// <summary>プレビューできるファイルか (.mp4 のみ。flv は Unity で再生できない)。</summary>
+        static bool CanPreview(string path)
+        {
+            return !string.IsNullOrEmpty(path)
+                && path.EndsWith(".mp4", System.StringComparison.OrdinalIgnoreCase);
+        }
+
         // 各行の高さは文字の大きさ設定 (FontScale) に追従させる
         // (固定値だと 130% 以上で縦 Truncate になり行が消える・はみ出す)
-        static float FileBlockHeight(ListerFileDto file)
+        float FileBlockHeight(ListerFileDto file)
         {
             float height = 12f;
             if (!string.IsNullOrEmpty(file.Comment))
@@ -1012,7 +1267,8 @@ namespace YukaNavi.UI
             string name = ReserveScreen.BaseName(file.FoundPath);
             height += WrapLines(name, FileNameFontSize, BlockTextWidth)
                 * UiFactory.LineHeight(FileNameFontSize) + 4f;
-            if (!string.IsNullOrEmpty(file.Worker))
+            if (!string.IsNullOrEmpty(file.Worker)
+                || (_previewEnabled && CanPreview(file.FoundPath)))
             {
                 height += UiFactory.LineHeight(26) + 4f;
             }
@@ -1077,6 +1333,9 @@ namespace YukaNavi.UI
             fileText.verticalOverflow = VerticalWrapMode.Overflow;
             cy += nameHeight + 4f;
 
+            bool showPreview = _previewEnabled && CanPreview(file.FoundPath);
+            float previewWidth = showPreview
+                ? EstimateWidth("▶ プレビュー", 26) + 40f : 0f;
             if (!string.IsNullOrEmpty(file.Worker))
             {
                 // 制作者リンク (独立行。ブロック本体のタップより優先される)
@@ -1088,7 +1347,8 @@ namespace YukaNavi.UI
                 linkRect.anchorMin = linkRect.anchorMax = new Vector2(0f, 1f);
                 linkRect.pivot = new Vector2(0f, 1f);
                 linkRect.anchoredPosition = new Vector2(16f, -cy);
-                linkRect.sizeDelta = new Vector2(Mathf.Min(EstimateWidth(label, 26) + 10f, 900f),
+                linkRect.sizeDelta = new Vector2(
+                    Mathf.Min(EstimateWidth(label, 26) + 10f, 900f - previewWidth),
                     UiFactory.LineHeight(26));
                 link.verticalOverflow = VerticalWrapMode.Truncate;
                 link.raycastTarget = true;
@@ -1096,6 +1356,31 @@ namespace YukaNavi.UI
                 linkButton.transition = Selectable.Transition.None;
                 linkButton.onClick.AddListener(() => PushExact("worker", worker));
             }
+
+            if (showPreview)
+            {
+                // プレビューリンク (制作リンクと同じ行の右寄せ。ブロック本体のタップより優先)
+                AddPreviewLink(blockGo.transform, -cy, file.FoundPath, entry.Line1);
+            }
+        }
+
+        /// <summary>「▶ プレビュー」リンク (行の右端に置く小リンク)。</summary>
+        void AddPreviewLink(Transform parent, float y, string fullPath, string title)
+        {
+            const string label = "▶ プレビュー";
+            var link = UiFactory.CreateText(parent, "Preview",
+                label, 26, UiFactory.Primary, TextAnchor.MiddleRight);
+            var rect = link.rectTransform;
+            rect.anchorMin = rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(1f, 1f);
+            // 文字行より上下に 12px ずつ広げてタップしやすくする (見た目は中央の1行のまま)
+            rect.anchoredPosition = new Vector2(-16f, y + 12f);
+            rect.sizeDelta = new Vector2(EstimateWidth(label, 26) + 24f,
+                UiFactory.LineHeight(26) + 24f);
+            link.raycastTarget = true;
+            var button = link.gameObject.AddComponent<Button>();
+            button.transition = Selectable.Transition.None;
+            button.onClick.AddListener(() => OpenPreviewModal(fullPath, title));
         }
 
         static void SetBlockRow(RectTransform rect, float y, float height)
