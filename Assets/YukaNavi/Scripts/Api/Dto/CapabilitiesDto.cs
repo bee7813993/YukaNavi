@@ -52,6 +52,12 @@ namespace YukaNavi.Api
         [JsonProperty("new_search_ui")] public bool NewSearchUi;
         /// <summary>曲情報の修正 (/api/song_metadata.php)。旧サーバーではキー欠落 = false</summary>
         [JsonProperty("metadata_edit")] public bool MetadataEdit;
+        /// <summary>
+        /// 検索結果の動画プレビュー (preview_video_stream.php)。サーバーがアクセス元から
+        /// 判定して返す: ローカル接続=常に可 / オンライン=online_preview 設定次第。
+        /// 旧サーバーではキー欠落 = false (エンドポイント自体が無い)
+        /// </summary>
+        [JsonProperty("preview")] public bool Preview;
     }
 
     public class PlayerInfoDto

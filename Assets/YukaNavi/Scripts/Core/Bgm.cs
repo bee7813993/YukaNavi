@@ -17,6 +17,7 @@ namespace YukaNavi.Core
         static AudioClip _defaultClip;
         static string _loadedPath; // 再生中のスキン BGM のパス (null = デフォルト BGM)
         static int _loadSerial;    // 連続切替時に古いロード結果を捨てるための世代番号
+        static bool _suppressed;   // 動画プレビュー等の間だけの一時ミュート (設定は変えない)
 
         public static void Init(AudioSource source, AudioClip defaultClip)
         {
@@ -54,11 +55,20 @@ namespace YukaNavi.Core
             }
         }
 
+        /// <summary>
+        /// 動画プレビュー等の再生中だけ BGM を止める (Muted の設定値は変更しない)。
+        /// </summary>
+        public static void SetSuppressed(bool suppressed)
+        {
+            _suppressed = suppressed;
+            Apply();
+        }
+
         static void Apply()
         {
             if (_source != null)
             {
-                _source.mute = Muted;
+                _source.mute = Muted || _suppressed;
                 _source.volume = Volume;
             }
         }
