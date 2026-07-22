@@ -17,8 +17,12 @@ namespace YukaNavi.UI
     {
         /// <summary>
         /// バーの高さ (下のセーフエリア込み)。各画面はこの分だけ下部を空けてレイアウトする。
+        /// 横向き (ダッシュボード表示中) は縦の余裕がないため低くする。
+        /// 向きが変わると AppRoot が RebuildAll + GlobalNav.Rebuild を行うため、
+        /// バー本体と各画面のレイアウトは常にこの値へ追従する。
         /// </summary>
-        public static float BarHeight => 140f + UiFactory.SafeBottom;
+        public static float BarHeight =>
+            (Screen.width > Screen.height ? 92f : 140f) + UiFactory.SafeBottom;
 
         ScreenManager _screens;
         GameObject _menuPanel;
