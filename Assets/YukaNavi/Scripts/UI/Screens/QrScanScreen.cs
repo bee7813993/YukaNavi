@@ -155,6 +155,21 @@ namespace YukaNavi.UI
                 }
                 SetStatus("カメラを起動中...", false);
             }
+#elif UNITY_IOS && !UNITY_EDITOR
+            // iOS は許可ダイアログの応答前に WebCamTexture を起動すると失敗し、
+            // 許可後も自動では回復しない (初回だけ「カメラが見つかりません」になる) ため、
+            // 応答を待ってから起動する
+            if (!Application.HasUserAuthorization(UserAuthorization.WebCam))
+            {
+                SetStatus("カメラの使用許可を待っています...", false);
+                yield return Application.RequestUserAuthorization(UserAuthorization.WebCam);
+                if (!Application.HasUserAuthorization(UserAuthorization.WebCam))
+                {
+                    SetStatus("カメラの使用が許可されませんでした。URL を手入力してください", true);
+                    yield break;
+                }
+                SetStatus("カメラを起動中...", false);
+            }
 #endif
             StartCamera();
             yield break;
