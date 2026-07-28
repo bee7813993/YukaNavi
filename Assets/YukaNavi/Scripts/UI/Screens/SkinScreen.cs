@@ -1567,7 +1567,8 @@ namespace YukaNavi.UI
                 AppConfig.SkinId = id;
             }
             SkinManager.BumpRevision();
-            Bgm.RefreshForCurrentSkin();
+            // 編集では bgm.mp3 等の同名ファイルが上書きされることがあるため強制再読込
+            Bgm.RefreshForCurrentSkin(force: true);
             Se.Play(Se.Confirm);
             _createModal.SetActive(false);
             if (ApplyThemeAndRebuild())

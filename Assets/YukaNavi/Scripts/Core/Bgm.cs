@@ -8,14 +8,17 @@ namespace YukaNavi.Core
     /// アプリ音のミュート管理と BGM 再生 (AppRoot が Init する)。Se も Muted を見て操作音を止める。
     /// カラオケ用アプリなので既定はミュート。設定は端末ローカル (PlayerPrefs) に保存する。
     /// スキンに BGM (bgm.mp3 等) が登録されていればデフォルト BGM の代わりにそれを流す。
+    /// スキンに BGM が無い時間帯も、組み込みの季節×昼夜曲があれば自動で切り替わる。
     /// </summary>
     public static class Bgm
     {
         const string MutedKey = "bgm.muted";
+        // 組み込み BGM の識別キー (スキン BGM はファイルの絶対パスがそのままキーになる)
+        const string BuiltinBaseKey = "builtin:base";
 
         static AudioSource _source;
         static AudioClip _defaultClip;
-        static string _loadedPath; // 再生中のスキン BGM のパス (null = デフォルト BGM)
+        static string _loadedKey;  // 再生中 BGM の識別キー (null = 未再生)
         static int _loadSerial;    // 連続切替時に古いロード結果を捨てるための世代番号
         static bool _suppressed;   // 動画プレビュー等の間だけの一時ミュート (設定は変えない)
 
@@ -24,7 +27,7 @@ namespace YukaNavi.Core
             _source = source;
             _defaultClip = defaultClip;
             _source.loop = true;
-            PlayDefault();
+            PlayBuiltin(BuiltinBaseKey, _defaultClip);
             Apply();
             RefreshForCurrentSkin();
         }
@@ -73,11 +76,12 @@ namespace YukaNavi.Core
             }
         }
 
-        static void PlayDefault()
+        /// <summary>組み込み BGM を再生し、キーを記録する。</summary>
+        static void PlayBuiltin(string key, AudioClip clip)
         {
-            _loadedPath = null;
-            _source.clip = _defaultClip;
-            if (_defaultClip != null)
+            _loadedKey = key;
+            _source.clip = clip;
+            if (clip != null)
             {
                 _source.Play(); // ミュート中も再生しておき、解除した瞬間から流れるようにする
             }
@@ -85,33 +89,40 @@ namespace YukaNavi.Core
 
         /// <summary>
         /// 現在のスキンの BGM を反映する。スキンの適用・作成・編集・取り込み・削除の後に呼ぶ。
-        /// 昼夜 BGM (bgm_day / bgm_night) があれば時間帯で選ぶ。時間帯またぎの自動切替は
-        /// ホーム画面の分針更新がこのメソッドを呼ぶことで行われる (パス不変なら何もしない)。
-        /// スキンに BGM が無ければデフォルト BGM に戻す。
+        /// 昼夜・季節 BGM があれば時間帯で選ぶ。時間帯またぎの自動切替は
+        /// ホーム画面の分針更新がこのメソッドを呼ぶことで行われる (キー不変なら何もしない)。
+        /// force=true でキーが同じでも読み直す (同名ファイルの中身が変わる編集・更新後に使う)。
+        /// スキンに BGM が無ければ組み込み BGM (季節×昼夜 → 基本ループ曲) に戻す。
         /// </summary>
-        public static async void RefreshForCurrentSkin()
+        public static async void RefreshForCurrentSkin(bool force = false)
         {
             if (_source == null)
             {
                 return;
             }
+            if (force)
+            {
+                _loadedKey = null;
+            }
             var skin = SkinManager.Current();
+            var now = System.DateTime.Now;
             string path = null;
             var bgm = SkinManager.GetBgmForNow(skin);
             if (skin.Folder != null && bgm != null && !string.IsNullOrEmpty(bgm.File))
             {
                 path = SkinManager.GetFilePath(skin, bgm.File);
             }
-            if (path == _loadedPath)
+            if (path == null)
+            {
+                // スキン BGM なし → 組み込み (季節×昼夜があればそれ、無ければ基本曲)
+                await PlayBuiltinForNowAsync(now);
+                return;
+            }
+            if (path == _loadedKey)
             {
                 return; // 変化なし
             }
             int serial = ++_loadSerial;
-            if (path == null)
-            {
-                PlayDefault();
-                return;
-            }
             var clip = await LoadClipAsync(path);
             if (serial != _loadSerial)
             {
@@ -119,12 +130,65 @@ namespace YukaNavi.Core
             }
             if (clip == null)
             {
-                PlayDefault();
+                // 読めなければ組み込みへ (キーはスキンのパスにならないため毎分リトライされる)
+                await PlayBuiltinForNowAsync(now);
                 return;
             }
-            _loadedPath = path;
+            _loadedKey = path;
             _source.clip = clip;
             _source.Play();
+        }
+
+        /// <summary>
+        /// 現在時刻に合った組み込み BGM を再生する。季節×昼夜の曲を
+        /// デフォルトテーマ拡張パック (default_theme/bgm/) → Resources の順で探し、
+        /// 無ければ基本ループ曲。素材を配信 (または Resources に配置) するだけで
+        /// コード変更なしに有効になる。
+        /// </summary>
+        static async Task PlayBuiltinForNowAsync(System.DateTime now)
+        {
+            string suffix = SkinManager.SeasonSuffix(SkinManager.GetSeason(now.Month))
+                + "_" + (SkinManager.IsDaytime(now.Hour) ? "day" : "night");
+
+            // 拡張パック (アプリ更新なしで配信された音源) を最優先。キーはファイルパスそのもの
+            string packPath = DefaultThemePack.FindFile("bgm/yukanavi_home_loop_" + suffix,
+                ".ogg", ".mp3", ".wav");
+            if (packPath != null)
+            {
+                if (packPath == _loadedKey)
+                {
+                    return;
+                }
+                int serial = ++_loadSerial;
+                var packClip = await LoadClipAsync(packPath);
+                if (serial != _loadSerial)
+                {
+                    return;
+                }
+                if (packClip != null)
+                {
+                    PlayBuiltin(packPath, packClip);
+                    return;
+                }
+                // 読めなければ Resources / 基本曲へ
+            }
+
+            string key = "builtin:" + suffix;
+            if (key == _loadedKey)
+            {
+                return;
+            }
+            var clip = Resources.Load<AudioClip>("Audio/BGM/yukanavi_home_loop_" + suffix);
+            if (clip != null)
+            {
+                PlayBuiltin(key, clip);
+                return;
+            }
+            if (_loadedKey == BuiltinBaseKey)
+            {
+                return;
+            }
+            PlayBuiltin(BuiltinBaseKey, _defaultClip);
         }
 
         static async Task<AudioClip> LoadClipAsync(string path)
