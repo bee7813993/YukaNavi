@@ -1127,6 +1127,7 @@ namespace YukaNavi.UI
             }
             AppConfig.SkinId = id;
             Bgm.RefreshForCurrentSkin();
+            Se.RefreshForCurrentSkin();
             SetMessage("スキンを取り込みました");
             Se.Play(Se.Confirm);
             if (ApplyThemeAndRebuild())
@@ -1569,6 +1570,7 @@ namespace YukaNavi.UI
             SkinManager.BumpRevision();
             // 編集では bgm.mp3 等の同名ファイルが上書きされることがあるため強制再読込
             Bgm.RefreshForCurrentSkin(force: true);
+            Se.RefreshForCurrentSkin();
             Se.Play(Se.Confirm);
             _createModal.SetActive(false);
             if (ApplyThemeAndRebuild())
@@ -1701,6 +1703,7 @@ namespace YukaNavi.UI
                             AppConfig.SkinId = "";
                         }
                         Bgm.RefreshForCurrentSkin();
+                        Se.RefreshForCurrentSkin();
                         Se.Play(Se.Confirm);
                         if (ApplyThemeAndRebuild())
                         {
@@ -1722,6 +1725,7 @@ namespace YukaNavi.UI
         {
             AppConfig.SkinId = skinId;
             Bgm.RefreshForCurrentSkin(); // スキン BGM も切り替える
+            Se.RefreshForCurrentSkin(); // スキン効果音も入れ替える
             Se.Play(Se.Confirm);
             if (ApplyThemeAndRebuild())
             {

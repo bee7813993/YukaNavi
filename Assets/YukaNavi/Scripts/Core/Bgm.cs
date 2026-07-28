@@ -79,11 +79,26 @@ namespace YukaNavi.Core
         /// <summary>組み込み BGM を再生し、キーを記録する。</summary>
         static void PlayBuiltin(string key, AudioClip clip)
         {
-            _loadedKey = key;
-            _source.clip = clip;
+            SetClip(key, clip);
             if (clip != null)
             {
                 _source.Play(); // ミュート中も再生しておき、解除した瞬間から流れるようにする
+            }
+        }
+
+        /// <summary>
+        /// 再生クリップを差し替える。ファイルからロードした古いクリップ (スキン・拡張パック) は
+        /// アセットではないため破棄する ("builtin:" キーの Resources クリップは破棄しない)。
+        /// </summary>
+        static void SetClip(string key, AudioClip clip)
+        {
+            var old = _source.clip;
+            bool oldIsFileLoaded = _loadedKey != null && !_loadedKey.StartsWith("builtin:");
+            _loadedKey = key;
+            _source.clip = clip;
+            if (oldIsFileLoaded && old != null && old != clip)
+            {
+                Object.Destroy(old);
             }
         }
 
@@ -134,8 +149,7 @@ namespace YukaNavi.Core
                 await PlayBuiltinForNowAsync(now);
                 return;
             }
-            _loadedKey = path;
-            _source.clip = clip;
+            SetClip(path, clip);
             _source.Play();
         }
 
@@ -191,7 +205,8 @@ namespace YukaNavi.Core
             PlayBuiltin(BuiltinBaseKey, _defaultClip);
         }
 
-        static async Task<AudioClip> LoadClipAsync(string path)
+        /// <summary>音声ファイルを AudioClip としてロードする (失敗時 null)。Se からも使う。</summary>
+        public static async Task<AudioClip> LoadClipAsync(string path)
         {
             try
             {
@@ -205,7 +220,7 @@ namespace YukaNavi.Core
                     }
                     if (req.result != UnityWebRequest.Result.Success)
                     {
-                        Debug.LogWarning("[YukaNavi] スキン BGM の読み込みに失敗: " + req.error);
+                        Debug.LogWarning("[YukaNavi] スキン音声の読み込みに失敗: " + req.error);
                         return null;
                     }
                     return DownloadHandlerAudioClip.GetContent(req);
