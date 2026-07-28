@@ -127,17 +127,19 @@ namespace YukaNavi.Core
             {
                 path = SkinManager.GetFilePath(skin, bgm.File);
             }
+            // 世代はロード開始前ではなく呼び出しごとに進める。こうしないと
+            // 「ロード完了前に別スキンへ切り替えて即時再生された」あとに古いロード結果が勝ってしまう
+            int serial = ++_loadSerial;
             if (path == null)
             {
                 // スキン BGM なし → 組み込み (季節×昼夜があればそれ、無ければ基本曲)
-                await PlayBuiltinForNowAsync(now);
+                await PlayBuiltinForNowAsync(now, serial);
                 return;
             }
             if (path == _loadedKey)
             {
                 return; // 変化なし
             }
-            int serial = ++_loadSerial;
             var clip = await LoadClipAsync(path);
             if (serial != _loadSerial)
             {
@@ -146,7 +148,7 @@ namespace YukaNavi.Core
             if (clip == null)
             {
                 // 読めなければ組み込みへ (キーはスキンのパスにならないため毎分リトライされる)
-                await PlayBuiltinForNowAsync(now);
+                await PlayBuiltinForNowAsync(now, serial);
                 return;
             }
             SetClip(path, clip);
@@ -157,9 +159,9 @@ namespace YukaNavi.Core
         /// 現在時刻に合った組み込み BGM を再生する。季節×昼夜の曲を
         /// デフォルトテーマ拡張パック (default_theme/bgm/) → Resources の順で探し、
         /// 無ければ基本ループ曲。素材を配信 (または Resources に配置) するだけで
-        /// コード変更なしに有効になる。
+        /// コード変更なしに有効になる。serial は呼び出し元の世代番号 (古ければ適用しない)。
         /// </summary>
-        static async Task PlayBuiltinForNowAsync(System.DateTime now)
+        static async Task PlayBuiltinForNowAsync(System.DateTime now, int serial)
         {
             string suffix = SkinManager.SeasonSuffix(SkinManager.GetSeason(now.Month))
                 + "_" + (SkinManager.IsDaytime(now.Hour) ? "day" : "night");
@@ -173,7 +175,6 @@ namespace YukaNavi.Core
                 {
                     return;
                 }
-                int serial = ++_loadSerial;
                 var packClip = await LoadClipAsync(packPath);
                 if (serial != _loadSerial)
                 {

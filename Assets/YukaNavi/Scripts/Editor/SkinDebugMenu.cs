@@ -16,7 +16,23 @@ namespace YukaNavi.EditorTools
         [MenuItem("YukaNavi/スキン検証: 時刻別の解決を表示")]
         public static void ShowResolution()
         {
-            var skin = SkinManager.Current();
+            LogResolution(SkinManager.Current());
+        }
+
+        /// <summary>全スキンの検証と時刻別解決をまとめて実行する (バッチ実行用)。</summary>
+        [MenuItem("YukaNavi/スキン検証: すべて実行")]
+        public static void RunAllChecks()
+        {
+            ValidateAll();
+            foreach (var skin in SkinManager.ListSkins())
+            {
+                LogResolution(skin);
+            }
+            ShowPackStatus();
+        }
+
+        static void LogResolution(SkinDef skin)
+        {
             var sb = new System.Text.StringBuilder();
             sb.AppendLine($"[YukaNavi] スキン「{skin.Name}」(id={(skin.Id == "" ? "デフォルト" : skin.Id)}) の時刻別解決:");
 
