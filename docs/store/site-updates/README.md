@@ -26,10 +26,18 @@ ykr.moe/apps/yukanavi/ で公開中のページの修正版と、新規追加ペ
 
 **更新方法**: 本文の原本は `docs/user-manual.md`。直したら同じ手順で `manual.html` を作り直す。
 
-## index.html — ナビに「使い方」を追加
+## index.html — ナビに「使い方」を追加 + Android オープンテストの案内
 
-公開中の内容をそのまま取り込んだうえで、ヘッダー・フッターのナビに
-`manual.html` へのリンクを追加しただけ (本文は無変更)。
+公開中の内容をそのまま取り込んだうえで、次の 2 点を追加した。
+
+1. ヘッダー・フッターのナビに `manual.html` へのリンク
+2. ヒーロー部に **Android オープンテストの案内** (参加ボタン + QR コード)
+   - リンク先: `https://play.google.com/apps/testing/com.yfrteam.yukanavi`
+   - QR: `images/android_test_qr.png` (このリポジトリで生成。デコードして URL 一致を確認済み)
+   - スタイルは `<head>` 内の `<style>` に閉じ込めてある (共通 `assets/style.css` は無変更)
+
+> **一時的な掲載**: ストア公開時には、`release-status` の文言を戻し、
+> `.beta-invite` のブロックと `<head>` の `<style>` を削除して、ストアバッジ / リンクに差し替える。
 
 ## privacy.html — ストア申告との整合と実装反映
 
