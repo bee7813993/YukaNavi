@@ -71,6 +71,8 @@ namespace YukaNavi.UI
         GameObject _banner;
         Text _bannerText;
         GameObject _backgroundGo;
+        Texture2D _backgroundTexture; // スキン画像背景 (GameObject 破棄では解放されないため個別に持つ)
+        string _timedBgPath;          // 表示中の時間帯背景のファイル名 (null = 時間帯背景なし)
         MascotView _mascot;
         readonly List<Object> _mascotAssets = new List<Object>(); // マスコット用に生成した Texture/Sprite
         VideoPlayer _videoPlayer;
@@ -872,6 +874,11 @@ namespace YukaNavi.UI
                 Destroy(_backgroundGo);
                 _backgroundGo = null;
             }
+            if (_backgroundTexture != null)
+            {
+                Destroy(_backgroundTexture);
+                _backgroundTexture = null;
+            }
             if (_videoPlayer != null)
             {
                 Destroy(_videoPlayer);
@@ -891,14 +898,15 @@ namespace YukaNavi.UI
         }
 
         /// <summary>
-        /// 背景タップ (前面に UI が無いところ) で次の背景へ。複数背景 (backgrounds) の
-        /// スキンだけで動く。選んだ背景はスキンごとに保存され、次回起動でも続く。
+        /// 背景タップ (前面に UI が無いところ) で次の背景へ。複数背景 (backgrounds や
+        /// 時間帯背景との組み合わせ) のスキンだけで動く。選んだ背景はスキンごとに保存され、
+        /// 次回起動でも続く。時間帯背景があるスキンでは先頭 (index 0) が時間帯背景になる。
         /// パーツ移動モード中は編集オーバーレイがタップを受けるためここには届かない。
         /// </summary>
         void CycleBackground()
         {
             var skin = _currentSkin ?? SkinManager.Current();
-            var layers = SkinManager.GetBackgrounds(skin);
+            var layers = SkinManager.GetBackgroundsFor(skin, System.DateTime.Now);
             if (skin.Folder == null || layers.Count <= 1)
             {
                 return;
@@ -922,7 +930,10 @@ namespace YukaNavi.UI
             bgButton.onClick.AddListener(CycleBackground);
 
             bool built = false;
-            var layers = SkinManager.GetBackgrounds(skin);
+            var now = System.DateTime.Now;
+            var timed = SkinManager.GetTimedBackground(skin, now);
+            _timedBgPath = timed != null ? timed.File : null; // 時間帯またぎの検知用 (Update)
+            var layers = SkinManager.GetBackgroundsFor(skin, now);
             if (skin.Folder != null && layers.Count > 0)
             {
                 int index = Mathf.Clamp(PlayerPrefs.GetInt(BgIndexKey(skin), 0), 0, layers.Count - 1);
@@ -941,6 +952,7 @@ namespace YukaNavi.UI
                     var tex = SkinManager.LoadTexture(skin, bgDef.File);
                     if (tex != null)
                     {
+                        _backgroundTexture = tex; // スキン切替・巡回時に破棄する
                         view.SetTexture(tex, (float)tex.width / tex.height);
                         built = true;
                     }
@@ -1411,7 +1423,33 @@ namespace YukaNavi.UI
                 _dateText.text = now.ToString("MM/dd ddd").ToUpperInvariant();
                 _statusClockText.text = now.ToString("HH:mm");
                 UpdateBattery();
-                Bgm.RefreshForCurrentSkin(); // 昼夜 BGM の時間帯またぎ (変化がなければ何もしない)
+                Bgm.RefreshForCurrentSkin(); // 昼夜・季節 BGM の時間帯またぎ (変化がなければ何もしない)
+                RefreshTimedBackground(now); // 昼夜・季節背景の時間帯またぎ
+            }
+        }
+
+        /// <summary>
+        /// 時間帯背景 (background_day / 季節×昼夜) の切り替わりを反映する。
+        /// 自動背景 (リスト先頭) を表示中のときだけ作り直し、手動巡回中は邪魔しない。
+        /// </summary>
+        void RefreshTimedBackground(System.DateTime now)
+        {
+            var skin = _currentSkin ?? SkinManager.Current();
+            if (skin.Folder == null)
+            {
+                return;
+            }
+            var timed = SkinManager.GetTimedBackground(skin, now);
+            string path = timed != null ? timed.File : null;
+            if (path == _timedBgPath)
+            {
+                return; // 時間帯背景に変化なし
+            }
+            _timedBgPath = path;
+            if (PlayerPrefs.GetInt(BgIndexKey(skin), 0) == 0)
+            {
+                DestroyBackgroundResources();
+                BuildBackground(skin);
             }
         }
 
