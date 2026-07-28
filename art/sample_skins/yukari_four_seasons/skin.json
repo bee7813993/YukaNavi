@@ -1,0 +1,17 @@
+{
+  "name": "ゆかりの四季",
+  "author": "ゆかナビ公式",
+  "description": "季節ごとに屋外ステージの背景が切り替わるサンプルスキン",
+  "background_spring_day":   { "type": "image", "file": "bg_spring.png" },
+  "background_spring_night": { "type": "image", "file": "bg_spring.png" },
+  "background_summer_day":   { "type": "image", "file": "bg_summer.png" },
+  "background_summer_night": { "type": "image", "file": "bg_summer.png" },
+  "background_autumn_day":   { "type": "image", "file": "bg_autumn.png" },
+  "background_autumn_night": { "type": "image", "file": "bg_autumn.png" },
+  "background_winter_day":   { "type": "image", "file": "bg_winter.png" },
+  "background_winter_night": { "type": "image", "file": "bg_winter.png" },
+  "talk": ["季節のうた、うたおうよ♪", "今日はなにうたう？"],
+  "talk_morning": ["おはよ〜！今日もうたおうね♪"],
+  "talk_evening": ["こんばんは〜♪ 夜もカラオケ日和だね"],
+  "talk_night": ["よふかしカラオケだ〜♪"]
+}

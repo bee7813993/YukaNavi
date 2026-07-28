@@ -57,3 +57,6 @@ Thumbs.db
 # 導入手順は README.md を参照
 /[Aa]ssets/Live2D/
 /[Aa]ssets/Live2D.meta
+
+# ===== サンプルスキンの生成物 (make_zip.ps1 で作る。実体は seasonal/ の流用) =====
+/art/sample_skins/*/*.zip

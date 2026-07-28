@@ -204,16 +204,30 @@ skins/
 // skin.json
 {
   "name": "マイカスタム",
+  "author": "作者名",                                          // 一覧に表示 (任意)
   "background": { "type": "video", "file": "bg.mp4" },        // image | video | live2d
+  "background_night": { "type": "image", "file": "bg_n.png" }, // 昼夜・季節背景 (任意)
   "character":  { "type": "live2d", "file": "character/chara.model3.json",
                   "scale": 1.0, "position": [0.6, 0.0] },     // image | live2d | none
+  "characters": [                                              // 複数キャラ + 表情 (任意)
+    { "type": "image", "file": "chara1.png",
+      "eyes_closed": "chara1_blink.png",                       // まばたき差分
+      "expressions": [ { "file": "chara1_smile.png" } ] }      // タップで巡回する表情
+  ],
+  "pose_complete": { "type": "image", "file": "pose.png" },   // 予約完了ポーズ (任意)
+  "bgm_spring_day": { "type": "audio", "file": "sd.ogg" },    // 季節×昼夜 BGM (任意)
+  "se_tap": { "type": "audio", "file": "tap.ogg" },           // 効果音差し替え (任意)
+  "talk_morning": ["おはよ〜！"],                              // 時間帯セリフ (任意)
   "theme": { "primary": "#7b5cd6", "accent": "#f0a5c0" }      // UI テーマ色 (任意)
 }
 ```
 
 - 背景とキャラは独立して差し替え可能(背景だけ動画、キャラはデフォルト等)
+- 昼夜 (6:00〜18:00 が昼) と季節 (3〜5月=春 / 6〜8月=夏 / 9〜11月=秋 / 12〜2月=冬) で
+  BGM・背景を自動切替できる。優先順は 季節×昼夜 → 昼夜 → 通常 → アプリ標準
 - Live2D はモーション(idle / tap リアクション)を model3.json の定義から自動再生
 - 不正なファイルはデフォルトにフォールバック(起動不能を防ぐ)
+- 全キーの一覧と挙動は `docs/skin-dlc.md` と `skins/readme.txt` (アプリ生成) を参照
 
 ### 6.2 デフォルト素材
 
@@ -236,6 +250,13 @@ skins/
 | 中 | アプリアイコン | 1024×1024 PNG(角丸なし・周囲に余白)。既存 `yukari_icon.png` の流用可否を M0 で確認 | OS ホーム画面/ストア |
 | 中 | SE 2種(タップ音・予約完了ジングル) | wav / ogg、短尺(0.1〜2秒) | UI 操作音 |
 | 低 | ホーム BGM(任意) | ogg、自然ループするもの | ホーム画面 |
+| 低 | 季節×昼夜 BGM 8種(未制作) | ogg、16秒程度の自然ループ。`yukanavi_home_loop_<季節>_<昼夜>` 命名 | ホーム画面。**アプリ更新なしで配信できる** (デフォルトテーマ拡張パック、`docs/default-theme-pack.md`)。Resources に置いても有効 (パック → Resources → 基本曲の順で解決) |
+
+デフォルトテーマの背景は現状リッチ動画のまま (季節背景素材は
+`art/mascot/app_default_theme/backgrounds/seasonal/` にあり、サンプルスキン
+`art/sample_skins/yukari_four_seasons/` として配布できる)。デフォルトテーマ自体の
+季節背景化は、拡張パックの解決点 (`DefaultThemePack.GetFilePath`) を背景ロードにも
+足せば将来アプリ更新なしで配信できる。
 
 ## 7. アプリ内部構成(Unity)
 
