@@ -16,12 +16,20 @@ ykr.moe/apps/yukanavi/ で公開中のページの修正版と、新規追加ペ
 - `manual.html` → `/apps/yukanavi/manual.html`
 - `images/` (19枚) → `/apps/yukanavi/images/` (HTML から `images/xxx.png` で参照)
 
-**サイト側で必要な追記** (任意だが推奨):
+**あわせて配置するもの** (ナビに「使い方」リンクを追加済み):
 
-- `index.html` と `support.html` のナビゲーションに「使い方」リンク (`manual.html`) を追加する
-- アプリの設定 `helpurl` にこの URL を入れると、アプリ内から参照できる
+- `index.html` / `privacy.html` / `support.html` → 同じく `/apps/yukanavi/` に上書き配置
+  (ヘッダー・フッター両方のナビに `manual.html` へのリンクを追加してある)
+
+**補足**: アプリの設定 `helpurl` にこのページの URL
+(`https://ykr.moe/apps/yukanavi/manual.html`) を入れると、アプリ内から参照できる。
 
 **更新方法**: 本文の原本は `docs/user-manual.md`。直したら同じ手順で `manual.html` を作り直す。
+
+## index.html — ナビに「使い方」を追加
+
+公開中の内容をそのまま取り込んだうえで、ヘッダー・フッターのナビに
+`manual.html` へのリンクを追加しただけ (本文は無変更)。
 
 ## privacy.html — ストア申告との整合と実装反映
 
@@ -42,6 +50,7 @@ ykr.moe/apps/yukanavi/ で公開中のページの修正版と、新規追加ペ
 ## support.html
 
 - QR の FAQ にズームスライダー / ピンチ操作 / 「写真で読み取る」の案内を追加 (実装済み機能の反映)
+- ナビ (ヘッダー・フッター) に「使い方」リンクを追加
 
 ## 備考
 
