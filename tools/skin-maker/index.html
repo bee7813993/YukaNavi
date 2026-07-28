@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ゆかナビ スキンメーカー</title>
+<link rel="stylesheet" href="skin-maker.css">
+<script src="jszip.min.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-title">
+    <h1>ゆかナビ スキンメーカー</h1>
+    <p>ファイルを選ぶだけで、きせかえスキンの zip が作れます (ブラウザ内で完結、どこにも送信されません)</p>
+  </div>
+  <div class="topbar-actions">
+    <button id="btn-load-zip" class="btn ghost">zip を読み込む</button>
+    <button id="btn-build-zip" class="btn primary">zip を作る</button>
+  </div>
+</header>
+
+<main class="layout">
+  <div id="form-root" class="form-pane">
+    <!-- セクションは skin-maker.js が生成する -->
+  </div>
+
+  <aside class="preview-pane">
+    <div class="preview-sticky">
+      <h2>プレビュー</h2>
+      <div id="preview-frame" class="preview-frame">
+        <div id="preview-bg" class="preview-bg"></div>
+        <video id="preview-bg-video" class="preview-bg" muted loop playsinline></video>
+        <div id="preview-clock" class="preview-clock">
+          <div id="preview-clock-time">12:34</div>
+          <div id="preview-clock-date">01/01 SUN</div>
+        </div>
+        <img id="preview-chara" class="preview-chara" alt="">
+        <div id="preview-bubble" class="preview-bubble" hidden><span id="preview-bubble-text"></span></div>
+        <div id="preview-navbar" class="preview-navbar">
+          <span>◀</span><span>☰</span><span>⌂</span>
+        </div>
+        <div id="preview-empty" class="preview-empty">背景やキャラを設定すると<br>ここに表示されます</div>
+      </div>
+      <p class="preview-hint">キャラをタップ (クリック) すると表情・キャラが切り替わります</p>
+
+      <div class="simulator">
+        <h3>時刻・季節シミュレーター</h3>
+        <div class="sim-row">
+          <label>月 <select id="sim-month"></select></label>
+          <label>時刻 <select id="sim-hour"></select></label>
+          <button id="sim-now" class="btn small ghost">現在時刻</button>
+        </div>
+        <div id="sim-result" class="sim-result"></div>
+        <div class="sim-row">
+          <button id="btn-bgm-play" class="btn small">♪ BGM を試聴</button>
+          <audio id="bgm-audio" loop></audio>
+        </div>
+      </div>
+
+      <div class="validation">
+        <h3>チェック結果</h3>
+        <ul id="validation-list" class="validation-list"></ul>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<div id="drop-overlay" class="drop-overlay" hidden>
+  <div class="drop-overlay-inner">スキン zip をここにドロップで読み込み</div>
+</div>
+
+<input type="file" id="zip-file-input" accept=".zip" hidden>
+
+<footer class="footer">
+  <p>作った zip は、ゆかナビの きせかえ画面 →「取り込む (zip)」で使えます。
+     配布のしかたは <a href="https://github.com/bee7813993/YukaNavi/blob/master/docs/skin-dlc.md" target="_blank" rel="noopener">skin-dlc.md</a> を参照。</p>
+</footer>
+
+<script src="skin-maker.js"></script>
+</body>
+</html>
