@@ -391,6 +391,32 @@ namespace YukaNavi.Core
             return problems;
         }
 
+        /// <summary>
+        /// アプリ内の編集モーダルが扱わない拡張フィールド (複数指定・季節/昼夜・SE・時間帯セリフ等)
+        /// を持つか。配布スキンの編集時に「保持される」旨の案内を出す判定に使う。
+        /// </summary>
+        public static bool HasExtendedFields(SkinDef skin)
+        {
+            return (skin.Backgrounds != null && skin.Backgrounds.Count > 0)
+                || (skin.Characters != null && skin.Characters.Count > 0)
+                || skin.BgmDay != null || skin.BgmNight != null
+                || skin.BgmSpringDay != null || skin.BgmSpringNight != null
+                || skin.BgmSummerDay != null || skin.BgmSummerNight != null
+                || skin.BgmAutumnDay != null || skin.BgmAutumnNight != null
+                || skin.BgmWinterDay != null || skin.BgmWinterNight != null
+                || skin.BackgroundDay != null || skin.BackgroundNight != null
+                || skin.BackgroundSpringDay != null || skin.BackgroundSpringNight != null
+                || skin.BackgroundSummerDay != null || skin.BackgroundSummerNight != null
+                || skin.BackgroundAutumnDay != null || skin.BackgroundAutumnNight != null
+                || skin.BackgroundWinterDay != null || skin.BackgroundWinterNight != null
+                || skin.PoseComplete != null
+                || skin.SeTap != null || skin.SeConfirm != null || skin.SeError != null
+                || skin.SeTransition != null || skin.SeComplete != null
+                || (skin.TalkMorning != null && skin.TalkMorning.Count > 0)
+                || (skin.TalkEvening != null && skin.TalkEvening.Count > 0)
+                || (skin.TalkNight != null && skin.TalkNight.Count > 0);
+        }
+
         /// <summary>キャラ拡張 (eyes_closed / expressions) のファイル存在チェック。</summary>
         static void CheckCharacterExtras(SkinDef skin, SkinLayer layer, string label, List<string> problems)
         {
