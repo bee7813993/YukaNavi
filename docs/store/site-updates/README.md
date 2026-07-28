@@ -1,10 +1,27 @@
 # ykr.moe 公式サイトへの修正提案
 
-ykr.moe/apps/yukanavi/ で公開中のページのうち、修正が必要な 2 点の修正版。
+ykr.moe/apps/yukanavi/ で公開中のページの修正版と、新規追加ページ。
 スナップショットコミット (公開中ページの取り込み) との git 差分で変更点を確認できる。
 
-**適用方法**: この 2 ファイルを ykr.moe の `/apps/yukanavi/` に上書き配置する。
+**適用方法**: 各ファイルを ykr.moe の `/apps/yukanavi/` に配置する。
 (index.html は修正不要のため含めていない)
+
+## manual.html — 使い方ガイド (新規)
+
+エンドユーザー向けの操作マニュアル。`docs/user-manual.md` から生成した HTML 版で、
+サイト共通のヘッダー / フッター / `assets/style.css` に合わせてある。
+
+**配置するもの**:
+
+- `manual.html` → `/apps/yukanavi/manual.html`
+- `images/` (19枚) → `/apps/yukanavi/images/` (HTML から `images/xxx.png` で参照)
+
+**サイト側で必要な追記** (任意だが推奨):
+
+- `index.html` と `support.html` のナビゲーションに「使い方」リンク (`manual.html`) を追加する
+- アプリの設定 `helpurl` にこの URL を入れると、アプリ内から参照できる
+
+**更新方法**: 本文の原本は `docs/user-manual.md`。直したら同じ手順で `manual.html` を作り直す。
 
 ## privacy.html — ストア申告との整合と実装反映
 
