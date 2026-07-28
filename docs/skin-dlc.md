@@ -72,5 +72,7 @@ LIELLA2026XK.zip
 - BGM は mp3 / ogg / wav (m4a・aac は Unity のランタイム読み込み非対応)
 - 背景動画は mp4 推奨。縦画面 (1080x1920 目安) に cover 表示される
 - キャラ画像の推奨は縦長の透過 PNG (表示枠は 740x1110 × scale)
-- アプリのきせかえ編集モーダルで配布スキンを編集すると、単数フィールドのみ
-  書き換わる (複数指定はそのまま残る)
+- アプリのきせかえ編集モーダルで配布スキンを編集すると、単数フィールド
+  (name / background / character / bgm / record / talk / theme) のみ書き換わる。
+  拡張フィールド (backgrounds / characters / 昼夜・季節 BGM など) は skin.json に
+  そのまま維持される

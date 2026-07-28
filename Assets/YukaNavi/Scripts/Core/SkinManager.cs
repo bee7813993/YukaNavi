@@ -496,6 +496,8 @@ namespace YukaNavi.Core
         /// 既存スキンを更新する。newBgSource / newCharSource / newBgmSource が null なら既存ファイルを維持する。
         /// charMode: 0=デフォルト (ゆかりちゃん) / 1=画像 / 2=キャラなし
         /// removeBgm=true でスキン BGM を外す (newBgmSource より優先)。
+        /// 編集モーダルが扱わない拡張フィールド (backgrounds / characters / 昼夜・季節 BGM 等) は
+        /// skin.json にそのまま維持される。
         /// </summary>
         public static bool UpdateSkin(SkinDef skin, string name, string newBgSource, string newCharSource,
                                       float bgRotation, float bgZoom, Vector2 bgOffset, int charMode,
@@ -619,18 +621,17 @@ namespace YukaNavi.Core
                     record = new SkinLayer { Type = "image", File = destName };
                 }
 
-                var def = new SkinDef
-                {
-                    Name = string.IsNullOrEmpty(name) ? skin.Name : name,
-                    Background = background,
-                    Character = character,
-                    Bgm = bgm,
-                    Record = record,
-                    Talk = (talkLines != null && talkLines.Count > 0) ? talkLines : null,
-                    Theme = string.IsNullOrEmpty(themePrimary) ? null : new SkinTheme { Primary = themePrimary },
-                    Layout = skin.Layout, // ホーム配置は編集操作では変えない (引き継ぐ)
-                };
-                string json = JsonConvert.SerializeObject(def, Formatting.Indented,
+                // skin を直接更新して丸ごと書き戻す (SaveLayoutItem と同じ方式)。
+                // 新規 SkinDef を組み立てると、編集モーダルが扱わない拡張フィールド
+                // (backgrounds / characters / 昼夜・季節 BGM 等) が skin.json から消えてしまう
+                skin.Name = string.IsNullOrEmpty(name) ? skin.Name : name;
+                skin.Background = background;
+                skin.Character = character;
+                skin.Bgm = bgm;
+                skin.Record = record;
+                skin.Talk = (talkLines != null && talkLines.Count > 0) ? talkLines : null;
+                skin.Theme = string.IsNullOrEmpty(themePrimary) ? null : new SkinTheme { Primary = themePrimary };
+                string json = JsonConvert.SerializeObject(skin, Formatting.Indented,
                     new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
                 File.WriteAllText(Path.Combine(skin.Folder, "skin.json"), json, new UTF8Encoding(false));
                 return true;
