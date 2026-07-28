@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="カラオケリクエストツール『ゆかり』をスマートフォンから快適に操作するアプリ『ゆかナビ』。">
+  <meta name="theme-color" content="#ffffff">
+  <title>ゆかナビ | YFRTeam</title>
+  <link rel="icon" href="../../assets/yukanavi-icon.png">
+  <link rel="stylesheet" href="../../assets/style.css">
+  <style>
+    /* テスト参加の案内 (ストア公開時にこのブロックごと削除する) */
+    .beta-invite {
+      margin: 1.75rem auto 0;
+      padding: 1.5rem 1.25rem;
+      max-width: 44rem;
+      background: rgba(255, 255, 255, .75);
+      border: 1px solid rgba(0, 0, 0, .1);
+      border-radius: 16px;
+      text-align: center;
+    }
+    .beta-lead { margin: 0 0 1.25rem; font-size: .95rem; line-height: 1.6; }
+    .beta-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      justify-content: center;
+    }
+    .beta-card {
+      flex: 1 1 15rem;
+      max-width: 18rem;
+      padding: 1.25rem 1rem;
+      background: rgba(255, 255, 255, .85);
+      border: 1px solid rgba(0, 0, 0, .08);
+      border-radius: 14px;
+    }
+    .beta-os {
+      margin: 0 0 .85rem;
+      font-size: 1rem;
+      letter-spacing: .02em;
+    }
+    .beta-button {
+      display: inline-block;
+      padding: .8rem 1.4rem;
+      font-weight: 700;
+      text-decoration: none;
+      border-radius: 999px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
+    }
+    .beta-ios { background: #0d6efd; color: #fff; }        /* TestFlight ブルー */
+    .beta-android { background: #3ddc84; color: #0b3d22; } /* Android グリーン */
+    .beta-button:hover, .beta-button:focus { filter: brightness(1.06); }
+    .beta-qr {
+      display: block;
+      width: 160px; height: auto;
+      margin: 1.1rem auto .7rem;
+      border-radius: 8px;
+    }
+    .beta-note { margin: 0; font-size: .82rem; opacity: .75; line-height: 1.5; }
+    .beta-foot { margin-top: 1.25rem; }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">本文へ移動</a>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="../../index.html" aria-label="YFRTeam トップページ">YFRTeam</a>
+      <nav class="site-nav" aria-label="ゆかナビ ナビゲーション">
+        <a aria-current="page" href="index.html">ゆかナビ</a>
+        <a href="manual.html">使い方</a>
+        <a href="privacy.html">プライバシー</a>
+        <a href="support.html">サポート</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-inner">
+        <a class="back-to-team" href="../../index.html">YFRTeamの提供アプリ</a>
+        <img class="app-icon" src="../../assets/yukanavi-icon.png" width="1024" height="1024" alt="ゆかナビのアプリアイコン">
+        <p class="eyebrow">YFRTeam presents</p>
+        <h1 id="hero-title">ゆかナビ</h1>
+        <p class="hero-copy">カラオケリクエストツール「ゆかり」を、手元のスマートフォンからもっと使いやすく。</p>
+        <p class="release-status">iOS版・Android版 テスト参加者を募集中</p>
+
+        <div class="beta-invite">
+          <p class="beta-lead">正式公開に先がけて、どなたでもテスト版をお試しいただけます。</p>
+
+          <div class="beta-grid">
+            <div class="beta-card">
+              <h2 class="beta-os">iPhone / iPad</h2>
+              <a class="beta-button beta-ios" href="https://testflight.apple.com/join/rB38MPNc">
+                TestFlight で参加する
+              </a>
+              <img class="beta-qr" src="images/ios_test_qr.png" width="330" height="330"
+                   alt="iOS版 TestFlight 参加ページの QR コード" loading="lazy">
+              <p class="beta-note">先に App Store から「TestFlight」アプリをインストールしてください。</p>
+            </div>
+
+            <div class="beta-card">
+              <h2 class="beta-os">Android</h2>
+              <a class="beta-button beta-android" href="https://play.google.com/apps/testing/com.yfrteam.yukanavi">
+                オープンテストに参加する
+              </a>
+              <img class="beta-qr" src="images/android_test_qr.png" width="370" height="370"
+                   alt="Android版 オープンテスト参加ページの QR コード" loading="lazy">
+              <p class="beta-note">参加後、Google Play からインストールできます。</p>
+            </div>
+          </div>
+
+          <p class="beta-note beta-foot">スマートフォンのカメラで QR を読み取っても参加ページを開けます。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-intro" aria-labelledby="about-app">
+      <div class="content-narrow">
+        <p class="section-label">ABOUT THE APP</p>
+        <h2 id="about-app">歌いたい曲へ、迷わずたどり着く。</h2>
+        <p class="lead">ゆかナビは、カラオケリクエストツール「ゆかり（KaraokeRequestorWeb）」に接続して、曲の検索やリクエスト、予約状況の確認を行うための公式アプリです。</p>
+      </div>
+    </section>
+
+    <section class="section feature-band" aria-labelledby="features">
+      <div class="content-wide">
+        <p class="section-label">FEATURES</p>
+        <h2 id="features">カラオケの時間に必要な機能を、ひとつに。</h2>
+        <div class="feature-list">
+          <article class="feature-item">
+            <p class="feature-number" aria-hidden="true">01</p>
+            <h3>曲を探してリクエスト</h3>
+            <p>さまざまな検索方法から曲を探し、接続中の「ゆかり」へリクエストできます。</p>
+          </article>
+          <article class="feature-item">
+            <p class="feature-number" aria-hidden="true">02</p>
+            <h3>QRコードでかんたん接続</h3>
+            <p>カラオケルームに表示されたQRコードを読み取り、接続先をすばやく設定できます。</p>
+          </article>
+          <article class="feature-item">
+            <p class="feature-number" aria-hidden="true">03</p>
+            <h3>履歴とお気に入りを手元に</h3>
+            <p>履歴やお気に入りを端末に保存し、任意でGoogle Driveと同期できます。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section app-links-band" aria-labelledby="app-links">
+      <div class="content-wide">
+        <p class="section-label">INFORMATION</p>
+        <h2 id="app-links">アプリ情報</h2>
+        <ul class="link-list app-info-links">
+          <li><a href="privacy.html">プライバシーポリシー</a></li>
+          <li><a href="support.html">サポート</a></li>
+          <li><a href="https://github.com/bee7813993/YukaNavi" rel="noopener noreferrer">GitHubプロジェクト</a></li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <p class="footer-brand">YFRTeam</p>
+      <nav aria-label="フッターナビゲーション">
+        <a href="../../index.html">YFRTeamトップ</a>
+        <a href="manual.html">使い方</a>
+        <a href="privacy.html">プライバシーポリシー</a>
+        <a href="support.html">サポート</a>
+      </nav>
+      <p class="copyright">&copy; 2026 YFRTeam</p>
+    </div>
+  </footer>
+</body>
+</html>

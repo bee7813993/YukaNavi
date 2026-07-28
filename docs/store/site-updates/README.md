@@ -1,10 +1,50 @@
 # ykr.moe 公式サイトへの修正提案
 
-ykr.moe/apps/yukanavi/ で公開中のページのうち、修正が必要な 2 点の修正版。
+ykr.moe/apps/yukanavi/ で公開中のページの修正版と、新規追加ページ。
 スナップショットコミット (公開中ページの取り込み) との git 差分で変更点を確認できる。
 
-**適用方法**: この 2 ファイルを ykr.moe の `/apps/yukanavi/` に上書き配置する。
+**適用方法**: 各ファイルを ykr.moe の `/apps/yukanavi/` に配置する。
 (index.html は修正不要のため含めていない)
+
+## manual.html — 使い方ガイド (新規)
+
+エンドユーザー向けの操作マニュアル。`docs/user-manual.md` から生成した HTML 版で、
+サイト共通のヘッダー / フッター / `assets/style.css` に合わせてある。
+
+**配置するもの**:
+
+- `manual.html` → `/apps/yukanavi/manual.html`
+- `images/` (19枚) → `/apps/yukanavi/images/` (HTML から `images/xxx.png` で参照)
+
+**あわせて配置するもの** (ナビに「使い方」リンクを追加済み):
+
+- `index.html` / `privacy.html` / `support.html` → 同じく `/apps/yukanavi/` に上書き配置
+  (ヘッダー・フッター両方のナビに `manual.html` へのリンクを追加してある)
+
+**補足**: アプリの設定 `helpurl` にこのページの URL
+(`https://ykr.moe/apps/yukanavi/manual.html`) を入れると、アプリ内から参照できる。
+
+**更新方法**: 本文の原本は `docs/user-manual.md`。直したら同じ手順で `manual.html` を作り直す。
+
+## index.html — ナビに「使い方」を追加 + テスト参加の案内
+
+公開中の内容をそのまま取り込んだうえで、次の 2 点を追加した。
+
+1. ヘッダー・フッターのナビに `manual.html` へのリンク
+2. ヒーロー部に **iOS / Android のテスト参加案内** (2カラム。参加ボタン + QR コード)
+
+| OS | リンク先 | QR |
+|---|---|---|
+| iOS (TestFlight) | `https://testflight.apple.com/join/rB38MPNc` | `images/ios_test_qr.png` |
+| Android (オープンテスト) | `https://play.google.com/apps/testing/com.yfrteam.yukanavi` | `images/android_test_qr.png` |
+
+- QR は 2 つともこのリポジトリで生成し、デコードして URL 一致を確認済み
+- スタイルは `<head>` 内の `<style>` に閉じ込めてある (共通 `assets/style.css` は無変更)
+- 画面が狭いときは 2 カラムが自動で縦積みになる (flex-wrap)
+
+> **一時的な掲載**: ストア公開時には、`release-status` の文言を戻し、
+> `.beta-invite` のブロックと `<head>` の `<style>` を削除して、ストアバッジ / リンクに差し替える。
+> iOS だけ先に公開された場合など、片方だけ残すときは該当の `.beta-card` を削除する。
 
 ## privacy.html — ストア申告との整合と実装反映
 
@@ -21,10 +61,12 @@ ykr.moe/apps/yukanavi/ で公開中のページのうち、修正が必要な 2 
 - **第8節「保存期間と削除」** (2026-07-22 追記): アプリ内の「マイページ > 連携 > 連携データを削除」
   (Drive 上のバックアップ削除 + アクセス権取り消し) を追記 — App Store 審査 (2026-07-21 却下) の
   データ削除要件対応で追加した機能の反映。**アプリ v1.0.0 (6) 以降の再提出前に ykr.moe へ適用が必要**
+- ナビ (ヘッダー・フッター) に「使い方」リンクを追加
 
 ## support.html
 
 - QR の FAQ にズームスライダー / ピンチ操作 / 「写真で読み取る」の案内を追加 (実装済み機能の反映)
+- ナビ (ヘッダー・フッター) に「使い方」リンクを追加
 
 ## 備考
 
