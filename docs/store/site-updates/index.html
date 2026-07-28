@@ -9,35 +9,55 @@
   <link rel="icon" href="../../assets/yukanavi-icon.png">
   <link rel="stylesheet" href="../../assets/style.css">
   <style>
-    /* Android オープンテストの案内 (ストア公開時にこのブロックごと削除する) */
+    /* テスト参加の案内 (ストア公開時にこのブロックごと削除する) */
     .beta-invite {
       margin: 1.75rem auto 0;
       padding: 1.5rem 1.25rem;
-      max-width: 30rem;
+      max-width: 44rem;
       background: rgba(255, 255, 255, .75);
       border: 1px solid rgba(0, 0, 0, .1);
       border-radius: 16px;
       text-align: center;
     }
-    .beta-lead { margin: 0 0 1rem; font-size: .95rem; line-height: 1.6; }
+    .beta-lead { margin: 0 0 1.25rem; font-size: .95rem; line-height: 1.6; }
+    .beta-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      justify-content: center;
+    }
+    .beta-card {
+      flex: 1 1 15rem;
+      max-width: 18rem;
+      padding: 1.25rem 1rem;
+      background: rgba(255, 255, 255, .85);
+      border: 1px solid rgba(0, 0, 0, .08);
+      border-radius: 14px;
+    }
+    .beta-os {
+      margin: 0 0 .85rem;
+      font-size: 1rem;
+      letter-spacing: .02em;
+    }
     .beta-button {
       display: inline-block;
-      padding: .85rem 1.6rem;
-      background: #3ddc84;          /* Android グリーン */
-      color: #0b3d22;
+      padding: .8rem 1.4rem;
       font-weight: 700;
       text-decoration: none;
       border-radius: 999px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
     }
+    .beta-ios { background: #0d6efd; color: #fff; }        /* TestFlight ブルー */
+    .beta-android { background: #3ddc84; color: #0b3d22; } /* Android グリーン */
     .beta-button:hover, .beta-button:focus { filter: brightness(1.06); }
     .beta-qr {
       display: block;
-      width: 180px; height: auto;
-      margin: 1.25rem auto .75rem;
+      width: 160px; height: auto;
+      margin: 1.1rem auto .7rem;
       border-radius: 8px;
     }
     .beta-note { margin: 0; font-size: .82rem; opacity: .75; line-height: 1.5; }
+    .beta-foot { margin-top: 1.25rem; }
   </style>
 </head>
 <body>
@@ -63,17 +83,34 @@
         <p class="eyebrow">YFRTeam presents</p>
         <h1 id="hero-title">ゆかナビ</h1>
         <p class="hero-copy">カラオケリクエストツール「ゆかり」を、手元のスマートフォンからもっと使いやすく。</p>
-        <p class="release-status">iOS版 公開準備中</p>
-        <p class="release-status">Android版 オープンテスト実施中</p>
+        <p class="release-status">iOS版・Android版 テスト参加者を募集中</p>
 
         <div class="beta-invite">
-          <p class="beta-lead">Android をお使いの方は、いまオープンテストに参加できます。</p>
-          <a class="beta-button" href="https://play.google.com/apps/testing/com.yfrteam.yukanavi">
-            Android版 オープンテストに参加する
-          </a>
-          <img class="beta-qr" src="images/android_test_qr.png" width="370" height="370"
-               alt="Android版 オープンテスト参加ページの QR コード" loading="lazy">
-          <p class="beta-note">スマートフォンのカメラで QR を読み取っても参加ページを開けます。</p>
+          <p class="beta-lead">正式公開に先がけて、どなたでもテスト版をお試しいただけます。</p>
+
+          <div class="beta-grid">
+            <div class="beta-card">
+              <h2 class="beta-os">iPhone / iPad</h2>
+              <a class="beta-button beta-ios" href="https://testflight.apple.com/join/rB38MPNc">
+                TestFlight で参加する
+              </a>
+              <img class="beta-qr" src="images/ios_test_qr.png" width="330" height="330"
+                   alt="iOS版 TestFlight 参加ページの QR コード" loading="lazy">
+              <p class="beta-note">先に App Store から「TestFlight」アプリをインストールしてください。</p>
+            </div>
+
+            <div class="beta-card">
+              <h2 class="beta-os">Android</h2>
+              <a class="beta-button beta-android" href="https://play.google.com/apps/testing/com.yfrteam.yukanavi">
+                オープンテストに参加する
+              </a>
+              <img class="beta-qr" src="images/android_test_qr.png" width="370" height="370"
+                   alt="Android版 オープンテスト参加ページの QR コード" loading="lazy">
+              <p class="beta-note">参加後、Google Play からインストールできます。</p>
+            </div>
+          </div>
+
+          <p class="beta-note beta-foot">スマートフォンのカメラで QR を読み取っても参加ページを開けます。</p>
         </div>
       </div>
     </section>

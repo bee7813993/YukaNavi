@@ -26,18 +26,25 @@ ykr.moe/apps/yukanavi/ で公開中のページの修正版と、新規追加ペ
 
 **更新方法**: 本文の原本は `docs/user-manual.md`。直したら同じ手順で `manual.html` を作り直す。
 
-## index.html — ナビに「使い方」を追加 + Android オープンテストの案内
+## index.html — ナビに「使い方」を追加 + テスト参加の案内
 
 公開中の内容をそのまま取り込んだうえで、次の 2 点を追加した。
 
 1. ヘッダー・フッターのナビに `manual.html` へのリンク
-2. ヒーロー部に **Android オープンテストの案内** (参加ボタン + QR コード)
-   - リンク先: `https://play.google.com/apps/testing/com.yfrteam.yukanavi`
-   - QR: `images/android_test_qr.png` (このリポジトリで生成。デコードして URL 一致を確認済み)
-   - スタイルは `<head>` 内の `<style>` に閉じ込めてある (共通 `assets/style.css` は無変更)
+2. ヒーロー部に **iOS / Android のテスト参加案内** (2カラム。参加ボタン + QR コード)
+
+| OS | リンク先 | QR |
+|---|---|---|
+| iOS (TestFlight) | `https://testflight.apple.com/join/rB38MPNc` | `images/ios_test_qr.png` |
+| Android (オープンテスト) | `https://play.google.com/apps/testing/com.yfrteam.yukanavi` | `images/android_test_qr.png` |
+
+- QR は 2 つともこのリポジトリで生成し、デコードして URL 一致を確認済み
+- スタイルは `<head>` 内の `<style>` に閉じ込めてある (共通 `assets/style.css` は無変更)
+- 画面が狭いときは 2 カラムが自動で縦積みになる (flex-wrap)
 
 > **一時的な掲載**: ストア公開時には、`release-status` の文言を戻し、
 > `.beta-invite` のブロックと `<head>` の `<style>` を削除して、ストアバッジ / リンクに差し替える。
+> iOS だけ先に公開された場合など、片方だけ残すときは該当の `.beta-card` を削除する。
 
 ## privacy.html — ストア申告との整合と実装反映
 
