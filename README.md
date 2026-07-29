@@ -89,6 +89,9 @@ SDK のソースを読んで確定させた、ハマりどころ。`Live2DMascot
 
 - master へ直接コミットしない(ブランチ → PR → マージ)
 - 画像・音声・動画などのバイナリは **Git LFS** で管理([.gitattributes](.gitattributes) 参照)。
-  GitHub 無料枠(ストレージ 1GB / 帯域 月 1GB)に注意し、大きな動画は極力リポジトリに入れない
+  無料枠は **ストレージ 10GB / 帯域 月 10GB**(2026-07 時点。以前は各 1GB だった)。
+  使用量は [GitHub の Billing](https://github.com/settings/billing) の「Git LFS」で確認する
+  (API では取得できない)。帯域は clone / pull のたびに消費されるので、
+  CI が頻繁に取得する大きなファイルには引き続き注意する
 - コミットメッセージは `<type>: <日本語要約>` 形式(`feat` / `fix` / `docs` / `refactor` / `chore`)。
   末尾に `Co-Authored-By` を付ける運用はサーバーリポジトリと同じ
