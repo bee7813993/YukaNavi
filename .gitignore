@@ -60,3 +60,12 @@ Thumbs.db
 
 # ===== サンプルスキンの生成物 (make_zip.ps1 で作る。実体は seasonal/ の流用) =====
 /art/sample_skins/*/*.zip
+
+# ===== 手元の作業ファイル (リポジトリには含めない) =====
+# Unity がクラッシュ復旧時に作るシーンの退避
+/[Aa]ssets/_Recovery/
+/[Aa]ssets/_Recovery.meta
+# ストア審査資料などの参照用 PDF (ルート直下に置いたもの)
+/*.pdf
+# セッション間の引き継ぎメモ (一時的な作業メモ)
+/docs/SESSION_HANDOFF_*.md
