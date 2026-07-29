@@ -57,3 +57,12 @@ Thumbs.db
 # 導入手順は README.md を参照
 /[Aa]ssets/Live2D/
 /[Aa]ssets/Live2D.meta
+
+# ===== 手元の作業ファイル (リポジトリには含めない) =====
+# Unity がクラッシュ復旧時に作るシーンの退避
+/[Aa]ssets/_Recovery/
+/[Aa]ssets/_Recovery.meta
+# ストア審査資料などの参照用 PDF (ルート直下に置いたもの)
+/*.pdf
+# セッション間の引き継ぎメモ (一時的な作業メモ)
+/docs/SESSION_HANDOFF_*.md
