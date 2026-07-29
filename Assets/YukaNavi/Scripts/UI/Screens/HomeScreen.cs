@@ -71,7 +71,10 @@ namespace YukaNavi.UI
         GameObject _banner;
         Text _bannerText;
         GameObject _backgroundGo;
+        Texture2D _backgroundTexture; // スキン画像背景 (GameObject 破棄では解放されないため個別に持つ)
+        string _timedBgPath;          // 表示中の時間帯背景のファイル名 (null = 時間帯背景なし)
         MascotView _mascot;
+        readonly List<Object> _mascotAssets = new List<Object>(); // マスコット用に生成した Texture/Sprite
         VideoPlayer _videoPlayer;
         RenderTexture _videoTexture;
         string _appliedSkinId;
@@ -850,6 +853,15 @@ namespace YukaNavi.UI
                 _mascotItem = null;
                 _mascot = null;
             }
+            // GameObject の破棄では Texture/Sprite は解放されないため個別に破棄する
+            foreach (var asset in _mascotAssets)
+            {
+                if (asset != null)
+                {
+                    Destroy(asset);
+                }
+            }
+            _mascotAssets.Clear();
 
             BuildBackground(skin);
             BuildMascot(skin);
@@ -861,6 +873,11 @@ namespace YukaNavi.UI
             {
                 Destroy(_backgroundGo);
                 _backgroundGo = null;
+            }
+            if (_backgroundTexture != null)
+            {
+                Destroy(_backgroundTexture);
+                _backgroundTexture = null;
             }
             if (_videoPlayer != null)
             {
@@ -881,14 +898,15 @@ namespace YukaNavi.UI
         }
 
         /// <summary>
-        /// 背景タップ (前面に UI が無いところ) で次の背景へ。複数背景 (backgrounds) の
-        /// スキンだけで動く。選んだ背景はスキンごとに保存され、次回起動でも続く。
+        /// 背景タップ (前面に UI が無いところ) で次の背景へ。複数背景 (backgrounds や
+        /// 時間帯背景との組み合わせ) のスキンだけで動く。選んだ背景はスキンごとに保存され、
+        /// 次回起動でも続く。時間帯背景があるスキンでは先頭 (index 0) が時間帯背景になる。
         /// パーツ移動モード中は編集オーバーレイがタップを受けるためここには届かない。
         /// </summary>
         void CycleBackground()
         {
             var skin = _currentSkin ?? SkinManager.Current();
-            var layers = SkinManager.GetBackgrounds(skin);
+            var layers = SkinManager.GetBackgroundsFor(skin, System.DateTime.Now);
             if (skin.Folder == null || layers.Count <= 1)
             {
                 return;
@@ -912,7 +930,10 @@ namespace YukaNavi.UI
             bgButton.onClick.AddListener(CycleBackground);
 
             bool built = false;
-            var layers = SkinManager.GetBackgrounds(skin);
+            var now = System.DateTime.Now;
+            var timed = SkinManager.GetTimedBackground(skin, now);
+            _timedBgPath = timed != null ? timed.File : null; // 時間帯またぎの検知用 (Update)
+            var layers = SkinManager.GetBackgroundsFor(skin, now);
             if (skin.Folder != null && layers.Count > 0)
             {
                 int index = Mathf.Clamp(PlayerPrefs.GetInt(BgIndexKey(skin), 0), 0, layers.Count - 1);
@@ -931,6 +952,7 @@ namespace YukaNavi.UI
                     var tex = SkinManager.LoadTexture(skin, bgDef.File);
                     if (tex != null)
                     {
+                        _backgroundTexture = tex; // スキン切替・巡回時に破棄する
                         view.SetTexture(tex, (float)tex.width / tex.height);
                         built = true;
                     }
@@ -1008,8 +1030,7 @@ namespace YukaNavi.UI
 
         void BuildMascot(SkinDef skin)
         {
-            Sprite[] customs = null;
-            string[][] mascotTalks = null;
+            List<MascotView.MascotCharacter> customs = null;
             float scale = 1f;
             if (skin.Folder != null)
             {
@@ -1017,32 +1038,64 @@ namespace YukaNavi.UI
                 {
                     return; // キャラなしスキン
                 }
-                // 複数キャラ (characters) 対応。タップで次の画像に切り替わる
-                var sprites = new List<Sprite>();
-                var talks = new List<string[]>(); // sprites と同じ並びのキャラ別セリフ
+                // 複数キャラ (characters) 対応。タップで表情を一巡してから次のキャラに切り替わる
+                var list = new List<MascotView.MascotCharacter>();
                 foreach (var layer in SkinManager.GetCharacters(skin))
                 {
                     if (layer.Type != "image")
                     {
                         continue; // 未対応 type (live2d 等) は読み飛ばす
                     }
-                    var tex = SkinManager.LoadTexture(skin, layer.File);
-                    if (tex == null)
+                    var baseSprite = LoadMascotSprite(skin, layer.File);
+                    if (baseSprite == null)
                     {
                         continue;
                     }
-                    sprites.Add(Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height),
-                        new Vector2(0.5f, 0.5f), 100f));
-                    talks.Add(layer.Talk != null && layer.Talk.Count > 0 ? layer.Talk.ToArray() : null);
-                    if (sprites.Count == 1)
+                    var ch = new MascotView.MascotCharacter
+                    {
+                        Base = baseSprite,
+                        Talk = layer.Talk != null && layer.Talk.Count > 0 ? layer.Talk.ToArray() : null,
+                    };
+                    if (!string.IsNullOrEmpty(layer.EyesClosed))
+                    {
+                        // 読めなければ null のまま = まばたきなし
+                        ch.EyesClosed = LoadMascotSprite(skin, layer.EyesClosed);
+                    }
+                    if (layer.Expressions != null && layer.Expressions.Count > 0)
+                    {
+                        // 読めた表情だけを詰める (セリフの並びも同時に合わせて整合を保つ)
+                        var sprites = new List<Sprite>();
+                        var talks = new List<string[]>();
+                        foreach (var expr in layer.Expressions)
+                        {
+                            if (expr == null || string.IsNullOrEmpty(expr.File))
+                            {
+                                continue;
+                            }
+                            var sprite = LoadMascotSprite(skin, expr.File);
+                            if (sprite == null)
+                            {
+                                continue;
+                            }
+                            sprites.Add(sprite);
+                            talks.Add(expr.Talk != null && expr.Talk.Count > 0
+                                ? expr.Talk.ToArray() : null);
+                        }
+                        if (sprites.Count > 0)
+                        {
+                            ch.Expressions = sprites.ToArray();
+                            ch.ExpressionTalk = talks.ToArray();
+                        }
+                    }
+                    list.Add(ch);
+                    if (list.Count == 1)
                     {
                         scale = Mathf.Clamp(layer.Scale, 0.3f, 2f);
                     }
                 }
-                if (sprites.Count > 0)
+                if (list.Count > 0)
                 {
-                    customs = sprites.ToArray();
-                    mascotTalks = talks.ToArray();
+                    customs = list;
                 }
                 // 1枚も読めなければデフォルトのゆかりちゃんにフォールバック
             }
@@ -1058,15 +1111,38 @@ namespace YukaNavi.UI
             group.sizeDelta = size;
             _mascot = MascotView.Create(group, size, 0f, customs);
             // スキンにセリフが設定されていればタップ時にランダムで表示する
-            // (キャラごとの talk があれば表示中のキャラのものが優先される)
+            // (表情 → キャラ → スキン全体の順で優先。時間帯セリフは通常セリフと合算)
             _mascot.CustomLines = (skin.Talk != null && skin.Talk.Count > 0)
                 ? skin.Talk.ToArray() : null;
-            _mascot.CustomLinesPerCharacter = mascotTalks;
+            _mascot.CustomLinesMorning = (skin.TalkMorning != null && skin.TalkMorning.Count > 0)
+                ? skin.TalkMorning.ToArray() : null;
+            _mascot.CustomLinesEvening = (skin.TalkEvening != null && skin.TalkEvening.Count > 0)
+                ? skin.TalkEvening.ToArray() : null;
+            _mascot.CustomLinesNight = (skin.TalkNight != null && skin.TalkNight.Count > 0)
+                ? skin.TalkNight.ToArray() : null;
             _mascotItem = SetupMovable(group, HomeLayoutStore.Mascot, HomeItem.Mascot, _mascot.gameObject);
             // 移動モード中はタップ演出 (表情切替・セリフ) を止める
             _mascot.SuppressTap = () => _editing == HomeItem.Mascot;
             // 描画順: 背景[0] → パーティクル[1] → マスコット[2]
             group.SetSiblingIndex(2);
+        }
+
+        /// <summary>
+        /// スキンフォルダの画像をマスコット用スプライトにする (失敗時 null)。
+        /// 生成した Texture/Sprite は破棄リストに登録し、スキン切替時にまとめて破棄する。
+        /// </summary>
+        Sprite LoadMascotSprite(SkinDef skin, string file)
+        {
+            var tex = SkinManager.LoadTexture(skin, file);
+            if (tex == null)
+            {
+                return null;
+            }
+            var sprite = Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height),
+                new Vector2(0.5f, 0.5f), 100f);
+            _mascotAssets.Add(tex);
+            _mascotAssets.Add(sprite);
+            return sprite;
         }
 
         /// <summary>ティッカーの1行分のテキストを作る (長い曲名は行内で切り詰め)。</summary>
@@ -1347,7 +1423,33 @@ namespace YukaNavi.UI
                 _dateText.text = now.ToString("MM/dd ddd").ToUpperInvariant();
                 _statusClockText.text = now.ToString("HH:mm");
                 UpdateBattery();
-                Bgm.RefreshForCurrentSkin(); // 昼夜 BGM の時間帯またぎ (変化がなければ何もしない)
+                Bgm.RefreshForCurrentSkin(); // 昼夜・季節 BGM の時間帯またぎ (変化がなければ何もしない)
+                RefreshTimedBackground(now); // 昼夜・季節背景の時間帯またぎ
+            }
+        }
+
+        /// <summary>
+        /// 時間帯背景 (background_day / 季節×昼夜) の切り替わりを反映する。
+        /// 自動背景 (リスト先頭) を表示中のときだけ作り直し、手動巡回中は邪魔しない。
+        /// </summary>
+        void RefreshTimedBackground(System.DateTime now)
+        {
+            var skin = _currentSkin ?? SkinManager.Current();
+            if (skin.Folder == null)
+            {
+                return;
+            }
+            var timed = SkinManager.GetTimedBackground(skin, now);
+            string path = timed != null ? timed.File : null;
+            if (path == _timedBgPath)
+            {
+                return; // 時間帯背景に変化なし
+            }
+            _timedBgPath = path;
+            if (PlayerPrefs.GetInt(BgIndexKey(skin), 0) == 0)
+            {
+                DestroyBackgroundResources();
+                BuildBackground(skin);
             }
         }
 

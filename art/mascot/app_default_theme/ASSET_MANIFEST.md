@@ -78,6 +78,20 @@ KaraokeRequestorWeb 操作アプリ向けの「ゆかり」ちゃんデフォル
 | 用途 | ファイル | 仕様 |
 |---|---|---|
 | ホームBGM | `bgm/yukanavi_home_loop.wav` / `bgm/yukanavi_home_loop.ogg` | 16.0 秒ループ想定 |
+| 季節×昼夜BGM: 春昼 | `bgm/yukanavi_home_loop_spring_day.ogg` | **未制作**。16 秒程度の自然ループ、ogg 推奨 |
+| 季節×昼夜BGM: 春夜 | `bgm/yukanavi_home_loop_spring_night.ogg` | 未制作。同上 |
+| 季節×昼夜BGM: 夏昼 | `bgm/yukanavi_home_loop_summer_day.ogg` | 未制作。同上 |
+| 季節×昼夜BGM: 夏夜 | `bgm/yukanavi_home_loop_summer_night.ogg` | 未制作。同上 |
+| 季節×昼夜BGM: 秋昼 | `bgm/yukanavi_home_loop_autumn_day.ogg` | 未制作。同上 |
+| 季節×昼夜BGM: 秋夜 | `bgm/yukanavi_home_loop_autumn_night.ogg` | 未制作。同上 |
+| 季節×昼夜BGM: 冬昼 | `bgm/yukanavi_home_loop_winter_day.ogg` | 未制作。同上 |
+| 季節×昼夜BGM: 冬夜 | `bgm/yukanavi_home_loop_winter_night.ogg` | 未制作。同上 |
+
+季節×昼夜 BGM は完成後、アプリのバージョンアップなしで **デフォルトテーマ拡張パック**
+として配信できる (`docs/default-theme-pack.md` の手順を参照。この命名のまま zip の
+`bgm/` に入れる)。`Assets/YukaNavi/Resources/Audio/BGM/` に置いてビルドに同梱しても
+有効 (パック → Resources → 基本曲の順で解決される)。8 種すべて揃わなくても、
+無い組み合わせは基本ループ曲になる。
 
 ## 補足
 

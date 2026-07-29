@@ -21,8 +21,8 @@
     .manual-body th, .manual-body td {
       border: 1px solid rgba(0,0,0,.15); padding: .5rem .8rem; text-align: left; }
     .manual-body section { margin-bottom: 2.5rem; }
-    /* Android オープンテストの案内 (ストア公開時にこのブロックごと削除する) */
-    .beta-invite {
+    /* アプリ入手案内: iOS(App Store 恒久設置) / Android(正式公開までオープンテスト案内) */
+    .app-invite {
       margin: 1.75rem auto 0;
       padding: 1.5rem 1.25rem;
       max-width: 44rem;
@@ -31,14 +31,14 @@
       border-radius: 16px;
       text-align: center;
     }
-    .beta-lead { margin: 0 0 1.25rem; font-size: .95rem; line-height: 1.6; }
-    .beta-grid {
+    .app-lead { margin: 0 0 1.25rem; font-size: .95rem; line-height: 1.6; }
+    .app-grid {
       display: flex;
       flex-wrap: wrap;
       gap: 1.5rem;
       justify-content: center;
     }
-    .beta-card {
+    .app-card {
       flex: 1 1 15rem;
       max-width: 18rem;
       padding: 1.25rem 1rem;
@@ -46,12 +46,12 @@
       border: 1px solid rgba(0, 0, 0, .08);
       border-radius: 14px;
     }
-    .beta-os {
+    .app-os {
       margin: 0 0 .85rem;
       font-size: 1rem;
       letter-spacing: .02em;
     }
-    .beta-button {
+    .app-button {
       display: inline-block;
       padding: .8rem 1.4rem;
       font-weight: 700;
@@ -59,17 +59,26 @@
       border-radius: 999px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
     }
-    .beta-ios { background: #0d6efd; color: #fff; }        /* TestFlight ブルー */
-    .beta-android { background: #3ddc84; color: #0b3d22; } /* Android グリーン */
-    .beta-button:hover, .beta-button:focus { filter: brightness(1.06); }
-    .beta-qr {
+    .app-android { background: #3ddc84; color: #0b3d22; } /* Android グリーン */
+    .app-button:hover, .app-button:focus { filter: brightness(1.06); }
+    .app-store-badge-link {
+      display: inline-block;
+      line-height: 0;
+    }
+    .app-store-badge-link:hover, .app-store-badge-link:focus { filter: brightness(1.06); }
+    .app-store-badge {
+      width: 150px;
+      height: 55px;
+      max-width: 100%;
+    }
+    .app-qr {
       display: block;
       width: 160px; height: auto;
       margin: 1.1rem auto .7rem;
       border-radius: 8px;
     }
-    .beta-note { margin: 0; font-size: .82rem; opacity: .75; line-height: 1.5; }
-    .beta-foot { margin-top: 1.25rem; }
+    .app-note { margin: 0; font-size: .82rem; opacity: .75; line-height: 1.5; }
+    .app-foot { margin-top: 1.25rem; }
   </style>
 </head>
 <body>
@@ -103,34 +112,35 @@
         <p class="eyebrow">YFRTeam presents</p>
         <h1 id="hero-title">ゆかナビ</h1>
         <p class="hero-copy">カラオケリクエストツール「ゆかり」を、手元のスマートフォンからもっと使いやすく。</p>
-        <p class="release-status">iOS版・Android版 テスト参加者を募集中</p>
+        <p class="release-status">iOS版 配信中 ／ Android版 テスト参加者を募集中</p>
 
-        <div class="beta-invite">
-          <p class="beta-lead">正式公開に先がけて、どなたでもテスト版をお試しいただけます。</p>
+        <div class="app-invite">
+          <p class="app-lead">iOS版はApp Storeで配信中です。Android版は、正式公開に先がけてどなたでもテスト版をお試しいただけます。</p>
 
-          <div class="beta-grid">
-            <div class="beta-card">
-              <h2 class="beta-os">iPhone / iPad</h2>
-              <a class="beta-button beta-ios" href="https://testflight.apple.com/join/rB38MPNc">
-                TestFlight で参加する
+          <div class="app-grid">
+            <div class="app-card">
+              <h2 class="app-os">iPhone / iPad</h2>
+              <a class="app-store-badge-link" href="https://apps.apple.com/jp/app/%E3%82%86%E3%81%8B%E3%83%8A%E3%83%93/id6792447073">
+                <img class="app-store-badge" src="images/Download_on_the_App_Store_Badge_JP_RGB_blk_100317.svg"
+                     width="150" height="55" alt="App Storeからダウンロード">
               </a>
-              <img class="beta-qr" src="images/ios_test_qr.png" width="330" height="330"
-                   alt="iOS版 TestFlight 参加ページの QR コード" loading="lazy">
-              <p class="beta-note">先に App Store から「TestFlight」アプリをインストールしてください。</p>
+              <img class="app-qr" src="images/ios_appstore_qr.png" width="370" height="370"
+                   alt="App Store「ゆかナビ」ページの QR コード" loading="lazy">
+              <p class="app-note">App Storeで配信中です。</p>
             </div>
 
-            <div class="beta-card">
-              <h2 class="beta-os">Android</h2>
-              <a class="beta-button beta-android" href="https://play.google.com/apps/testing/com.yfrteam.yukanavi">
+            <div class="app-card">
+              <h2 class="app-os">Android</h2>
+              <a class="app-button app-android" href="https://play.google.com/apps/testing/com.yfrteam.yukanavi">
                 オープンテストに参加する
               </a>
-              <img class="beta-qr" src="images/android_test_qr.png" width="370" height="370"
+              <img class="app-qr" src="images/android_test_qr.png" width="370" height="370"
                    alt="Android版 オープンテスト参加ページの QR コード" loading="lazy">
-              <p class="beta-note">参加後、Google Play からインストールできます。</p>
+              <p class="app-note">参加後、Google Play からインストールできます。</p>
             </div>
           </div>
 
-          <p class="beta-note beta-foot">スマートフォンのカメラで QR を読み取っても参加ページを開けます。</p>
+          <p class="app-note app-foot">スマートフォンのカメラで QR を読み取ってもページを開けます。</p>
         </div>
       </div>
     </section>
@@ -367,7 +377,8 @@
           <li>一覧からスキンを選ぶと、すぐに適用されます。</li>
           <li>ホームに出すパーツ（<strong>時計・メッセージ・マスコット</strong>）の表示／非表示を切り替えられます。</li>
           <li><strong>「リセット」</strong> で、ホームのパーツ配置を初期状態に戻せます。</li>
-          <li>スキンによっては、昼夜で BGM や背景が変わります。</li>
+          <li>スキンによっては、<strong>昼夜や季節</strong> で BGM や背景が変わったり、時間帯であいさつが変わったりします。</li>
+          <li>キャラをタップすると、スキンによっては <strong>表情やキャラ</strong> が切り替わります（まばたきするスキンもあります）。</li>
         </ul>
         <h3>自分の画像でスキンを作る</h3>
         <p>手持ちの画像や動画で、自分だけのきせかえを作れます。</p>

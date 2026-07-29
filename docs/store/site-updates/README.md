@@ -4,7 +4,6 @@ ykr.moe/apps/yukanavi/ で公開中のページの修正版と、新規追加ペ
 スナップショットコミット (公開中ページの取り込み) との git 差分で変更点を確認できる。
 
 **適用方法**: 各ファイルを ykr.moe の `/apps/yukanavi/` に配置する。
-(index.html は修正不要のため含めていない)
 
 ## manual.html — 使い方ガイド (新規)
 
@@ -26,25 +25,28 @@ ykr.moe/apps/yukanavi/ で公開中のページの修正版と、新規追加ペ
 
 **更新方法**: 本文の原本は `docs/user-manual.md`。直したら同じ手順で `manual.html` を作り直す。
 
-## index.html — ナビに「使い方」を追加 + テスト参加の案内
+## index.html — ナビに「使い方」を追加 + iOS公開 / Androidテスト参加の案内
 
 公開中の内容をそのまま取り込んだうえで、次の 2 点を追加した。
 
 1. ヘッダー・フッターのナビに `manual.html` へのリンク
-2. ヒーロー部に **iOS / Android のテスト参加案内** (2カラム。参加ボタン + QR コード)
+2. ヒーロー部に **iOS(App Store)/ Android(オープンテスト) を左右対称の2カード** で案内
 
-| OS | リンク先 | QR |
-|---|---|---|
-| iOS (TestFlight) | `https://testflight.apple.com/join/rB38MPNc` | `images/ios_test_qr.png` |
-| Android (オープンテスト) | `https://play.google.com/apps/testing/com.yfrteam.yukanavi` | `images/android_test_qr.png` |
+**2026-07-28 iOS 1.0.0 (10) が App Store で公開されたため、iOS側はTestFlight案内から公式バッジ+QRに差し替え済み。Androidはまだオープンテストのため、案内カードはそのまま残している。**
+**2026-07-29 追記**: 当初iOS側をバッジのみ・Android側をカード付きで実装したところ見た目のバランスが悪かった(Androidの方が目立つ)ため、両OSとも同じ `.app-card` の2カードグリッドに統一。あわせて、PCで見て手元のスマホでApp Storeを開けるよう iOS側にもQRコードを追加した。
 
-- QR は 2 つともこのリポジトリで生成し、デコードして URL 一致を確認済み
+| 項目 | 内容 |
+|---|---|
+| App Store (iOS) | バッジ画像 `images/Download_on_the_App_Store_Badge_JP_RGB_blk_100317.svg` + QR `images/ios_appstore_qr.png` → `https://apps.apple.com/jp/app/ゆかナビ/id6792447073` |
+| Android (オープンテスト) | ボタン + QR `images/android_test_qr.png` → `https://play.google.com/apps/testing/com.yfrteam.yukanavi` |
+
+- QRは2つともこのリポジトリで生成し (`qrcode` + `Pillow`)、OpenCVの `QRCodeDetector` でデコードしてURL一致を確認済み
+- 白背景用に黒バッジ (`_blk_`) を採用。白バッジ (`_wht_`) も同梱してあるので、暗色背景に変更する場合はそちらに差し替える
 - スタイルは `<head>` 内の `<style>` に閉じ込めてある (共通 `assets/style.css` は無変更)
-- 画面が狭いときは 2 カラムが自動で縦積みになる (flex-wrap)
+- 画面が狭いときは2カードとも自動で縦積みになる (flex-wrap)
 
-> **一時的な掲載**: ストア公開時には、`release-status` の文言を戻し、
-> `.beta-invite` のブロックと `<head>` の `<style>` を削除して、ストアバッジ / リンクに差し替える。
-> iOS だけ先に公開された場合など、片方だけ残すときは該当の `.beta-card` を削除する。
+> **一時的な掲載 (Android)**: Android正式公開時には、`release-status` の文言を「iOS版・Android版 配信中」等に更新し、
+> Androidの `.app-card` (テスト参加ボタン・QR・注記) を、iOS側と同様の公式バッジ + Google Playの QR に差し替える。
 
 ## privacy.html — ストア申告との整合と実装反映
 
@@ -70,4 +72,4 @@ ykr.moe/apps/yukanavi/ で公開中のページの修正版と、新規追加ペ
 
 ## 備考
 
-- release-status (「Android版 公開準備中」) はストア公開時にストアバッジ / リンクへ差し替える想定 (今回は変更していない)
+- `manual.html` にも同じ hero (App Storeバッジ + Androidテスト参加案内) ブロックがあるため、index.html と同時に修正済み
