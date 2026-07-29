@@ -1,0 +1,160 @@
+{
+  "name": "ゆかりちゃん 四季フルセット",
+  "author": "YFRTeam",
+  "description": "ゆかりちゃんと四季の昼夜を楽しめる、画像・BGM・SE・表情差分入りのフル機能スキンです。",
+  "backgrounds": [
+    {
+      "type": "image",
+      "file": "backgrounds/default.png"
+    }
+  ],
+  "background_spring_day": {
+    "type": "image",
+    "file": "backgrounds/spring_day.png"
+  },
+  "background_spring_night": {
+    "type": "image",
+    "file": "backgrounds/spring_night.png"
+  },
+  "background_summer_day": {
+    "type": "image",
+    "file": "backgrounds/summer_day.png"
+  },
+  "background_summer_night": {
+    "type": "image",
+    "file": "backgrounds/summer_night.png"
+  },
+  "background_autumn_day": {
+    "type": "image",
+    "file": "backgrounds/autumn_day.png"
+  },
+  "background_autumn_night": {
+    "type": "image",
+    "file": "backgrounds/autumn_night.png"
+  },
+  "background_winter_day": {
+    "type": "image",
+    "file": "backgrounds/winter_day.png"
+  },
+  "background_winter_night": {
+    "type": "image",
+    "file": "backgrounds/winter_night.png"
+  },
+  "characters": [
+    {
+      "type": "image",
+      "file": "characters/base.png",
+      "scale": 1.0,
+      "eyes_closed": "characters/eyes_closed.png",
+      "expressions": [
+        {
+          "file": "characters/expression_smile.png",
+          "talk": [
+            "いい選曲ですね。私も楽しみです。",
+            "その曲、きっと素敵に響きますよ。"
+          ]
+        },
+        {
+          "file": "characters/expression_wink.png",
+          "talk": [
+            "準備はばっちりです。お任せください。",
+            "次の一曲も、きれいにつなぎますね。"
+          ]
+        },
+        {
+          "file": "characters/expression_surprised.png",
+          "talk": [
+            "わあ、その曲を選ぶんですね！",
+            "これは意外なリクエストです。楽しみですね。"
+          ]
+        }
+      ]
+    }
+  ],
+  "pose_complete": {
+    "type": "image",
+    "file": "characters/pose_complete.png"
+  },
+  "bgm": {
+    "type": "audio",
+    "file": "audio/bgm_default.ogg"
+  },
+  "bgm_spring_day": {
+    "type": "audio",
+    "file": "audio/bgm_spring_day.ogg"
+  },
+  "bgm_spring_night": {
+    "type": "audio",
+    "file": "audio/bgm_spring_night.ogg"
+  },
+  "bgm_summer_day": {
+    "type": "audio",
+    "file": "audio/bgm_summer_day.ogg"
+  },
+  "bgm_summer_night": {
+    "type": "audio",
+    "file": "audio/bgm_summer_night.ogg"
+  },
+  "bgm_autumn_day": {
+    "type": "audio",
+    "file": "audio/bgm_autumn_day.ogg"
+  },
+  "bgm_autumn_night": {
+    "type": "audio",
+    "file": "audio/bgm_autumn_night.ogg"
+  },
+  "bgm_winter_day": {
+    "type": "audio",
+    "file": "audio/bgm_winter_day.ogg"
+  },
+  "bgm_winter_night": {
+    "type": "audio",
+    "file": "audio/bgm_winter_night.ogg"
+  },
+  "se_tap": {
+    "type": "audio",
+    "file": "audio/se_tap.ogg"
+  },
+  "se_confirm": {
+    "type": "audio",
+    "file": "audio/se_confirm.ogg"
+  },
+  "se_error": {
+    "type": "audio",
+    "file": "audio/se_error.ogg"
+  },
+  "se_transition": {
+    "type": "audio",
+    "file": "audio/se_transition.ogg"
+  },
+  "se_complete": {
+    "type": "audio",
+    "file": "audio/se_complete.ogg"
+  },
+  "record": {
+    "type": "image",
+    "file": "record.png"
+  },
+  "talk": [
+    "今日はどんな曲を歌いましょうか？",
+    "聴きたい曲が決まったら、私に教えてくださいね。",
+    "あなたのリクエスト、楽しみにしています。",
+    "音量や接続も、ここから確認できますよ。",
+    "次の一曲も、一緒に楽しみましょう。"
+  ],
+  "talk_morning": [
+    "おはようございます。朝の一曲、さわやかに始めましょう。",
+    "今日の気分に合う曲を探してみませんか？"
+  ],
+  "talk_evening": [
+    "お疲れさまです。夕暮れに似合う曲はいかがですか？",
+    "一日の締めくくりに、好きな歌をどうぞ。"
+  ],
+  "talk_night": [
+    "こんばんは。静かな夜のプレイリストも素敵ですね。",
+    "夜更かしはほどほどに、もう一曲だけ楽しみましょう。"
+  ],
+  "theme": {
+    "primary": "#6F49C9"
+  }
+}
