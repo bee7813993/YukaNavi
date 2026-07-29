@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="カラオケリクエストアプリ『ゆかナビ』の使い方ガイド。接続・曲の検索・予約・リモコン・きせかえの操作を画面写真つきで説明します。">
+  <meta name="theme-color" content="#ffffff">
+  <title>使い方ガイド | ゆかナビ</title>
+  <link rel="icon" href="../../assets/yukanavi-icon.png">
+  <link rel="stylesheet" href="../../assets/style.css">
+  <style>
+    .manual-body img {
+      max-width: 260px; width: 100%; height: auto; display: block;
+      margin: 1rem 0; border: 1px solid rgba(0,0,0,.12); border-radius: 12px;
+    }
+    .manual-toc { margin: 0 0 2.5rem; padding: 1.25rem 1.5rem;
+      background: rgba(0,0,0,.03); border-radius: 12px; }
+    .manual-toc ul { margin: .5rem 0 0; padding-left: 1.2rem; }
+    .manual-toc li { margin: .3rem 0; }
+    .manual-body table { border-collapse: collapse; margin: 1rem 0; }
+    .manual-body th, .manual-body td {
+      border: 1px solid rgba(0,0,0,.15); padding: .5rem .8rem; text-align: left; }
+    .manual-body section { margin-bottom: 2.5rem; }
+    /* アプリ入手案内: iOS(App Store 恒久設置) / Android(正式公開までオープンテスト案内) */
+    .app-invite {
+      margin: 1.75rem auto 0;
+      padding: 1.5rem 1.25rem;
+      max-width: 44rem;
+      background: rgba(255, 255, 255, .75);
+      border: 1px solid rgba(0, 0, 0, .1);
+      border-radius: 16px;
+      text-align: center;
+    }
+    .app-lead { margin: 0 0 1.25rem; font-size: .95rem; line-height: 1.6; }
+    .app-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      justify-content: center;
+    }
+    .app-card {
+      flex: 1 1 15rem;
+      max-width: 18rem;
+      padding: 1.25rem 1rem;
+      background: rgba(255, 255, 255, .85);
+      border: 1px solid rgba(0, 0, 0, .08);
+      border-radius: 14px;
+    }
+    .app-os {
+      margin: 0 0 .85rem;
+      font-size: 1rem;
+      letter-spacing: .02em;
+    }
+    .app-button {
+      display: inline-block;
+      padding: .8rem 1.4rem;
+      font-weight: 700;
+      text-decoration: none;
+      border-radius: 999px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
+    }
+    .app-android { background: #3ddc84; color: #0b3d22; } /* Android グリーン */
+    .app-button:hover, .app-button:focus { filter: brightness(1.06); }
+    .app-store-badge-link {
+      display: inline-block;
+      line-height: 0;
+    }
+    .app-store-badge-link:hover, .app-store-badge-link:focus { filter: brightness(1.06); }
+    .app-store-badge {
+      width: 150px;
+      height: 55px;
+      max-width: 100%;
+    }
+    .app-qr {
+      display: block;
+      width: 160px; height: auto;
+      margin: 1.1rem auto .7rem;
+      border-radius: 8px;
+    }
+    .app-note { margin: 0; font-size: .82rem; opacity: .75; line-height: 1.5; }
+    .app-foot { margin-top: 1.25rem; }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">本文へ移動</a>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="../../index.html" aria-label="YFRTeam トップページ">YFRTeam</a>
+      <nav class="site-nav" aria-label="ゆかナビ ナビゲーション">
+        <a href="index.html">ゆかナビ</a>
+        <a aria-current="page" href="manual.html">使い方</a>
+        <a href="privacy.html">プライバシー</a>
+        <a href="support.html">サポート</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="document-main">
+    <header class="document-header">
+      <div class="content-narrow">
+        <p class="section-label">USER GUIDE</p>
+        <h1>ゆかナビ 使い方ガイド</h1>
+        <p>「ゆかナビ」は、カラオケシステム「ゆかり」をスマホから操作するアプリです。自分のスマホで曲を検索・予約すると、会場の PC で流れます。このガイドは、曲を歌う人・リクエストする人向けの説明です。</p>
+      </div>
+    </header>
+
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-inner">
+        <a class="back-to-team" href="../../index.html">YFRTeamの提供アプリ</a>
+        <img class="app-icon" src="../../assets/yukanavi-icon.png" width="1024" height="1024" alt="ゆかナビのアプリアイコン">
+        <p class="eyebrow">YFRTeam presents</p>
+        <h1 id="hero-title">ゆかナビ</h1>
+        <p class="hero-copy">カラオケリクエストツール「ゆかり」を、手元のスマートフォンからもっと使いやすく。</p>
+        <p class="release-status">iOS版 配信中 ／ Android版 テスト参加者を募集中</p>
+
+        <div class="app-invite">
+          <p class="app-lead">iOS版はApp Storeで配信中です。Android版は、正式公開に先がけてどなたでもテスト版をお試しいただけます。</p>
+
+          <div class="app-grid">
+            <div class="app-card">
+              <h2 class="app-os">iPhone / iPad</h2>
+              <a class="app-store-badge-link" href="https://apps.apple.com/jp/app/%E3%82%86%E3%81%8B%E3%83%8A%E3%83%93/id6792447073">
+                <img class="app-store-badge" src="images/Download_on_the_App_Store_Badge_JP_RGB_blk_100317.svg"
+                     width="150" height="55" alt="App Storeからダウンロード">
+              </a>
+              <img class="app-qr" src="images/ios_appstore_qr.png" width="370" height="370"
+                   alt="App Store「ゆかナビ」ページの QR コード" loading="lazy">
+              <p class="app-note">App Storeで配信中です。</p>
+            </div>
+
+            <div class="app-card">
+              <h2 class="app-os">Android</h2>
+              <a class="app-button app-android" href="https://play.google.com/apps/testing/com.yfrteam.yukanavi">
+                オープンテストに参加する
+              </a>
+              <img class="app-qr" src="images/android_test_qr.png" width="370" height="370"
+                   alt="Android版 オープンテスト参加ページの QR コード" loading="lazy">
+              <p class="app-note">参加後、Google Play からインストールできます。</p>
+            </div>
+          </div>
+
+          <p class="app-note app-foot">スマートフォンのカメラで QR を読み取ってもページを開けます。</p>
+        </div>
+      </div>
+    </section>
+        
+    <article class="document-body manual-body content-narrow">
+      <nav class="manual-toc" aria-label="もくじ">
+        <strong>もくじ</strong>
+        <ul>
+          <li><a href="#ch1">1. はじめに</a></li>
+          <li><a href="#ch2">2. さいしょの設定（接続）</a></li>
+          <li><a href="#ch3">3. ホーム画面の見かた</a></li>
+          <li><a href="#ch4">4. 曲をさがす</a></li>
+          <li><a href="#ch5">5. 曲を予約する</a></li>
+          <li><a href="#ch6">6. 予約一覧を見る・自分の予約を操作する</a></li>
+          <li><a href="#ch7">7. リモコン（プレイヤー操作）</a></li>
+          <li><a href="#ch8">8. マイページ（履歴・お気に入り・連携）</a></li>
+          <li><a href="#ch9">9. きせかえ・表示設定</a></li>
+          <li><a href="#ch10">10. タブレットで使う（ダッシュボード）</a></li>
+          <li><a href="#ch11">11. 困ったとき</a></li>
+        </ul>
+      </nav>
+
+      <section>
+        <h2 id="ch1">1. はじめに</h2>
+        <ul>
+          <li>ゆかナビは <strong>会場ごとのゆかりサーバーにつないで</strong> 使います。最初に一度、接続の設定をします。</li>
+          <li>画面の下にはいつも <strong>ナビゲーションバー</strong>（左：戻る／中央：メニュー／右：ホーム）があります。</li>
+          <li><strong>戻る</strong>：一つ前の画面・階層に戻ります（Android の戻るボタン・戻るジェスチャも同じです）。</li>
+          <li><strong>メニュー</strong>：各機能の一覧を開きます（もう一度押すと閉じます）。</li>
+          <li><strong>ホーム</strong>：いつでもホーム画面に戻ります。</li>
+        </ul>
+        <p><img src="images/02_menu.png" alt="メニュー" loading="lazy"></p>
+        <ul>
+          <li>文字が小さい・大きいと感じたら、<strong>設定画面で文字の大きさ</strong>を 100%／130%／160%／190% から選べます（9 章）。</li>
+        </ul>
+      </section>
+      <section>
+        <h2 id="ch2">2. さいしょの設定（接続）</h2>
+        <p>初回起動時は接続設定の画面から始まります。あとから変えたいときは <strong>メニュー → 設定</strong> で開けます。</p>
+        <h3>つなぎかた</h3>
+        <p><img src="images/03_connect.png" alt="接続設定" loading="lazy"></p>
+        <ul>
+          <li><strong>「サーバー URL」欄</strong> に、つなぎたいゆかりサーバーの URL を入力します。</li>
+          <li>ykr.moe の部屋なら <strong>ポート番号だけ</strong>でも OK です（例：<code>11080</code>）。</li>
+          <li>会場の QR コードがあるときは、右の <strong>「QRで読取」</strong> を押して読み取ると自動で入ります（次の項目参照）。</li>
+          <li>サーバーがパスワードを求める場合は <strong>「かんたん認証パスワード」欄</strong> に入力します（不要なら空欄のまま）。</li>
+          <li><strong>「接続テスト」</strong> を押し、「接続OK: … に接続できました」と出ることを確認します。</li>
+          <li><strong>「接続設定を保存して戻る」</strong> を押すとホーム画面へ移ります。</li>
+        </ul>
+        <blockquote>
+          <p><strong>ポイント</strong></p>
+          <p>先に「接続テスト」を成功させないと保存できません（「先に接続テストをしてください」と出ます）。</p>
+          <p>URL 欄・パスワード欄で Enter（確定）を押しても接続テストが走ります。</p>
+          <p>うまくつながらないときは 11 章「困ったとき」 を見てください。</p>
+          <p><strong>名前はここでは入力しません</strong>。名前は曲を予約するときに入れます。</p>
+        </blockquote>
+        <h3>QR コードで読み取る</h3>
+        <p><img src="images/16_QRRead.png" alt="QRコードを読み取る" loading="lazy"></p>
+        <p>「QRで読取」を押すとカメラ画面が開きます。</p>
+        <ul>
+          <li>カメラの使用を許可します（初回に許可ダイアログが出ます）。</li>
+          <li>画面に映るカメラに QR コードを合わせると、自動で設定画面に戻り URL が入ります。</li>
+          <li><strong>遠くの TV などに映した QR</strong> は、下部のスライダー、または画面を <strong>2 本指でつまむ／広げる（ピンチ）</strong> で拡大して合わせます（1.0倍〜5.0倍）。</li>
+          <li>ライブ映像でうまく読めないときは <strong>「写真で読み取る」</strong> を押し、端末のカメラアプリで QR を大きく写して撮影します。</li>
+        </ul>
+        <blockquote>
+          <p>ゆかりの URL（<code>http://</code>／<code>https://</code> で始まるもの）以外の QR は取り込まれず、「ゆかりの QR ではないようです」と表示されます。</p>
+        </blockquote>
+      </section>
+      <section>
+        <h2 id="ch3">3. ホーム画面の見かた</h2>
+        <p><img src="images/01_home.png" alt="ホーム画面" loading="lazy"></p>
+        <p>起動後の起点になる画面です。</p>
+        <ul>
+          <li>上部の白い帯：中央 <strong>「NAME」</strong> に自分の名前、右 <strong>「ROOM」</strong> に今つないでいる部屋名が出ます。</li>
+          <li>名前がまだ無いときは「(よやくすると入ります)」と表示されます。</li>
+          <li>中央のティッカー：<strong>♪ いま:</strong> 再生中の曲、<strong>♪ 次:</strong> 次の曲がわかります。</li>
+          <li>自分の出番が近づくと <strong>「♪ 次はあなたの番だよ！」</strong> や <strong>「♪ そろそろ出番！あと1曲だよ」</strong> のバナーが出ます（予約時に入れた名前と一致したときだけ）。</li>
+        </ul>
+        <h3>部屋を移動する（ROOM）</h3>
+        <p>同じ会場に複数の部屋があるときは、<strong>「ROOM」欄をタップ</strong> → 一覧から部屋を選ぶと接続先を切り替えられます。今いる部屋は「✓ …（いまここ）」と表示されます。別の部屋が設定されていないときは、タップしても何も開きません。</p>
+        <h3>音（BGM・効果音）</h3>
+        <p>カラオケ用アプリのため、<strong>最初は音オフ（ミュート）</strong> です。ホーム右上のスピーカーボタンから、<strong>「音を鳴らす: オン／オフ」</strong> の切り替えと、BGM・効果音の音量調整ができます。</p>
+        <h3>ホームのパーツを動かす</h3>
+        <p>時計・再生中ティッカー・キャラは、<strong>長押し → ドラッグで移動</strong>、右上の「↔」で大きさ変更、左上の「×」で非表示にできます。まわりをタップで確定します。配置は「きせかえ」ごとに保存されます。</p>
+      </section>
+      <section>
+        <h2 id="ch4">4. 曲をさがす</h2>
+        <p><img src="images/04_search.png" alt="曲をさがす" loading="lazy"></p>
+        <p><strong>メニュー → 曲をさがす</strong>（またはホーム下部から）で開きます。</p>
+        <h3>検索の種類を切り替える</h3>
+        <p>上部のタブで切り替えます。</p>
+        <ul>
+          <li><strong>リスターDBでさがす</strong>：アニメ歌などのデータベースから、曲名・歌手・作品名で探します。</li>
+          <li><strong>ファイル名で探す(Everything)</strong>：サーバー上のファイル名の一部で探します。</li>
+        </ul>
+        <blockquote>
+          <p>どちらかがサーバーで使えない構成のときは、タブが出ない・使える方に自動で切り替わることがあります。</p>
+        </blockquote>
+        <h3>キーワードで探す</h3>
+        <p>検索欄にキーワードを入れて <strong>「検索」</strong>（キーボードの確定でも可）。何も入れずに検索するとエラー音が鳴ります。</p>
+        <h3>よく使う検索を保存する</h3>
+        <p>検索結果の右上 <strong>「☆」</strong> をタップすると今の検索を保存できます（保存すると「★」）。保存したワードは「曲をさがす」画面上部にチップとして並び、タップで再検索できます。もう一度「★」を押すと解除します。</p>
+        <h3>いろいろな探し方</h3>
+        <p><img src="images/06_period.png" alt="期別リスト" loading="lazy"></p>
+        <p><img src="images/07_name_index.png" alt="頭文字インデックス" loading="lazy"></p>
+        <p>「曲をさがす」画面のカードから、次の探し方も選べます。</p>
+        <ul>
+          <li><strong>期別リスト</strong>：リリース年 → 期（冬・春・夏・秋）→ 作品 → 曲、とたどります。「◀ 前の期」「次の期 ▶」で隣の期へ移動できます。</li>
+          <li><strong>年代別リスト</strong>：年 → 1 年ぶんの作品 → 曲、とたどります。</li>
+          <li><strong>作品名で探す／歌手名で探す／シリーズ名で探す</strong>：五十音の頭文字グリッド、または名前の一部で探します。データのない頭文字は薄く表示され押せません。英数字・記号などは「その他」にまとまります。</li>
+        </ul>
+        <h3>検索結果の使いかた</h3>
+        <p><img src="images/05_search_result.png" alt="検索結果" loading="lazy"></p>
+        <ul>
+          <li>曲一覧は <strong>「新しい順」「古い順」「曲名順」</strong> で並び替えできます。</li>
+          <li><strong>「曲でまとめる」</strong> で、同じ曲の複数ファイルをまとめる／ファイルごとに表示、を切り替えます（選択中は「✓ 曲でまとめる」）。</li>
+          <li>カード内の <strong>歌手名・作品名・「シリーズ: …」・「制作: …」</strong> はリンクです。タップするとそのキーで絞り込み直せます（「戻る」で前の結果へ）。</li>
+          <li>目的の曲・ファイルのカードをタップすると <strong>予約の画面</strong> へ進みます。</li>
+          <li>リスターDB検索が 0 件のときは、<strong>「ファイル名 (Everything) でさがす」</strong> への誘導が出ます（DB 未登録の新曲などのため）。</li>
+        </ul>
+        <h3>動画プレビュー</h3>
+        <p><img src="images/15_preview.png" alt="動画プレビュー" loading="lazy"></p>
+        <p>対応サーバーでは、ファイルに <strong>「▶ プレビュー」</strong> が出ます。タップすると全画面で動画を再生できます。</p>
+        <ul>
+          <li>最初は <strong>音が消えた状態</strong> で始まります。<strong>「音を出す」</strong> ボタンで音が出ます。</li>
+          <li><strong>シークバー</strong> で前後に移動できます。</li>
+          <li><strong>「閉じる」ボタン</strong>（または戻る）で閉じます。</li>
+        </ul>
+        <blockquote>
+          <p>動画プレビューは、会場のネットワークに直接つないでいるとき（ローカル接続）に使えます。動画ファイルの音声トラックの形式によっては、プレビューで音が出ないことがあります。</p>
+        </blockquote>
+        <h3>年齢制限のある曲を表示する</h3>
+        <p>検索結果に年齢制限のある作品の曲が隠れているときは、案内が出ます。<strong>「年齢制限曲を表示する」</strong> をタップ → 確認（18 歳以上の方向け）に同意すると表示されます。一度有効にすると、以降の検索でも標準で表示されます。表示中は一覧の下の切り替えから元に戻せます。</p>
+      </section>
+      <section>
+        <h2 id="ch5">5. 曲を予約する</h2>
+        <p><img src="images/08_reserve.png" alt="予約の確認" loading="lazy"></p>
+        <p>検索結果やマイページで曲（ファイル）をタップすると <strong>「予約の確認」</strong> 画面が開きます。</p>
+        <ul>
+          <li><strong>「歌う人の名前」</strong> に名前を入れます（前回の名前が自動で入り、次回も引き継がれます）。すぐ下に最近使った名前のボタンが並ぶので、タップでも選べます。</li>
+          <li>必要なら <strong>「コメント (任意)」</strong> を入れます。</li>
+          <li>必要なら詳細設定（下記）を調整します。</li>
+          <li><strong>「この内容で予約する」</strong> を押すと送信され、「予約したよ♪」と出ます。予約一覧に反映されます。</li>
+        </ul>
+        <p>この画面からは <strong>「お気に入り」「あとで歌う」</strong> に登録することもできます（予約せずに保存だけしたいときに使います）。</p>
+        <blockquote>
+          <p>送信に少し時間がかかることがあります。<strong>二重に予約しないよう、完了表示を待って</strong>ください。名前が空だと予約できないことがあります（サーバー設定による）。</p>
+        </blockquote>
+        <h3>詳細設定（曲ごと）</h3>
+        <p>予約の確認画面では、曲ごとに次のような設定ができます（サーバー・プレイヤーが対応している項目だけ出ます）。</p>
+        <ul>
+          <li><strong>キー変更</strong>：音程を上げ下げします。</li>
+          <li><strong>シークレット (曲名をふせる)</strong>：再生されるまで曲名を伏せて予約します。</li>
+          <li><strong>小休止 (ループ再生)</strong>：曲を繰り返し再生します。</li>
+          <li><strong>音声トラック</strong>：音声トラックを切り替えます。</li>
+          <li><strong>音ズレ補正／音量増減</strong> など。</li>
+        </ul>
+        <h3>曲情報を直して予約する</h3>
+        <p>曲名や歌手名が違っている・入っていないときは、<strong>予約の確認画面から曲情報を修正</strong>してから予約できます（サーバーが対応している場合のみ表示されます）。</p>
+        <blockquote>
+          <p><strong>修正が反映される範囲</strong></p>
+          <p>直した内容は、<strong>その予約の予約一覧での表示と、リスト出力の内容にだけ</strong>反映されます。</p>
+          <p>次回以降の<strong>検索キーワードには反映されません</strong>（元のデータベースは書き換わりません）。</p>
+        </blockquote>
+        <h3>URL でリクエストする</h3>
+        <p>YouTube などの動画 URL を直接リクエストできます。<strong>メニュー → 曲をさがす → 「URLでリクエスト」</strong>（または検索画面の「URL指定」）から、URL を貼り付けてリクエストします。</p>
+        <blockquote>
+          <p>インターネット接続が有効なサーバーでのみ使えます。対応する動画サイトはサーバー設定によります。</p>
+        </blockquote>
+      </section>
+      <section>
+        <h2 id="ch6">6. 予約一覧を見る・自分の予約を操作する</h2>
+        <p><img src="images/09_queue.png" alt="予約一覧" loading="lazy"></p>
+        <p><strong>メニュー → 予約一覧</strong> で開きます。</p>
+        <ul>
+          <li>上から再生順に曲が並び、<strong>再生中の曲はハイライト</strong>されます。予約が無いときは「予約はありません」。</li>
+          <li>曲数と待ち時間の目安（「(約 N 分)」）が表示されます。一覧は自動で更新されます。</li>
+          <li><strong>「▶ 再生中へ」</strong> で再生中の曲までスクロールできます。</li>
+          <li><strong>未再生の曲は長押し → ドラッグで並べ替え</strong>できます。</li>
+        </ul>
+        <h3>予約の詳細・変更・取り消し</h3>
+        <p><img src="images/10_request_detail.png" alt="予約の詳細" loading="lazy"></p>
+        <p>一覧の曲をタップすると <strong>「予約の詳細」</strong> が開き、次の操作ができます。</p>
+        <ul>
+          <li><strong>キー変更</strong> を後から変える</li>
+          <li><strong>コメントを追記</strong></li>
+          <li><strong>「上へ」</strong>（順番を前へ）</li>
+          <li><strong>「次に再生」</strong>（次の曲にする）</li>
+          <li><strong>「削除する」</strong>（予約を取り消す）</li>
+        </ul>
+        <blockquote>
+          <p>他の人の予約を操作できるかは、会場のサーバー設定によります。</p>
+        </blockquote>
+      </section>
+      <section>
+        <h2 id="ch7">7. リモコン（プレイヤー操作）</h2>
+        <p><img src="images/11_player.png" alt="リモコン" loading="lazy"></p>
+        <p><strong>メニュー → リモコン</strong> で、再生中のプレイヤーを手元から操作できます。操作はサーバー経由でプレイヤーに送られます（プレイヤーが対応していない操作は効きません）。</p>
+        <ul>
+          <li><strong>再生／一時停止</strong>、<strong>曲の最初から</strong>、<strong>曲終了</strong></li>
+          <li><strong>音量 −／+</strong>、<strong>ミュート</strong>、<strong>初期値</strong>、フェードアウト</li>
+          <li><strong>キーダウン／キーアップ</strong>（「♪ 原曲」で原曲キーに戻す）</li>
+          <li><strong>字幕ON/OFF</strong>、<strong>音声トラック</strong></li>
+          <li><strong>再生スピード</strong>、<strong>音ズレ補正</strong>、<strong>字幕補正</strong> などの詳細設定</li>
+        </ul>
+      </section>
+      <section>
+        <h2 id="ch8">8. マイページ（履歴・お気に入り・連携）</h2>
+        <p><img src="images/12_mypage.png" alt="マイページ" loading="lazy"></p>
+        <p><strong>メニュー → マイページ</strong> で開きます。上部のタブで切り替えます。</p>
+        <ul>
+          <li><strong>うたった曲</strong>：これまでに予約した曲の履歴。</li>
+          <li><strong>あとで歌う</strong>：あとで歌いたい曲をためておくリスト。</li>
+          <li><strong>お気に入り曲</strong>：お気に入り登録した曲。</li>
+          <li><strong>お気に入り検索</strong>：保存した検索ワード。</li>
+        </ul>
+        <p>各タブの曲はタップすると予約に進めます。</p>
+        <h3>Google 連携でバックアップ・同期</h3>
+        <p>マイページの <strong>「連携」</strong> から Google にログインすると、履歴やお気に入りが <strong>Google Drive にバックアップ</strong>され、複数の端末で同期できます。</p>
+        <ul>
+          <li>ログインは <strong>任意</strong>です。していなくても、マイページは端末内でそのまま使えます。</li>
+          <li>やめたいときは <strong>「連携データを削除」</strong> で、Drive 上のバックアップとログイン情報を消せます。</li>
+        </ul>
+        <h3>端末リンク（別の端末・Web 版と共有）</h3>
+        <p><strong>ペアコード</strong> を使って、別の端末や Web 版と同じ利用者として紐づけできます。連携画面でコードを発行し、もう一方で同じコードを入力すると、履歴やお気に入りが共有され、予約履歴も同じ利用者として記録されます（コードには有効期限があります）。</p>
+      </section>
+      <section>
+        <h2 id="ch9">9. きせかえ・表示設定</h2>
+        <h3>きせかえ（背景・キャラ）</h3>
+        <p><img src="images/13_skin.png" alt="きせかえ" loading="lazy"></p>
+        <p><strong>メニュー → きせかえ</strong> で、ホームの <strong>背景・マスコットキャラ・テーマ色（スキン）</strong> を変えられます。</p>
+        <ul>
+          <li>一覧からスキンを選ぶと、すぐに適用されます。</li>
+          <li>ホームに出すパーツ（<strong>時計・メッセージ・マスコット</strong>）の表示／非表示を切り替えられます。</li>
+          <li><strong>「リセット」</strong> で、ホームのパーツ配置を初期状態に戻せます。</li>
+          <li>スキンによっては、<strong>昼夜や季節</strong> で BGM や背景が変わったり、時間帯であいさつが変わったりします。</li>
+          <li>キャラをタップすると、スキンによっては <strong>表情やキャラ</strong> が切り替わります（まばたきするスキンもあります）。</li>
+        </ul>
+        <h3>自分の画像でスキンを作る</h3>
+        <p>手持ちの画像や動画で、自分だけのきせかえを作れます。</p>
+        <p>あらかじめ、使いたい画像をスマホに保存しておきます（<strong>写真アプリから選びます</strong>）。</p>
+        <ul>
+          <li>きせかえ画面の <strong>「スキンを作る」</strong> を押します。</li>
+        </ul>
+        <p><img src="images/skin_01_create_dialog.jpg" alt="スキンを作る" loading="lazy"></p>
+        <ul>
+          <li><strong>「スキンの名前」</strong> を入れます（例: <code>夏フェス</code>）。</li>
+          <li><strong>「背景を選ぶ (画像 / 動画)」</strong> を押し、写真から背景にしたい画像・動画を選びます。</li>
+          <li>選ぶとプレビューが出ます。<strong>プレビューをドラッグすると位置を動かせます</strong>。右の <strong>「回転 (90°)」「拡大 +」「縮小 −」「リセット」</strong> でも調整できます。</li>
+          <li><strong>「キャラ画像を選ぶ (任意)」</strong> でマスコットにする画像を選びます（透過 PNG がおすすめ）。キャラを出したくないときは <strong>「キャラなし」</strong>、ゆかりちゃんのままにするなら選ばなくて構いません。</li>
+          <li>必要に応じて、<strong>「BGM を選ぶ (任意)」</strong>（mp3 / ogg / wav）、<strong>「レコード盤を選ぶ (任意)」</strong>、<strong>「キャラのセリフ」</strong>（1 行に 1 つ。タップでランダム表示）、<strong>「テーマ色 (ボタンや文字の色)」</strong> を設定します。</li>
+          <li><strong>「作成する」</strong> を押すと作成され、すぐ適用されます。</li>
+        </ul>
+        <blockquote>
+          <p><strong>「背景」と「キャラ」を間違えないように</strong></p>
+          <p>あかりちゃんのようなキャラ画像を <strong>「背景を選ぶ」</strong> で選んでしまうと、キャラが背景として全画面に表示されます。キャラは必ず <strong>「キャラ画像を選ぶ (任意)」</strong> から選んでください。</p>
+        </blockquote>
+        <blockquote>
+          <p>選んだファイルは <strong>アプリ内にコピー</strong> されるので、元のファイルを消しても大丈夫です。</p>
+          <p>BGM に <strong>m4a は使えません</strong>（mp3 / ogg / wav に変換してください）。</p>
+          <p>あとから直すときは、スキンを選んで <strong>「スキンを編集」</strong> → 変更して <strong>「保存する」</strong>。</p>
+        </blockquote>
+        <h3>作成例：夏の野外ステージ + あかりちゃん</h3>
+        <p>夏の野外ステージの背景に、マスコットキャラを立たせる例です。使う 2 枚の画像を、あらかじめスマホに保存しておきます。</p>
+        <table>
+          <tbody>
+            <tr><th>役割</th><th>画像</th></tr>
+            <tr><td>背景</td><td>夏の野外ステージ（縦長・1080x1920）</td></tr>
+            <tr><td>キャラ</td><td>マスコットキャラ（<strong>透過 PNG</strong>）</td></tr>
+          </tbody>
+        </table>
+        <ul>
+          <li>きせかえ画面 → <strong>「スキンを作る」</strong></li>
+          <li><strong>スキンの名前</strong>: <code>夏フェス</code></li>
+          <li><strong>「背景を選ぶ (画像 / 動画)」</strong> → 夏の野外ステージの画像を選ぶ</li>
+          <li>縦 1080x1920 の画像はスマホの縦画面にぴったり収まります。プレビューをドラッグして、見せたい部分を調整します。</li>
+          <li><strong>「キャラ画像を選ぶ (任意)」</strong> → マスコットキャラの画像を選ぶ</li>
+          <li>透過 PNG なので、背景の上にキャラだけが自然に重なります。</li>
+        </ul>
+        <p><img src="images/skin_02_picked.jpg" alt="背景とキャラを選んだ状態" loading="lazy"></p>
+        <ul>
+          <li><strong>「テーマ色 (ボタンや文字の色)」</strong> で、背景に合う色（この例では海に合わせてティール）を選びます。好きな色を作りたいときは <strong>「+」→ テーマ色をつくる</strong> から、色あい・あざやかさのスライダーで調整して <strong>「この色にする」</strong>。</li>
+          <li><strong>「キャラのセリフ」</strong>（任意）に、たとえば次のように 1 行ずつ入れます。</li>
+        </ul>
+        <p>```</p>
+        <p>夏フェスいくよ〜！</p>
+        <p>つぎ、なに歌う？</p>
+        <p>```</p>
+        <ul>
+          <li><strong>「作成する」</strong> → 完成です。</li>
+        </ul>
+        <p><img src="images/skin_03_result_home.jpg" alt="完成したホーム画面" loading="lazy"></p>
+        <p>ホームがこのようになります。キャラをタップするとセリフがランダムに表示され、ボタンや文字の色も選んだテーマ色になります。</p>
+        <p>作成後、ホーム画面でキャラを <strong>長押ししてドラッグ</strong> すると位置を、右上の「↔」で大きさを調整できます（3 章 参照）。</p>
+        <h3>スキンの共有・追加</h3>
+        <ul>
+          <li><strong>「共有」</strong>：作ったスキンを zip で書き出して、他の人に渡せます。</li>
+          <li><strong>「取り込む (zip)」</strong>：もらった zip を取り込みます。</li>
+          <li><strong>「コードで追加」</strong>：配布スキンのシリアルコードを入力すると、ダウンロードから適用まで自動で行われます。</li>
+          <li><strong>「削除」</strong>：いらなくなったスキンを消します。</li>
+          <li><strong>「フォルダを開く」</strong>（PC 版）：スキンの保存フォルダを開きます。</li>
+        </ul>
+        <h3>文字の大きさ・その他</h3>
+        <p><strong>メニュー → 設定</strong> で、<strong>文字の大きさ</strong>（100%／130%／160%／190%）を変えられます。変えると全画面にすぐ反映されます。</p>
+      </section>
+      <section>
+        <h2 id="ch10">10. タブレットで使う（ダッシュボード）</h2>
+        <p><img src="images/14_dashboard.png" alt="ダッシュボード" loading="lazy"></p>
+        <p>タブレットを会場に据え置いて、みんなに見せる表示です。<strong>メニュー → ダッシュボード</strong>（タブレット級の端末でのみメニューに出ます。スマホでは出ません）。</p>
+        <ul>
+          <li>横向きにすると自動で横レイアウトになります。</li>
+          <li>左に <strong>プレイヤー</strong>（再生操作）、右に <strong>予約リスト</strong>（再生済 → 再生中 → これからの予約を 1 本で表示）と、<strong>この部屋に接続する QR</strong>・<strong>アプリを入手する QR</strong> が出ます。</li>
+          <li>表示中は画面が消灯しません。</li>
+        </ul>
+      </section>
+      <section>
+        <h2 id="ch11">11. 困ったとき</h2>
+        <p><strong>サーバーにつながらない</strong></p>
+        <ul>
+          <li>URL・ポート番号が正しいか確認します。ykr.moe の部屋はポート番号だけで OK です。</li>
+          <li>パスワードが必要なサーバーでは「かんたん認証パスワード」を入れます（「認証に失敗しました。パスワードを確認してください」と出るとき）。</li>
+          <li>会場の Wi-Fi につながっているか確認します。</li>
+          <li>設定画面で <strong>「接続テスト」</strong> を押し、成功してから保存します。</li>
+        </ul>
+        <p><strong>QR コードが読み取れない</strong></p>
+        <ul>
+          <li>スライダーや 2 本指ピンチで拡大して合わせます。</li>
+          <li>それでも読めないときは <strong>「写真で読み取る」</strong> で、カメラアプリから大きく写して撮影します。</li>
+        </ul>
+        <p><strong>カメラが起動しない・許可を聞かれた直後に失敗する</strong></p>
+        <ul>
+          <li>カメラの使用を許可してください。許可した直後は自動で起動します。</li>
+          <li>許可しない場合は、URL を手入力で設定できます。</li>
+        </ul>
+        <p><strong>自分の出番バナー（「次はあなたの番だよ！」）が出ない</strong></p>
+        <ul>
+          <li>予約時に入れた <strong>名前</strong> と一致したときだけ出ます。名前を入れて予約してください。</li>
+        </ul>
+        <p><strong>動画プレビューで音が出ない</strong></p>
+        <ul>
+          <li>最初はミュートです。<strong>「音を出す」</strong> を押してください。</li>
+          <li>動画ファイルの音声トラックの形式によっては、プレビューで音が出ないことがあります（映像の確認用としてお使いください）。</li>
+        </ul>
+        <p><strong>予約したのに反映されない／二重に予約してしまいそう</strong></p>
+        <ul>
+          <li>送信に時間がかかることがあります。<strong>完了表示（「予約したよ♪」）を待って</strong>から操作してください。</li>
+          <li>予約一覧で自分の曲が入っているか確認できます。</li>
+        </ul>
+      </section>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <p class="footer-brand">YFRTeam</p>
+      <nav aria-label="フッターナビゲーション">
+        <a href="../../index.html">YFRTeamトップ</a>
+        <a href="manual.html">使い方</a>
+        <a href="index.html">ゆかナビ</a>
+        <a href="support.html">サポート</a>
+      </nav>
+      <p class="copyright">&copy; 2026 YFRTeam</p>
+    </div>
+  </footer>
+</body>
+</html>

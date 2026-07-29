@@ -57,3 +57,18 @@ Thumbs.db
 # 導入手順は README.md を参照
 /[Aa]ssets/Live2D/
 /[Aa]ssets/Live2D.meta
+
+# ===== サンプルスキンの配布用 zip =====
+# 中身は同じフォルダの展開済み素材と完全に同一で、make_zip 系スクリプトで
+# 再生成できるため、リポジトリには展開済みの素材だけを置く
+/art/sample_skins/*.zip
+/art/sample_skins/*/*.zip
+
+# ===== 手元の作業ファイル (リポジトリには含めない) =====
+# Unity がクラッシュ復旧時に作るシーンの退避
+/[Aa]ssets/_Recovery/
+/[Aa]ssets/_Recovery.meta
+# ストア審査資料などの参照用 PDF (ルート直下に置いたもの)
+/*.pdf
+# セッション間の引き継ぎメモ (一時的な作業メモ)
+/docs/SESSION_HANDOFF_*.md

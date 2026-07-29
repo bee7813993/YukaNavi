@@ -132,6 +132,9 @@ namespace YukaNavi
             PlayerPrefs.DeleteKey("yukanavi.google_carry"); // 旧・持ち歩きトークンの掃除
             MypageService.StartGoogleSync();
 
+            // デフォルトテーマ拡張パック (季節 BGM 等) の更新確認。失敗しても現行データで動く
+            DefaultThemePack.CheckForUpdateAsync();
+
             if (AppConfig.IsConfigured)
             {
                 _screens.ShowAsRoot<HomeScreen>();
@@ -420,6 +423,7 @@ namespace YukaNavi
         {
             if (focused && _screens != null)
             {
+                Bgm.RefreshForCurrentSkin(); // サスペンド中の時間帯・季節またぎを復帰時に反映
                 HandleSharedUrl();
             }
         }

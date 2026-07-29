@@ -13,6 +13,10 @@ KaraokeRequestorWeb 操作アプリ向けの「ゆかり」ちゃんデフォル
 | 表情差分: 困り顔 | `expressions/yukari_expr_worried_error.png` | 1024x1536, RGBA 透過。通信エラー時用 |
 | 予約完了ポーズ | `poses/yukari_pose_request_complete.png` | 1024x1536, RGBA 透過 |
 | 案内ポーズ | `poses/yukari_pose_guidance.png` | 1024x1536, RGBA 透過。手を差し出すガイド用 |
+| 追加マスコット: あかりちゃん | `../akari/akari_mascot_transparent.png` | 1024x1536, RGBA 透過。夏をイメージした、ゆかりちゃんの友達 |
+| あかりちゃん衣装: マリンワンピース | `../akari/outfits/akari_outfit_marine_transparent.png` | 1024x1536, RGBA 透過 |
+| あかりちゃん衣装: 夏祭り浴衣 | `../akari/outfits/akari_outfit_yukata_transparent.png` | 1024x1536, RGBA 透過 |
+| あかりちゃん衣装: サマーフェス | `../akari/outfits/akari_outfit_summer_festival_transparent.png` | 1024x1536, RGBA 透過 |
 | ホーム背景 | `backgrounds/yukanavi_home_background_1080x1920.png` | 1080x1920, RGB |
 | 横持ちホーム背景 | `backgrounds/yukanavi_home_background_landscape_1920x1080.png` | 1920x1080, RGB |
 | ホーム背景（ゆかりなし） | `backgrounds/yukanavi_home_background_no_character_1080x1920.png` | 1080x1920, RGB。透過立ち絵重ね用 |
@@ -21,6 +25,7 @@ KaraokeRequestorWeb 操作アプリ向けの「ゆかり」ちゃんデフォル
 | 季節ホーム背景: 春・野外ステージ横 | `backgrounds/seasonal/yukanavi_home_background_spring_outdoor_landscape_1920x1080.png` | 1920x1080, RGB。透過立ち絵重ね用 |
 | 季節ホーム背景: 夏・野外ステージ | `backgrounds/seasonal/yukanavi_home_background_summer_outdoor_1080x1920.png` | 1080x1920, RGB。透過立ち絵重ね用 |
 | 季節ホーム背景: 夏・野外ステージ横 | `backgrounds/seasonal/yukanavi_home_background_summer_outdoor_landscape_1920x1080.png` | 1920x1080, RGB。透過立ち絵重ね用 |
+| 季節ホーム背景: 夏・昼の海辺ステージ | `backgrounds/seasonal/yukanavi_home_background_summer_day_1080x1920.png` | 1080x1920, RGB。人物なし、透過立ち絵重ね用 |
 | 季節ホーム背景: 秋・野外ステージ | `backgrounds/seasonal/yukanavi_home_background_autumn_outdoor_1080x1920.png` | 1080x1920, RGB。透過立ち絵重ね用 |
 | 季節ホーム背景: 秋・野外ステージ横 | `backgrounds/seasonal/yukanavi_home_background_autumn_outdoor_landscape_1920x1080.png` | 1920x1080, RGB。透過立ち絵重ね用 |
 | 季節ホーム背景: 冬・野外ステージ | `backgrounds/seasonal/yukanavi_home_background_winter_outdoor_1080x1920.png` | 1080x1920, RGB。透過立ち絵重ね用 |
@@ -73,6 +78,20 @@ KaraokeRequestorWeb 操作アプリ向けの「ゆかり」ちゃんデフォル
 | 用途 | ファイル | 仕様 |
 |---|---|---|
 | ホームBGM | `bgm/yukanavi_home_loop.wav` / `bgm/yukanavi_home_loop.ogg` | 16.0 秒ループ想定 |
+| 季節×昼夜BGM: 春昼 | `bgm/yukanavi_home_loop_spring_day.ogg` | **未制作**。16 秒程度の自然ループ、ogg 推奨 |
+| 季節×昼夜BGM: 春夜 | `bgm/yukanavi_home_loop_spring_night.ogg` | 未制作。同上 |
+| 季節×昼夜BGM: 夏昼 | `bgm/yukanavi_home_loop_summer_day.ogg` | 未制作。同上 |
+| 季節×昼夜BGM: 夏夜 | `bgm/yukanavi_home_loop_summer_night.ogg` | 未制作。同上 |
+| 季節×昼夜BGM: 秋昼 | `bgm/yukanavi_home_loop_autumn_day.ogg` | 未制作。同上 |
+| 季節×昼夜BGM: 秋夜 | `bgm/yukanavi_home_loop_autumn_night.ogg` | 未制作。同上 |
+| 季節×昼夜BGM: 冬昼 | `bgm/yukanavi_home_loop_winter_day.ogg` | 未制作。同上 |
+| 季節×昼夜BGM: 冬夜 | `bgm/yukanavi_home_loop_winter_night.ogg` | 未制作。同上 |
+
+季節×昼夜 BGM は完成後、アプリのバージョンアップなしで **デフォルトテーマ拡張パック**
+として配信できる (`docs/default-theme-pack.md` の手順を参照。この命名のまま zip の
+`bgm/` に入れる)。`Assets/YukaNavi/Resources/Audio/BGM/` に置いてビルドに同梱しても
+有効 (パック → Resources → 基本曲の順で解決される)。8 種すべて揃わなくても、
+無い組み合わせは基本ループ曲になる。
 
 ## 補足
 
@@ -89,5 +108,7 @@ KaraokeRequestorWeb 操作アプリ向けの「ゆかり」ちゃんデフォル
 - 季節背景確認用プレビュー: `yukanavi_seasonal_backgrounds_preview.png`
 - ホーム背景ループ動画確認用プレビュー: `yukanavi_home_background_loop_rich_preview.png`
 - 表情・ポーズ追加素材確認用プレビュー: `yukanavi_interaction_assets_preview.png`
+- あかりちゃん夏背景プレビュー: `../akari/akari_summer_preview_1080x1920.png`
+- あかりちゃん衣装3種・昼背景プレビュー: `../akari/akari_outfits_summer_day_preview_1620x960.png`
 - スプラッシュ確認用プレビュー: `yukanavi_splash_preview.png`
 - スプラッシュ縦・安全域確認用: `splash/yukanavi_splash_portrait_safe_area_check.png`（緑枠が中央820x1440）
