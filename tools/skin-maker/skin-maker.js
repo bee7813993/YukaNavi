@@ -86,9 +86,23 @@ function kindOf(name) {
   return null;
 }
 
+/* 拡張子から MIME タイプを求める (不明なら "")。 */
+function mimeOf(name) {
+  const map = {
+    png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
+    webp: "image/webp", gif: "image/gif",
+    mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime",
+    mp3: "audio/mpeg", ogg: "audio/ogg", wav: "audio/wav",
+  };
+  return map[extOf(name)] || "";
+}
+
 function makeAsset(blob, srcName) {
   const kind = kindOf(srcName);
-  return { blob, srcName, url: URL.createObjectURL(blob), kind };
+  // zip から取り出した blob は MIME タイプを持たない。audio / video 要素は
+  // タイプが分からないとデコードを拒否することがあるため、拡張子から補っておく
+  const typed = blob.type ? blob : new Blob([blob], { type: mimeOf(srcName) });
+  return { blob: typed, srcName, url: URL.createObjectURL(typed), kind };
 }
 
 function freeAsset(asset) {
@@ -1164,7 +1178,7 @@ function initSimulator() {
 
   const audio = document.getElementById("bgm-audio");
   const playBtn = document.getElementById("btn-bgm-play");
-  playBtn.addEventListener("click", () => {
+  playBtn.addEventListener("click", async () => {
     if (!audio.paused) {
       audio.pause();
       playBtn.textContent = "♪ BGM を試聴";
@@ -1175,10 +1189,26 @@ function initSimulator() {
       alert("この時刻はアプリ標準の BGM になります (このスキンの BGM はありません)");
       return;
     }
+    // ブラウザが再生できない形式のことがある (Safari は ogg 非対応など)。
+    // アプリ側では再生できるので、試聴だけの制限であることを伝える
+    const mime = mimeOf(asset.srcName);
+    if (mime && audio.canPlayType(mime) === "") {
+      alert(`このブラウザでは ${extOf(asset.srcName)} を試聴できません。\n`
+        + "ゆかナビアプリでは再生できるので、スキンの設定としては問題ありません。");
+      return;
+    }
     audio.src = asset.url;
-    audio.play();
-    playBtn.textContent = "■ 停止";
+    try {
+      await audio.play();
+      playBtn.textContent = "■ 停止";
+    } catch (e) {
+      // 失敗を握りつぶすと「押しても音が出ない」だけの状態になるため必ず知らせる
+      playBtn.textContent = "♪ BGM を試聴";
+      alert("試聴を再生できませんでした: " + (e && e.message ? e.message : e));
+    }
   });
+  // 再生し終わり (ループしない形式など) や停止時にラベルを戻す
+  audio.addEventListener("pause", () => { playBtn.textContent = "♪ BGM を試聴"; });
 }
 
 function renderSimResult() {
