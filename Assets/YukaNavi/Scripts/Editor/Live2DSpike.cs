@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
@@ -124,6 +126,121 @@ namespace YukaNavi.EditorTools
                 + $"色のあるピクセル: {colored}/{total} ({100f * colored / total:F1}%)\n"
                 + "→ 色があるのにアルファが 0 なら「描画はできているがアルファが抜けている」、"
                 + "どちらも 0 なら「カメラが描画していない」");
+        }
+
+        /// <summary>
+        /// モデルの描画範囲の内訳を出す (診断用)。
+        /// カメラの自動フィットが全パーツのメッシュから範囲を合成しているため、
+        /// 見えていないパーツ (不透明度 0 の表情差分など) が含まれていると
+        /// 範囲が過大になり、モデルが小さく表示される。その切り分け用。
+        /// </summary>
+        [MenuItem("YukaNavi/Live2D/スパイク: モデルの描画範囲を診断")]
+        public static void DiagnoseBounds()
+        {
+            var stage = GameObject.Find("Live2DStage");
+            var model = stage != null ? stage.transform.Find("Model") : null;
+            if (model == null)
+            {
+                Debug.LogError("[YukaNavi] スパイクが表示されていません");
+                return;
+            }
+
+            // マスクとして使われているメッシュを集める。
+            // マスク専用のメッシュ (他のパーツの切り抜きに使うもの) は画面に描画されないため、
+            // 描画範囲の計算に含めるとモデルが実際より大きく見積もられる
+            var maskSet = new HashSet<Object>();
+            foreach (var meshRenderer in model.GetComponentsInChildren<MeshRenderer>())
+            {
+                var drawable = meshRenderer.GetComponent("CubismDrawable");
+                if (drawable == null)
+                {
+                    continue;
+                }
+                var masksProperty = drawable.GetType().GetProperty("Masks");
+                var masks = masksProperty != null ? masksProperty.GetValue(drawable) as System.Array : null;
+                if (masks == null)
+                {
+                    continue;
+                }
+                foreach (var mask in masks)
+                {
+                    if (mask is Object maskObject)
+                    {
+                        maskSet.Add(maskObject);
+                    }
+                }
+            }
+
+            var all = new Bounds();
+            var opaqueOnly = new Bounds();   // 不透明度 > 0 のみ
+            var nonMaskOnly = new Bounds();  // マスク用を除く
+            var both = new Bounds();         // 両方の条件を満たすもの
+            bool hasAll = false, hasOpaque = false, hasNonMask = false, hasBoth = false;
+            int total = 0, opaqueCount = 0, nonMaskCount = 0, bothCount = 0;
+            var parts = new List<(string name, Bounds b, float opacity, bool isMask)>();
+
+            foreach (var meshRenderer in model.GetComponentsInChildren<MeshRenderer>())
+            {
+                var cubismRenderer = meshRenderer.GetComponent("CubismRenderer");
+                if (cubismRenderer == null)
+                {
+                    continue;
+                }
+                var type = cubismRenderer.GetType();
+                var meshProperty = type.GetProperty("Mesh", BindingFlags.Public | BindingFlags.Instance);
+                var mesh = meshProperty != null ? meshProperty.GetValue(cubismRenderer) as Mesh : null;
+                if (mesh == null || mesh.vertexCount == 0)
+                {
+                    continue;
+                }
+                total++;
+                // Opacity は internal なので NonPublic も対象にする
+                float opacity = -1f;
+                var opacityProperty = type.GetProperty("Opacity",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (opacityProperty != null && opacityProperty.PropertyType == typeof(float))
+                {
+                    opacity = (float)opacityProperty.GetValue(cubismRenderer);
+                }
+                // マスク判定は CubismDrawable ではなく描画側の参照先と突き合わせる
+                bool isMask = maskSet.Contains(meshRenderer.GetComponent("CubismDrawable"));
+                var b = mesh.bounds;
+                parts.Add((meshRenderer.name, b, opacity, isMask));
+
+                if (!hasAll) { all = b; hasAll = true; } else { all.Encapsulate(b); }
+                bool isOpaque = opacity > 0.01f;
+                if (isOpaque)
+                {
+                    opaqueCount++;
+                    if (!hasOpaque) { opaqueOnly = b; hasOpaque = true; } else { opaqueOnly.Encapsulate(b); }
+                }
+                if (!isMask)
+                {
+                    nonMaskCount++;
+                    if (!hasNonMask) { nonMaskOnly = b; hasNonMask = true; } else { nonMaskOnly.Encapsulate(b); }
+                }
+                if (isOpaque && !isMask)
+                {
+                    bothCount++;
+                    if (!hasBoth) { both = b; hasBoth = true; } else { both.Encapsulate(b); }
+                }
+            }
+
+            // 範囲を押し広げている犯人を見つけるため、面積の大きい順に並べる
+            parts.Sort((x, y) => (y.b.size.x * y.b.size.y).CompareTo(x.b.size.x * x.b.size.y));
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"[YukaNavi] 描画範囲の診断 (パーツ {total} 個 / マスク参照 {maskSet.Count} 個)");
+            sb.AppendLine($"  (A) 全パーツ          : size={all.size} center={all.center}");
+            sb.AppendLine($"  (B) 不透明度>0 のみ    : size={opaqueOnly.size} center={opaqueOnly.center} ({opaqueCount} 個)");
+            sb.AppendLine($"  (C) マスク用を除く     : size={nonMaskOnly.size} center={nonMaskOnly.center} ({nonMaskCount} 個)");
+            sb.AppendLine($"  (D) B と C の両方      : size={both.size} center={both.center} ({bothCount} 個)");
+            sb.AppendLine("  大きいパーツ 上位 12 件 (名前 / サイズ / 不透明度 / マスク用か):");
+            for (int i = 0; i < Mathf.Min(12, parts.Count); i++)
+            {
+                var p = parts[i];
+                sb.AppendLine($"    {p.name} / {p.b.size} / opacity={p.opacity:F2} / mask={p.isMask}");
+            }
+            Debug.Log(sb.ToString());
         }
 
         /// <summary>

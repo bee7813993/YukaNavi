@@ -145,11 +145,20 @@ namespace YukaNavi.UI
             for (int i = 0; i < MaxFitAttempts; i++)
             {
                 yield return null;
-                if (TryFitCamera())
+                if (TryFitCamera(opaqueOnly: true))
                 {
                     IsReady = true;
                     yield break;
                 }
+            }
+            // 不透明度が読めない SDK バージョンなどに備えて、最後は全パーツで合わせる
+            // (見えないパーツも含むぶんモデルが小さめに表示されるが、表示はされる)
+            if (TryFitCamera(opaqueOnly: false))
+            {
+                IsReady = true;
+                Debug.LogWarning("[YukaNavi] Live2D: 表示中のパーツを判別できなかったため、"
+                    + "全パーツで画角を合わせました (モデルが小さめに表示されます)");
+                yield break;
             }
             Debug.LogWarning("[YukaNavi] Live2D モデルの描画範囲が取得できませんでした ("
                 + MaxFitAttempts + " フレーム待機後)");
@@ -158,8 +167,11 @@ namespace YukaNavi.UI
         /// <summary>
         /// モデルの実際の描画範囲にカメラを合わせる。範囲が取れなければ false
         /// (メッシュがまだ構築されていない。数フレーム後に再試行すれば取れることが多い)。
+        /// opaqueOnly=true のときは不透明度が 0 のパーツを除外する。
+        /// Cubism のモデルは未使用の表情差分なども全てメッシュとして持っており、それらを
+        /// 含めると範囲が実際の見た目の 2 倍以上になることがある (SDK サンプルの Mao で確認)。
         /// </summary>
-        bool TryFitCamera()
+        bool TryFitCamera(bool opaqueOnly)
         {
             var bounds = new Bounds();
             bool hasBounds = false;
@@ -171,8 +183,20 @@ namespace YukaNavi.UI
                 {
                     continue;
                 }
-                var meshProperty = cubismRenderer.GetType()
-                    .GetProperty("Mesh", BindingFlags.Public | BindingFlags.Instance);
+                var type = cubismRenderer.GetType();
+                if (opaqueOnly)
+                {
+                    float opacity = GetOpacity(cubismRenderer, type);
+                    if (opacity < 0f)
+                    {
+                        return false; // 判別できないので、このモードは諦めてフォールバックに委ねる
+                    }
+                    if (opacity <= 0.01f)
+                    {
+                        continue; // 未使用の表情差分など、画面に出ていないパーツ
+                    }
+                }
+                var meshProperty = type.GetProperty("Mesh", BindingFlags.Public | BindingFlags.Instance);
                 var mesh = meshProperty != null ? meshProperty.GetValue(cubismRenderer) as Mesh : null;
                 if (mesh == null || mesh.vertexCount == 0)
                 {
@@ -199,6 +223,21 @@ namespace YukaNavi.UI
             _camera.orthographicSize = halfHeight;
             _camera.transform.position = new Vector3(bounds.center.x, bounds.center.y, bounds.center.z - 10f);
             return true;
+        }
+
+        /// <summary>
+        /// パーツの不透明度。読めなかったときは -1 (SDK の変更などで判別不能)。
+        /// CubismRenderer.Opacity は internal のためリフレクションで読む。
+        /// </summary>
+        static float GetOpacity(Component cubismRenderer, System.Type type)
+        {
+            var opacityProperty = type.GetProperty("Opacity",
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (opacityProperty == null || opacityProperty.PropertyType != typeof(float))
+            {
+                return -1f;
+            }
+            return (float)opacityProperty.GetValue(cubismRenderer);
         }
     }
 }
