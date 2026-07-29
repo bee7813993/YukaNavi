@@ -1,5 +1,6 @@
 {
-  "source": "J:/Git/KaraokeRequestorWeb/images/マスコット/yukari_mascot_transparent.png",
+  "source": "../yukari_mascot_transparent.png",
+  "handoff_source": "../references/yukari_mascot_transparent.png",
   "canvas": {
     "width": 1024,
     "height": 1536
