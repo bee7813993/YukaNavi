@@ -48,14 +48,37 @@ SDK は**再配布不可**のためリポジトリに含まれない(`Assets/Liv
 
 - **Color Space は Linear のまま**(公式は Gamma 推奨)。Gamma に変えると既存 UI 全体の色味が
   変わってしまうため。Cubism Editor と多少見た目が変わる場合はモデル側で調整する
-- **HDR は有効のまま**(公式は無効化推奨)。背景が黒くなる症状が出たら
-  HDR Precision を 64-bit にする
+- **HDR は無効にした**(公式推奨に合わせた)。ゆかナビは 2D の UI アプリで HDR の恩恵がなく、
+  モバイルではメモリ帯域を無駄に使うだけのため。HDR を使う場合は
+  HDR Precision を 64-bit にしないと背景が黒くなる
 - **`Renderer2D.asset` は残したまま** Cubism を Default にしている。ゆかナビの UI は
-  すべて ScreenSpaceOverlay で URP のレンダラーを経由しないため実害がない。
-  ただし Renderer Data が複数あるとシーンビューでモデルが描画されない制約があるので、
-  モデル調整時に困るようなら Renderer2D を外す
+  すべて ScreenSpaceOverlay で URP のレンダラーを経由しないため実害がない
+  (Renderer Data が複数あってもゲーム実行時の描画には影響しないことを実機で確認済み)
 - `Assets/csc.rsp` / `Assets/mcs.rsp` (`-unsafe`) は SDK 同梱のコンパイラ設定。
   SDK 本体と違いリポジトリに含めている(無いと Cubism Core を使うコードが通らない)
+
+#### Cubism 5-r.5 (URP) の重要な仕様 — 実装前に必ず読むこと
+
+SDK のソースを読んで確定させた、ハマりどころ。`Live2DMascotRenderer.cs` はこれらを前提にしている。
+
+- **モデルの描画位置に親(祖先)の Transform が反映されない**。描画位置は
+  「`CubismRenderController` の `localPosition` + 各 Drawable の `localPosition`」だけで決まる
+  (`CubismRendererUsingBlendMode.ApplyTransform` が `localPosition` しか読まず、
+  描画は `DrawMesh(mesh, Matrix4x4.identity, ...)` のため)。
+  **モデルを動かしたいときは、親ではなくモデル自身の `localPosition` を変える**。
+  回転・スケールも同様に local のみが効く
+- **描画パスはカメラの `cullingMask`(レイヤー)を見ない**。登録されたモデルは全 Game カメラで
+  描画されるので、特定カメラにだけ写らせたい場合は
+  **レイヤー分離ではなく「視錐台の外に置く」**しかない
+- **実行時は `MeshRenderer.bounds` が常に 0**。`MeshFilter` はエディタ非再生時にしか付与されない
+  (`CubismRenderer.TryInitializeMeshFilter`)。実行時にモデルの大きさを知りたいときは
+  各 `CubismRenderer` が持つ `Mesh` から求める
+- **メッシュは実行時に構築される**ため、生成直後のフレームでは上記の `Mesh` もまだ空。
+  数フレーム待ってリトライする必要がある
+- Inspector の Camera Preview には**モデルが描画されない**(`CubismRenderPassFeature` が
+  `cameraType` の Game / SceneView 以外を弾くため)。プレビューで表示確認をしないこと
+- `RenderTexture` に描画する場合、Unity 6 の Render Graph API は**depth buffer 必須**
+  (`new RenderTexture(w, h, 24, ...)`)。無いと何も描かれない
 
 ## 開発時の接続先
 
