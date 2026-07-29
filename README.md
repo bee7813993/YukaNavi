@@ -30,16 +30,32 @@ Unity 6 製、Android / Windows 先行(iOS は後続)。名前はカラオケ機
 ### 3. Live2D Cubism SDK の導入(キャラの Live2D 対応時)
 
 SDK は**再配布不可**のためリポジトリに含まれない(`Assets/Live2D/` は .gitignore 済み)。
+クローンした環境で Live2D を触るときは、各自で以下を実施する。
 
-1. [Live2D 公式サイト](https://www.live2d.com/sdk/download/unity/)から「Cubism SDK for Unity」をダウンロード
-   (**Cubism 5 SDK R5 以降** — URP 対応版。R5 以降は Built-in RP / HDRP がサポート外)
-2. unitypackage をプロジェクトにインポート
-3. URP アセットの Renderer List に `CubismURPRenderer.asset` を設定([公式手順](https://docs.live2d.com/en/cubism-sdk-tutorials/urp-import/))
-4. Cubism Editor と同等の見た目にするため、HDR を無効化し Color Space を Gamma に設定
-   (HDR を使う場合は HDR Precision を 64-bit にしないと背景が黒くなることがある)
-5. 導入した SDK バージョンをこの README に記録すること
+1. [Live2D 公式サイト](https://www.live2d.com/sdk/download/unity/)から
+   **「Cubism SDK for Unity(URP版)」**をダウンロード
+   (ページに URP 版と BiRP 版があるので注意。R5 以降は Built-in RP / HDRP がサポート外)
+2. unitypackage をプロジェクトにインポート(`Assets/Live2D/` に入る)
+3. `Assets/Settings/UniversalRP.asset` の Renderer List に
+   `Assets/Live2D/Cubism/Rendering/URP/CubismURPRenderer.asset` を追加し、**Default に設定**
+   ([公式手順](https://docs.live2d.com/en/cubism-sdk-tutorials/urp-import/))。この設定はコミット済みなので、
+   SDK を入れると参照が解決して有効になる
+4. 導入した SDK バージョンをこの README に記録すること
 
-導入済み SDK バージョン: (未導入)
+導入済み SDK バージョン: **Cubism 5 SDK for Unity R5** (`5-r.5` / 2026-04-02、URP 版)
+
+#### このプロジェクトでの判断(公式手順との差分)
+
+- **Color Space は Linear のまま**(公式は Gamma 推奨)。Gamma に変えると既存 UI 全体の色味が
+  変わってしまうため。Cubism Editor と多少見た目が変わる場合はモデル側で調整する
+- **HDR は有効のまま**(公式は無効化推奨)。背景が黒くなる症状が出たら
+  HDR Precision を 64-bit にする
+- **`Renderer2D.asset` は残したまま** Cubism を Default にしている。ゆかナビの UI は
+  すべて ScreenSpaceOverlay で URP のレンダラーを経由しないため実害がない。
+  ただし Renderer Data が複数あるとシーンビューでモデルが描画されない制約があるので、
+  モデル調整時に困るようなら Renderer2D を外す
+- `Assets/csc.rsp` / `Assets/mcs.rsp` (`-unsafe`) は SDK 同梱のコンパイラ設定。
+  SDK 本体と違いリポジトリに含めている(無いと Cubism Core を使うコードが通らない)
 
 ## 開発時の接続先
 
