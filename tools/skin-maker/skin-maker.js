@@ -745,6 +745,21 @@ const KNOWN_KEYS = new Set([
 TIMED_KEYS.forEach(({ key }) => { KNOWN_KEYS.add("background_" + key); KNOWN_KEYS.add("bgm_" + key); });
 SE_KEYS.forEach(({ key }) => KNOWN_KEYS.add("se_" + key));
 
+/*
+ * zip 内のファイルを探す。
+ * ZIP 仕様のパス区切りは "/" だが、Windows のツールで作った zip は "\" になっていることがある
+ * (実際に PowerShell 等で作られた配布スキンで確認)。どちらでも読めるように正規化して突き合わせる。
+ */
+function findZipEntry(zip, path) {
+  const wanted = path.replace(/\\/g, "/").toLowerCase();
+  for (const name of Object.keys(zip.files)) {
+    const entry = zip.files[name];
+    if (entry.dir) continue;
+    if (name.replace(/\\/g, "/").toLowerCase() === wanted) return entry;
+  }
+  return null;
+}
+
 async function loadZipFile(file) {
   let zip;
   try {
@@ -755,11 +770,11 @@ async function loadZipFile(file) {
   }
   // skin.json をルート → 1階層下の順で探す (アプリの ImportSkin と同じ)
   let root = "";
-  let manifest = zip.file("skin.json");
+  let manifest = findZipEntry(zip, "skin.json");
   if (!manifest) {
     for (const path of Object.keys(zip.files)) {
-      const m = path.match(/^([^/]+)\/skin\.json$/);
-      if (m) { root = m[1] + "/"; manifest = zip.file(path); break; }
+      const m = path.replace(/\\/g, "/").match(/^([^/]+)\/skin\.json$/i);
+      if (m) { root = m[1] + "/"; manifest = zip.files[path]; break; }
     }
   }
   if (!manifest) {
@@ -778,7 +793,7 @@ async function loadZipFile(file) {
   const referenced = new Set(["skin.json"]);
   async function assetOf(fileName) {
     if (!fileName) return null;
-    const entry = zip.file(root + fileName);
+    const entry = findZipEntry(zip, root + fileName);
     if (!entry) return null;
     referenced.add(fileName);
     const blob = await entry.async("blob");
@@ -862,9 +877,9 @@ async function loadZipFile(file) {
   if (json.record && json.record.file) state.record = await assetOf(json.record.file);
 
   // 規約ファイル
-  const splashEntry = zip.file(root + "splash.png");
+  const splashEntry = findZipEntry(zip, root + "splash.png");
   if (splashEntry) { referenced.add("splash.png"); state.splash = makeAsset(await splashEntry.async("blob"), "splash.png"); }
-  const thumbEntry = zip.file(root + "thumbnail.png");
+  const thumbEntry = findZipEntry(zip, root + "thumbnail.png");
   if (thumbEntry) { referenced.add("thumbnail.png"); state.thumbnail = makeAsset(await thumbEntry.async("blob"), "thumbnail.png"); }
 
   // 未知キーと未参照ファイルを保持 (このツールが古くてもデータを失わない)
@@ -873,10 +888,15 @@ async function loadZipFile(file) {
   });
   if (json.layout) state.extraJson.layout = json.layout; // layout はツールでは編集しないが保持する
   for (const path of Object.keys(zip.files)) {
-    if (zip.files[path].dir || !path.startsWith(root)) continue;
-    const name = path.slice(root.length);
-    if (name.includes("/") || referenced.has(name)) continue;
-    state.extraFiles.push({ name, blob: await zip.files[path].async("blob") });
+    const entry = zip.files[path];
+    if (entry.dir) continue;
+    // 参照済みかどうかは "/" に正規化して突き合わせる ("\" 区切りの zip 対策)。
+    // 正規化しないとサブフォルダ内のファイルが未参照と誤判定され、二重に保存されてしまう
+    const normalized = path.replace(/\\/g, "/");
+    if (!normalized.startsWith(root)) continue;
+    const name = normalized.slice(root.length);
+    if (referenced.has(name)) continue;
+    state.extraFiles.push({ name, blob: await entry.async("blob") });
   }
 
   refreshAllUi();
