@@ -1,0 +1,160 @@
+{
+  "name": "あかりちゃん サマーフルセット",
+  "author": "YFRTeam",
+  "description": "夏をイメージしたあかりちゃんと四季の昼夜を楽しめる、画像・BGM・SE・表情差分入りのフル機能スキンです。",
+  "backgrounds": [
+    {
+      "type": "image",
+      "file": "backgrounds/default.png"
+    }
+  ],
+  "background_spring_day": {
+    "type": "image",
+    "file": "backgrounds/spring_day.png"
+  },
+  "background_spring_night": {
+    "type": "image",
+    "file": "backgrounds/spring_night.png"
+  },
+  "background_summer_day": {
+    "type": "image",
+    "file": "backgrounds/summer_day.png"
+  },
+  "background_summer_night": {
+    "type": "image",
+    "file": "backgrounds/summer_night.png"
+  },
+  "background_autumn_day": {
+    "type": "image",
+    "file": "backgrounds/autumn_day.png"
+  },
+  "background_autumn_night": {
+    "type": "image",
+    "file": "backgrounds/autumn_night.png"
+  },
+  "background_winter_day": {
+    "type": "image",
+    "file": "backgrounds/winter_day.png"
+  },
+  "background_winter_night": {
+    "type": "image",
+    "file": "backgrounds/winter_night.png"
+  },
+  "characters": [
+    {
+      "type": "image",
+      "file": "characters/base.png",
+      "scale": 1.0,
+      "eyes_closed": "characters/eyes_closed.png",
+      "expressions": [
+        {
+          "file": "characters/expression_smile.png",
+          "talk": [
+            "大丈夫、あかりが一緒だよ！",
+            "うんうん、その曲いい感じ！"
+          ]
+        },
+        {
+          "file": "characters/expression_wink.png",
+          "talk": [
+            "この選曲、センスあるじゃん！",
+            "あかりに任せて。ばっちりつなぐよ！"
+          ]
+        },
+        {
+          "file": "characters/expression_surprised.png",
+          "talk": [
+            "えっ、その曲！？わくわくしてきた！",
+            "そんな一曲もあるんだ。聴いてみたい！"
+          ]
+        }
+      ]
+    }
+  ],
+  "pose_complete": {
+    "type": "image",
+    "file": "characters/pose_complete.png"
+  },
+  "bgm": {
+    "type": "audio",
+    "file": "audio/bgm_default.ogg"
+  },
+  "bgm_spring_day": {
+    "type": "audio",
+    "file": "audio/bgm_spring_day.ogg"
+  },
+  "bgm_spring_night": {
+    "type": "audio",
+    "file": "audio/bgm_spring_night.ogg"
+  },
+  "bgm_summer_day": {
+    "type": "audio",
+    "file": "audio/bgm_summer_day.ogg"
+  },
+  "bgm_summer_night": {
+    "type": "audio",
+    "file": "audio/bgm_summer_night.ogg"
+  },
+  "bgm_autumn_day": {
+    "type": "audio",
+    "file": "audio/bgm_autumn_day.ogg"
+  },
+  "bgm_autumn_night": {
+    "type": "audio",
+    "file": "audio/bgm_autumn_night.ogg"
+  },
+  "bgm_winter_day": {
+    "type": "audio",
+    "file": "audio/bgm_winter_day.ogg"
+  },
+  "bgm_winter_night": {
+    "type": "audio",
+    "file": "audio/bgm_winter_night.ogg"
+  },
+  "se_tap": {
+    "type": "audio",
+    "file": "audio/se_tap.ogg"
+  },
+  "se_confirm": {
+    "type": "audio",
+    "file": "audio/se_confirm.ogg"
+  },
+  "se_error": {
+    "type": "audio",
+    "file": "audio/se_error.ogg"
+  },
+  "se_transition": {
+    "type": "audio",
+    "file": "audio/se_transition.ogg"
+  },
+  "se_complete": {
+    "type": "audio",
+    "file": "audio/se_complete.ogg"
+  },
+  "record": {
+    "type": "image",
+    "file": "record.png"
+  },
+  "talk": [
+    "やっほー！今日は思いっきり歌おう！",
+    "夏みたいにきらきらした一曲、探してみる？",
+    "リクエストはあかりに任せて！",
+    "その曲、絶対盛り上がるよ！",
+    "次はどんな音に会えるかな？"
+  ],
+  "talk_morning": [
+    "おはよう！朝の風みたいな曲でスタートしよ！",
+    "目覚めの一曲、元気にいってみよう！"
+  ],
+  "talk_evening": [
+    "夕焼け色のプレイリスト、作ってみない？",
+    "今日もお疲れさま！好きな歌でひと休みしよ。"
+  ],
+  "talk_night": [
+    "こんばんは！星空に似合う曲を選ぼうよ。",
+    "夜の海みたいに、ゆったりした曲もいいね。"
+  ],
+  "theme": {
+    "primary": "#1AAFC4"
+  }
+}
