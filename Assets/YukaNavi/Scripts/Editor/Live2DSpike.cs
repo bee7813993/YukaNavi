@@ -1,6 +1,7 @@
 using System.IO;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UI;
 using YukaNavi.UI;
 
 namespace YukaNavi.EditorTools
@@ -50,11 +51,18 @@ namespace YukaNavi.EditorTools
             Cleanup();
 
             // 既存の静止画マスコットを隠し、同じ枠に Live2D 表示を重ねる
-            // (MascotGroup の子なので、ホームの移動・拡縮の設定がそのまま効く)
+            // (MascotGroup の子なので、ホームの移動・拡縮の設定がそのまま効く)。
+            // GameObject 自体は有効のままにすること: ホームの長押し移動を検出する
+            // HomeDraggable がこの GameObject に付いている (HomeScreen.SetupMovable の
+            // eventTarget) ため、SetActive(false) にすると移動できなくなる
             var still = group.transform.Find("Mascot");
             if (still != null)
             {
-                still.gameObject.SetActive(false);
+                var stillImage = still.GetComponent<Image>();
+                if (stillImage != null)
+                {
+                    stillImage.enabled = false;
+                }
             }
 
             var viewGo = new GameObject(RootName);
@@ -167,7 +175,11 @@ namespace YukaNavi.EditorTools
             var still = group.transform.Find("Mascot");
             if (still != null)
             {
-                still.gameObject.SetActive(true); // 静止画マスコットを戻す
+                var stillImage = still.GetComponent<Image>();
+                if (stillImage != null)
+                {
+                    stillImage.enabled = true; // 静止画マスコットを戻す
+                }
             }
         }
     }
