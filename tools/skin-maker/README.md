@@ -47,9 +47,9 @@ python -m http.server 8765 --directory tools/skin-maker
 ## 技術メモ
 
 - 依存は同梱の [JSZip 3.10.1](https://stuk.github.io/jszip/) (MIT) のみ。ビルド不要
-- skin.json の仕様はアプリの `SkinManager.cs` / `docs/skin-dlc.md` と対応。
+- skin.json の仕様は `docs/skin-spec.md` (正はアプリの `SkinManager.cs`)。
   スキーマにキーを足したときは `skin-maker.js` の `TIMED_KEYS` / `SE_KEYS` /
-  `KNOWN_KEYS` とフォーム生成部を更新する
+  `KNOWN_KEYS` とフォーム生成部、および `docs/skin-spec.md` を更新する
 - プレビューの背景調整 (回転/ズーム/位置) は CSS transform による近似で、
   アプリの厳密な cover 計算とは僅かに差がある (実機確認を推奨)
 - 作った zip はアプリの「取り込む (zip)」でそのまま使える。DLC 配布は
