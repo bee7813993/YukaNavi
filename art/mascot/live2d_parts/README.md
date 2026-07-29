@@ -2,6 +2,9 @@
 
 既存の `yukari_mascot_transparent.png` を元にした、動作用の初期PSD素材です。
 
+> **モデル制作を依頼/開始するときは [MODEL_REQUEST.md](MODEL_REQUEST.md) を参照**
+> (納品物・パラメータ要件・モーション仕様・検収基準をまとめた発注仕様)。
+
 ## ファイル
 
 - `yukari_parts_source.psd`: パーツ分けPSD。1024x1536 / RGBA
