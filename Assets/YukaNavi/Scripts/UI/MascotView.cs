@@ -50,6 +50,7 @@ namespace YukaNavi.UI
 
         Image _image;
         RectTransform _rect;
+        Live2DMascotRenderer _live2d; // null なら静止画版
         Sprite[] _expressions;
         Sprite _eyesClosed;
         int _expressionIndex;
@@ -66,20 +67,28 @@ namespace YukaNavi.UI
         /// <summary>
         /// 下端中央アンカーで立ち絵を生成する。
         /// customSprites を渡すとスキンのカスタムキャラ (まばたきなし。複数枚ならタップで切替) になる。
+        /// live2dPrefab を渡すと静止画の代わりに Live2D モデルを表示する
+        /// (呼吸・まばたき・表情はモデル側が持つため、こちらの静止画向け演出は止める)。
         /// </summary>
         public static MascotView Create(Transform parent, Vector2 size, float baseY,
-                                        Sprite[] customSprites = null)
+                                        Sprite[] customSprites = null,
+                                        GameObject live2dPrefab = null)
         {
             var go = new GameObject("Mascot");
             go.transform.SetParent(parent, false);
             var view = go.AddComponent<MascotView>();
-            view.Build(size, baseY, customSprites);
+            view.Build(size, baseY, customSprites, live2dPrefab);
             return view;
         }
 
-        void Build(Vector2 size, float baseY, Sprite[] customSprites)
+        void Build(Vector2 size, float baseY, Sprite[] customSprites, GameObject live2dPrefab)
         {
-            if (customSprites != null && customSprites.Length > 0)
+            bool useLive2D = live2dPrefab != null;
+            if (useLive2D)
+            {
+                // 静止画のスプライトは使わない (表情差分もモデル側のパラメータで表現する)
+            }
+            else if (customSprites != null && customSprites.Length > 0)
             {
                 _isCustom = true;
                 _expressions = customSprites;
@@ -96,9 +105,19 @@ namespace YukaNavi.UI
             }
             _nextBlinkTime = Time.time + Random.Range(2f, 4f);
 
+            // Live2D 版でもこの GameObject には透明な Image を置いたままにする。
+            // ホームの長押し移動 (HomeDraggable) とタップ (Button) がこの Graphic で
+            // 判定されるため、消すと動かせなくなる。表示は子の Live2DMascotRenderer が担う
             _image = gameObject.AddComponent<Image>();
-            _image.sprite = _expressions[0];
-            _image.preserveAspect = true;
+            if (useLive2D)
+            {
+                _image.color = new Color(1f, 1f, 1f, 0f); // 透明 (タップ判定のみ)
+            }
+            else
+            {
+                _image.sprite = _expressions[0];
+                _image.preserveAspect = true;
+            }
 
             _rect = _image.rectTransform;
             _rect.anchorMin = _rect.anchorMax = new Vector2(0.5f, 0f);
@@ -106,6 +125,18 @@ namespace YukaNavi.UI
             _baseY = baseY;
             _rect.anchoredPosition = new Vector2(0f, _baseY);
             _rect.sizeDelta = size;
+
+            if (useLive2D)
+            {
+                // 表示は子に置く (この GameObject の Graphic はタップ判定用の透明 Image のため)。
+                // 枠いっぱいに広げてあるので、呼吸やスクイーズで親を拡縮すると一緒に動く
+                var viewGo = new GameObject("Live2DView");
+                viewGo.transform.SetParent(transform, false);
+                var viewRect = viewGo.AddComponent<RectTransform>();
+                UiFactory.StretchFull(viewRect);
+                _live2d = viewGo.AddComponent<Live2DMascotRenderer>();
+                _live2d.Load(live2dPrefab);
+            }
 
             var button = gameObject.AddComponent<Button>();
             button.transition = Selectable.Transition.None;
@@ -181,6 +212,13 @@ namespace YukaNavi.UI
 
         void Update()
         {
+            // Live2D 版は呼吸もまばたきもモデル (Idle モーションと自動まばたき) が持つので、
+            // 静止画向けのこれらの演出は動かさない
+            if (_live2d != null)
+            {
+                return;
+            }
+
             // 足を着けたまま呼吸で上体がゆっくり伸び縮みする (pivot が下端なので足元は動かない)。
             // ごく僅かな傾きで体重移動も乗せる。タップのスクイーズ中はそちらを優先
             if (_squash == null)
@@ -203,10 +241,14 @@ namespace YukaNavi.UI
             {
                 return;
             }
-            _expressionIndex = (_expressionIndex + 1) % _expressions.Length;
-            if (_expressions[_expressionIndex] != null)
+            // Live2D 版の表情・タップモーションはモデル側の担当 (将来 TapBody モーションを再生する)
+            if (_live2d == null && _expressions != null && _expressions.Length > 0)
             {
-                _image.sprite = _expressions[_expressionIndex];
+                _expressionIndex = (_expressionIndex + 1) % _expressions.Length;
+                if (_expressions[_expressionIndex] != null)
+                {
+                    _image.sprite = _expressions[_expressionIndex];
+                }
             }
             Se.Play(Se.Tap);
             if (_squash != null)

@@ -26,6 +26,12 @@ namespace YukaNavi.UI
 
         const float PollIntervalSeconds = 5f;
 
+        /// <summary>
+        /// デフォルトテーマの Live2D モデル (Resources 配下)。置かれていれば静止画の代わりに使う。
+        /// モデルは未制作 — 制作仕様は art/mascot/live2d_parts/MODEL_REQUEST.md
+        /// </summary>
+        const string Live2DModelPath = "Live2D/yukari";
+
         // 時計・メッセージ・マスコットの表示/位置/大きさはスキンごとに保存する (HomeLayoutStore)。
         // 表示のオン/オフはきせかえ画面に統合した。
 
@@ -1056,7 +1062,17 @@ namespace YukaNavi.UI
             group.anchorMin = group.anchorMax = new Vector2(0.5f, 0f);
             group.pivot = new Vector2(0.5f, 0f);
             group.sizeDelta = size;
-            _mascot = MascotView.Create(group, size, 0f, customs);
+            // デフォルトテーマの Live2D モデル。Resources に置かれていれば静止画の代わりに使う
+            // (モデルは未制作で、置くだけで有効になる。制作仕様は
+            //  art/mascot/live2d_parts/MODEL_REQUEST.md)。
+            // スキンがキャラ画像を指定しているときはそちらを優先する
+            // (スキンからの Live2D 指定は将来対応)
+            GameObject live2dPrefab = null;
+            if (customs == null)
+            {
+                live2dPrefab = Resources.Load<GameObject>(Live2DModelPath);
+            }
+            _mascot = MascotView.Create(group, size, 0f, customs, live2dPrefab);
             // スキンにセリフが設定されていればタップ時にランダムで表示する
             // (キャラごとの talk があれば表示中のキャラのものが優先される)
             _mascot.CustomLines = (skin.Talk != null && skin.Talk.Count > 0)

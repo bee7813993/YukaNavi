@@ -7,18 +7,17 @@ using YukaNavi.UI;
 namespace YukaNavi.EditorTools
 {
     /// <summary>
-    /// Live2D 統合の検証・実験メニュー。
-    /// 実体は Live2DMascotRenderer (Assets/YukaNavi/Scripts/UI/) で、ここはその薄いテストハーネス。
+    /// Live2D 表示を SDK 同梱のサンプルモデルで試すための検証メニュー。
+    /// ゆかりちゃんのモデルが未制作の間、見た目・動き・負荷を確かめるのに使う。
     ///
-    /// ゆかナビの UI はすべて ScreenSpaceOverlay の Canvas で、Overlay は常に最前面に描かれる。
-    /// そのため MeshRenderer である Live2D モデルを既存の描画順
-    /// (背景 → パーティクル → マスコット → 吹き出し) にそのまま挟むことができない。
-    /// Live2DMascotRenderer は専用カメラ + RenderTexture 経由でこれを解決する
-    /// (背景動画で RenderTexture を使っているのと同じ考え方。動作は実機で検証済み)。
+    /// 本番の経路はこれとは別で、HomeScreen が Resources の "Live2D/yukari" を見つけたら
+    /// MascotView が Live2D 版になる (MascotView.Create の live2dPrefab)。
+    /// このメニューは既にできあがったマスコットの上にサンプルモデルを重ねるだけなので、
+    /// 静止画版の呼吸アニメが裏で動いたままになる点だけ本番と異なる
+    /// (本番は Live2D 版だと静止画向けの演出を止める)。
     ///
-    /// Live2DMascotRenderer は Cubism の API を一切直接参照していないので、
-    /// このファイルも含めて SDK 未導入の環境でコンパイルは通る (実行時に「見つからない」で
-    /// 失敗するだけ)。
+    /// 描画の仕組みは Live2DMascotRenderer を参照。Cubism の API を直接参照していないので、
+    /// SDK 未導入の環境でもコンパイルは通る (実行時に「見つからない」で失敗するだけ)。
     /// </summary>
     public static class Live2DSpike
     {
@@ -52,16 +51,16 @@ namespace YukaNavi.EditorTools
 
             // 既存の静止画マスコットを隠し、同じ枠に Live2D 表示を重ねる
             // (MascotGroup の子なので、ホームの移動・拡縮の設定がそのまま効く)。
-            // GameObject 自体は有効のままにすること: ホームの長押し移動を検出する
-            // HomeDraggable がこの GameObject に付いている (HomeScreen.SetupMovable の
-            // eventTarget) ため、SetActive(false) にすると移動できなくなる
+            // 隠すのは「色を透明にする」方法で行うこと。ホームの長押し移動 (HomeDraggable) と
+            // タップ (Button) はこの Image で判定されるため、SetActive(false) や
+            // enabled = false にすると Graphic が raycast 対象から外れて操作できなくなる
             var still = group.transform.Find("Mascot");
             if (still != null)
             {
                 var stillImage = still.GetComponent<Image>();
                 if (stillImage != null)
                 {
-                    stillImage.enabled = false;
+                    stillImage.color = new Color(1f, 1f, 1f, 0f);
                 }
             }
 
@@ -178,7 +177,7 @@ namespace YukaNavi.EditorTools
                 var stillImage = still.GetComponent<Image>();
                 if (stillImage != null)
                 {
-                    stillImage.enabled = true; // 静止画マスコットを戻す
+                    stillImage.color = Color.white; // 静止画マスコットを戻す
                 }
             }
         }
