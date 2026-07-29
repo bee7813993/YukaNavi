@@ -44,6 +44,14 @@ https://ykr.moe/yukanavi_skin_maker/
 python -m http.server 8765 --directory tools/skin-maker
 ```
 
+## 既知の注意点
+
+- **手作りの zip はパス区切りに注意**: ZIP 仕様の区切りは `/` だが、Windows のツールで
+  作ると `\` になることがある。読み込み側で吸収しているのでスキンメーカーとアプリは
+  どちらでも扱えるが、他のツールに渡す場合は `/` の zip を用意するのが無難
+- **試聴できない形式がある**: ブラウザによっては ogg などを再生できない (Safari の ogg 等)。
+  その場合はダイアログで知らせる。**アプリ側では再生できる**ので、スキンの設定としては問題ない
+
 ## 技術メモ
 
 - 依存は同梱の [JSZip 3.10.1](https://stuk.github.io/jszip/) (MIT) のみ。ビルド不要
