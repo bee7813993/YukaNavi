@@ -13,8 +13,8 @@ namespace YukaNavi.EditorTools
     /// ("The app requires access to the camera to take pictures or record videos with it.")
     /// で上書きするため、その後 (callbackOrder 10000) に具体的な利用目的へ差し戻す。
     /// 汎用文のままだと App Store 審査ガイドライン 5.1.1(ii) で却下される
-    /// (2026-07-21 の却下で指摘)。あわせて、使っていないマイク・フォトライブラリの
-    /// 利用目的キーが注入されていれば取り除く (未使用の権限文言も審査の指摘対象)。
+    /// (2026-07-21 の却下で指摘)。あわせて、使っていない権限の利用目的キーが
+    /// 注入されていれば取り除く (未使用の権限文言も審査の指摘対象)。
     /// </summary>
     public static class IosBuildPostProcess
     {
@@ -34,10 +34,13 @@ namespace YukaNavi.EditorTools
             plist.ReadFromFile(plistPath);
             var root = plist.root;
             root.SetString("NSCameraUsageDescription", CameraUsage);
-            // アプリはマイク・フォトライブラリを使わない (QR 読み取りのカメラのみ。
-            // NativeCamera.TakePicture もカメラ権限だけで動く)
+            // マイクは使わない。フォトライブラリは NativeGallery のピッカー (PHPicker =
+            // 写真アプリの選択 UI) 経由のみで、権限も利用目的文言も不要
+            // (NativeGallery は PermissionFreeMode 固定で authorization API に触れない)。
+            // NativeGallery のビルド後処理が注入する英語汎用文言は未使用権限として取り除く
             root.values.Remove("NSMicrophoneUsageDescription");
             root.values.Remove("NSPhotoLibraryUsageDescription");
+            root.values.Remove("NSPhotoLibraryAddUsageDescription");
             plist.WriteToFile(plistPath);
             Debug.Log("[YukaNavi] Info.plist の利用目的文言を設定しました: " + plistPath);
         }

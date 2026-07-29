@@ -17,6 +17,9 @@ namespace YukaNavi.UI
         // プレビュー枠のサイズ (9:16、基準解像度系)
         static readonly Vector2 PreviewSize = new Vector2(280f, 498f);
 
+        // 写真アプリから取り込む画像の最長辺 (これより大きい写真は縮小して取り込む)
+        const int PickedImageMaxSize = 2732;
+
         RectTransform _listContent;
         readonly List<GameObject> _rows = new List<GameObject>();
         readonly List<Object> _rowAssets = new List<Object>(); // 一覧サムネイルの Texture/Sprite
@@ -35,6 +38,8 @@ namespace YukaNavi.UI
         Text _recordPickText;
         Button _recordDefaultButton;
         string _pickedRecord;
+        /// <summary>表示用の元ファイル名 (HEIC 変換後は一時ファイル名になるため別持ち)</summary>
+        string _pickedRecordName;
         /// <summary>0=そのまま (新規時はアプリ標準) / 1=画像を選択 / 2=アプリ標準の盤に戻す</summary>
         int _recordMode;
         InputField _talkInput;
@@ -49,6 +54,8 @@ namespace YukaNavi.UI
         Text _saveButtonLabel;
         string _pickedBg;
         string _pickedChar;
+        /// <summary>表示用の元ファイル名 (HEIC 変換後は一時ファイル名になるため別持ち)</summary>
+        string _pickedCharName;
         string _pickedBgm;
         /// <summary>キャラの扱い: 0=ゆかりちゃんのまま 1=画像 2=キャラなし</summary>
         int _charMode;
@@ -85,6 +92,8 @@ namespace YukaNavi.UI
 
         // 背景調整プレビュー
         BackgroundView _previewView;
+        /// <summary>プレビュー用に自前生成したテクスチャ (差し替え・画面再構築時に破棄する)</summary>
+        Texture2D _previewTexture;
         GameObject _previewPlaceholder;
         Text _previewPlaceholderText;
         GameObject _adjustButtons;
@@ -941,6 +950,26 @@ namespace YukaNavi.UI
             _previewView.SetAdjust(_adjRotation, _adjZoom, _adjOffset);
         }
 
+        /// <summary>プレビューのテクスチャを差し替え、前の自前テクスチャは破棄する。</summary>
+        void SetPreviewTexture(Texture2D tex, float aspect)
+        {
+            if (_previewTexture != null && _previewTexture != tex)
+            {
+                Destroy(_previewTexture);
+            }
+            _previewTexture = tex;
+            _previewView.SetTexture(tex, aspect);
+        }
+
+        public override void OnRebuild()
+        {
+            if (_previewTexture != null)
+            {
+                Destroy(_previewTexture);
+                _previewTexture = null;
+            }
+        }
+
         static Texture2D LoadTextureFromFile(string path)
         {
             try
@@ -956,6 +985,47 @@ namespace YukaNavi.UI
             }
             catch
             {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 選んだ画像を、アプリの読み込み経路 (Texture2D.LoadImage = png/jpg のみ) が
+        /// 確実に読める形に整える。png はそのまま使う (透過保持・再エンコード回避)。
+        /// それ以外 (jpg/heic/webp など) は OS のデコーダで読み (HEIC と EXIF の回転に対応)、
+        /// jpg に変換した一時ファイルのパスを返す。透過付き webp/heic は透過が落ちるが、
+        /// 透過の主経路である png は無傷なので許容する。
+        /// 戻り値はスキンへコピーすべきパス (読めなければ null)。texture は呼び出し側が
+        /// プレビューに使うか、不要なら Destroy する。
+        /// </summary>
+        static string EnsureLoadableImage(string path, string tempFileName, out Texture2D texture)
+        {
+            string ext = Path.GetExtension(path ?? "").ToLowerInvariant();
+            if (ext == ".png")
+            {
+                texture = LoadTextureFromFile(path);
+                return texture != null ? path : null;
+            }
+            texture = NativeGallery.LoadImageAtPath(path, PickedImageMaxSize,
+                markTextureNonReadable: false, generateMipmaps: false);
+            if (texture == null)
+            {
+                texture = LoadTextureFromFile(path); // OS デコーダが使えない環境 (エディタ等) の保険
+            }
+            if (texture == null)
+            {
+                return null;
+            }
+            try
+            {
+                string outPath = Path.Combine(Application.temporaryCachePath, tempFileName);
+                File.WriteAllBytes(outPath, texture.EncodeToJPG(92));
+                return outPath;
+            }
+            catch
+            {
+                Destroy(texture);
+                texture = null;
                 return null;
             }
         }
@@ -1235,16 +1305,11 @@ namespace YukaNavi.UI
             }
         }
 
-        /// <summary>端末のファイルピッカーでレコード盤の画像を選ぶ。</summary>
+        /// <summary>端末の写真アプリでレコード盤の画像を選ぶ。</summary>
         void PickRecordFile()
         {
             Se.Play(Se.Tap);
-#if UNITY_EDITOR
-            string picked = UnityEditor.EditorUtility.OpenFilePanel("レコード盤の画像を選ぶ", "", "png,jpg,jpeg");
-            OnRecordPicked(string.IsNullOrEmpty(picked) ? null : picked);
-#else
-            NativeFilePicker.PickFile(OnRecordPicked, new string[] { "image/*" });
-#endif
+            NativeGallery.GetImageFromGallery(OnRecordPicked, "レコード盤の画像を選ぶ");
         }
 
         void OnRecordPicked(string path)
@@ -1253,15 +1318,17 @@ namespace YukaNavi.UI
             {
                 return; // キャンセル
             }
-            string ext = Path.GetExtension(path).ToLowerInvariant();
-            if (ext != ".png" && ext != ".jpg" && ext != ".jpeg")
+            string usablePath = EnsureLoadableImage(path, "picked_record.jpg", out Texture2D tex);
+            if (usablePath == null)
             {
-                _createErrorText.text = "画像ファイル (png / jpg) を選んでください";
+                _createErrorText.text = "この画像は読み込めませんでした (png / jpg / heic)";
                 Se.Play(Se.Error);
                 return;
             }
+            Destroy(tex); // レコード盤にはプレビュー表示が無い
             _createErrorText.text = "";
-            _pickedRecord = path;
+            _pickedRecord = usablePath;
+            _pickedRecordName = Path.GetFileName(path);
             _recordMode = 1;
             UpdateRecordUi();
         }
@@ -1290,7 +1357,7 @@ namespace YukaNavi.UI
                     _recordPickText.text = "アプリ標準のレコード盤を使います";
                     break;
                 case 1:
-                    _recordPickText.text = "選択済み: " + Path.GetFileName(_pickedRecord);
+                    _recordPickText.text = "選択済み: " + _pickedRecordName;
                     break;
                 default:
                     bool hasExisting = _editingSkin != null && _editingSkin.Record != null
@@ -1327,7 +1394,7 @@ namespace YukaNavi.UI
                     break;
                 case 1:
                     _charPickText.text = _pickedChar != null
-                        ? "選択済み: " + Path.GetFileName(_pickedChar)
+                        ? "選択済み: " + _pickedCharName
                         : "現在のキャラ画像を使用";
                     break;
                 default:
@@ -1345,12 +1412,14 @@ namespace YukaNavi.UI
             _skinNameInput.text = "";
             _pickedBg = null;
             _pickedChar = null;
+            _pickedCharName = null;
             _charMode = 0;
             UpdateCharUi();
             _pickedBgm = null;
             _bgmMode = 0;
             UpdateBgmUi();
             _pickedRecord = null;
+            _pickedRecordName = null;
             _recordMode = 0;
             UpdateRecordUi();
             _talkInput.text = "";
@@ -1361,7 +1430,7 @@ namespace YukaNavi.UI
             _adjRotation = 0f;
             _adjZoom = 1f;
             _adjOffset = Vector2.zero;
-            _previewView.SetTexture(null, 9f / 16f);
+            SetPreviewTexture(null, 9f / 16f);
             _previewPlaceholder.SetActive(true);
             _previewPlaceholderText.text = "背景を選ぶと\nプレビューが出ます";
             _adjustButtons.SetActive(false);
@@ -1378,9 +1447,11 @@ namespace YukaNavi.UI
             _skinNameInput.text = skin.Name;
             _pickedBg = null;
             _pickedChar = null;
+            _pickedCharName = null;
             _pickedBgm = null;
             _bgmMode = 0; // 既存 BGM は維持
             _pickedRecord = null;
+            _pickedRecordName = null;
             _recordMode = 0; // 既存のレコード盤は維持
             _talkInput.text = skin.Talk != null ? string.Join("\n", skin.Talk) : "";
             _pickedThemeHex = skin.Theme != null ? skin.Theme.Primary : null;
@@ -1408,7 +1479,7 @@ namespace YukaNavi.UI
             _adjRotation = 0f;
             _adjZoom = 1f;
             _adjOffset = Vector2.zero;
-            _previewView.SetTexture(null, 9f / 16f);
+            SetPreviewTexture(null, 9f / 16f);
             _previewPlaceholder.SetActive(true);
             _adjustButtons.SetActive(false);
             if (skin.Background != null && !string.IsNullOrEmpty(skin.Background.File))
@@ -1422,7 +1493,7 @@ namespace YukaNavi.UI
                     var tex = SkinManager.LoadTexture(skin, skin.Background.File);
                     if (tex != null)
                     {
-                        _previewView.SetTexture(tex, (float)tex.width / tex.height);
+                        SetPreviewTexture(tex, (float)tex.width / tex.height);
                         _previewPlaceholder.SetActive(false);
                         _adjustButtons.SetActive(true);
                         ApplyAdjust();
@@ -1446,21 +1517,20 @@ namespace YukaNavi.UI
             }
         }
 
-        /// <summary>端末のファイルピッカーで画像/動画を選ぶ。</summary>
+        /// <summary>端末の写真アプリ (フォトピッカー) で画像/動画を選ぶ。</summary>
         void PickFile(bool forBackground)
         {
             Se.Play(Se.Tap);
-#if UNITY_EDITOR
-            string extensions = forBackground ? "png,jpg,jpeg,mp4,webm" : "png,jpg,jpeg";
-            string picked = UnityEditor.EditorUtility.OpenFilePanel(
-                forBackground ? "背景を選ぶ" : "キャラ画像を選ぶ", "", extensions);
-            OnFilePicked(forBackground, string.IsNullOrEmpty(picked) ? null : picked);
-#else
-            string[] fileTypes = forBackground
-                ? new string[] { "image/*", "video/*" }
-                : new string[] { "image/*" };
-            NativeFilePicker.PickFile(path => OnFilePicked(forBackground, path), fileTypes);
-#endif
+            if (forBackground)
+            {
+                NativeGallery.GetMixedMediaFromGallery(path => OnFilePicked(true, path),
+                    NativeGallery.MediaType.Image | NativeGallery.MediaType.Video, "背景を選ぶ");
+            }
+            else
+            {
+                NativeGallery.GetImageFromGallery(path => OnFilePicked(false, path),
+                    "キャラ画像を選ぶ");
+            }
         }
 
         void OnFilePicked(bool forBackground, string path)
@@ -1469,36 +1539,51 @@ namespace YukaNavi.UI
             {
                 return; // キャンセル
             }
-            if (forBackground)
+            if (forBackground && IsVideoFile(path))
             {
+                // 動画はプレビュー非対応 (画面に合わせて自動クロップされる)
+                _createErrorText.text = "";
                 _pickedBg = path;
                 _bgPickText.text = "選択済み: " + Path.GetFileName(path);
                 _adjRotation = 0f;
                 _adjZoom = 1f;
                 _adjOffset = Vector2.zero;
-                if (IsVideoFile(path))
-                {
-                    // 動画はプレビュー非対応 (画面に合わせて自動クロップされる)
-                    _previewView.SetTexture(null, 9f / 16f);
-                    _previewPlaceholder.SetActive(true);
-                    _previewPlaceholderText.text = "動画はプレビューできません\n(画面に合わせて自動調整)";
-                    _adjustButtons.SetActive(false);
-                }
-                else
-                {
-                    var tex = LoadTextureFromFile(path);
-                    if (tex != null)
-                    {
-                        _previewView.SetTexture(tex, (float)tex.width / tex.height);
-                        _previewPlaceholder.SetActive(false);
-                        _adjustButtons.SetActive(true);
-                        ApplyAdjust();
-                    }
-                }
+                SetPreviewTexture(null, 9f / 16f);
+                _previewPlaceholder.SetActive(true);
+                _previewPlaceholderText.text = "動画はプレビューできません\n(画面に合わせて自動調整)";
+                _adjustButtons.SetActive(false);
+                return;
+            }
+
+            string usablePath = EnsureLoadableImage(path,
+                forBackground ? "picked_bg.jpg" : "picked_chara.jpg", out Texture2D tex);
+            if (usablePath == null)
+            {
+                // 読めないファイルは確定させない (壊れたスキンが保存されるのを防ぐ)
+                _createErrorText.text = forBackground
+                    ? "このファイルは使えません (画像: png/jpg/heic、動画: mp4/mov/webm)"
+                    : "この画像は読み込めませんでした (png / jpg / heic)";
+                Se.Play(Se.Error);
+                return;
+            }
+            _createErrorText.text = "";
+            if (forBackground)
+            {
+                _pickedBg = usablePath;
+                _bgPickText.text = "選択済み: " + Path.GetFileName(path);
+                _adjRotation = 0f;
+                _adjZoom = 1f;
+                _adjOffset = Vector2.zero;
+                SetPreviewTexture(tex, (float)tex.width / tex.height);
+                _previewPlaceholder.SetActive(false);
+                _adjustButtons.SetActive(true);
+                ApplyAdjust();
             }
             else
             {
-                _pickedChar = path;
+                Destroy(tex); // キャラにはプレビュー表示が無い
+                _pickedChar = usablePath;
+                _pickedCharName = Path.GetFileName(path);
                 _charMode = 1;
                 UpdateCharUi();
             }
