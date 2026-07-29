@@ -58,6 +58,9 @@ Thumbs.db
 /[Aa]ssets/Live2D/
 /[Aa]ssets/Live2D.meta
 
+# ===== サンプルスキンの生成物 (make_zip.ps1 で作る。実体は seasonal/ の流用) =====
+/art/sample_skins/*/*.zip
+
 # ===== 手元の作業ファイル (リポジトリには含めない) =====
 # Unity がクラッシュ復旧時に作るシーンの退避
 /[Aa]ssets/_Recovery/

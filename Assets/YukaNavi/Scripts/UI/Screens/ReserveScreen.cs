@@ -1260,7 +1260,10 @@ namespace YukaNavi.UI
             StartCoroutine(CompletePopRoutine());
         }
 
-        /// <summary>完了画面のマスコット: スキンにキャラ画像があればそれ、無ければゆかりちゃん。</summary>
+        /// <summary>
+        /// 完了画面のマスコット: スキンの専用ポーズ (pose_complete) → キャラ画像の1枚目 →
+        /// デフォルトのゆかりちゃん、の順で使う。
+        /// </summary>
         void ApplyCompletePose()
         {
             var skin = SkinManager.Current();
@@ -1272,10 +1275,18 @@ namespace YukaNavi.UI
             _poseSkinKey = key;
 
             Texture2D tex = null;
-            var characters = SkinManager.GetCharacters(skin);
-            if (characters.Count > 0 && characters[0].Type == "image")
+            if (skin.PoseComplete != null && skin.PoseComplete.Type == "image"
+                && !string.IsNullOrEmpty(skin.PoseComplete.File))
             {
-                tex = SkinManager.LoadTexture(skin, characters[0].File); // 完了画面は1枚目のキャラ
+                tex = SkinManager.LoadTexture(skin, skin.PoseComplete.File); // 専用ポーズを最優先
+            }
+            if (tex == null)
+            {
+                var characters = SkinManager.GetCharacters(skin);
+                if (characters.Count > 0 && characters[0].Type == "image")
+                {
+                    tex = SkinManager.LoadTexture(skin, characters[0].File); // 完了画面は1枚目のキャラ
+                }
             }
             var oldSprite = _completePoseImage.sprite;
             if (tex != null)

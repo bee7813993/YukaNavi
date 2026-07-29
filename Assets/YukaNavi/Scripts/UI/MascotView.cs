@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using YukaNavi.Core;
@@ -8,20 +9,38 @@ namespace YukaNavi.UI
     /// <summary>
     /// ゆかりちゃん立ち絵の表示コンポーネント (静止画版)。
     /// 浮遊・まばたき・タップ時の表情切替+スクイーズを持つ。
+    /// デフォルト (ゆかりちゃん) もカスタムスキンも MascotCharacter のリストとして同じに扱い、
+    /// タップで 立ち絵 → 表情 → … と巡回して一巡すると次のキャラへ切り替わる。
     /// 将来 Live2D 版と差し替えられるよう、外部には Create() と OnTapped だけを見せる。
     /// </summary>
     public class MascotView : MonoBehaviour
     {
-        // 表情の切替順 (Resources 配下のパス)
-        static readonly string[] ExpressionPaths =
+        /// <summary>マスコット1キャラ分の表示素材。デフォルトのゆかりちゃんもこの形に載せる。</summary>
+        public class MascotCharacter
         {
-            "Art/Mascot/yukari_mascot_transparent",
+            /// <summary>立ち絵 (必須)</summary>
+            public Sprite Base;
+            /// <summary>目閉じ差分 (null = まばたきなし)</summary>
+            public Sprite EyesClosed;
+            /// <summary>タップで巡回する表情差分 (null/空 = 表情なし)</summary>
+            public Sprite[] Expressions;
+            /// <summary>キャラ専用セリフ (null = スキン全体のセリフへフォールバック)</summary>
+            public string[] Talk;
+            /// <summary>表情ごとのセリフ (Expressions と同じ並び。要素は null 可)</summary>
+            public string[][] ExpressionTalk;
+        }
+
+        // デフォルト (ゆかりちゃん) の素材 (Resources 配下のパス)
+        const string DefaultBasePath = "Art/Mascot/yukari_mascot_transparent";
+        const string DefaultEyesClosedPath = "Art/Mascot/yukari_expr_eyes_closed";
+        static readonly string[] DefaultExpressionPaths =
+        {
             "Art/Mascot/yukari_expr_smile",
             "Art/Mascot/yukari_expr_wink",
             "Art/Mascot/yukari_expr_surprised",
         };
 
-        // タップ時にランダムで出すセリフ
+        // タップ時にランダムで出すセリフ (デフォルトテーマ拡張パックの talk.json で差し替え可能)
         static readonly string[] SpeechLines =
         {
             "うたっていこ〜♪",
@@ -29,6 +48,22 @@ namespace YukaNavi.UI
             "タップありがと♪",
             "いっぱい予約してね！",
             "じゅんびばっちりだよ〜",
+        };
+        // 時間帯セリフ (朝 5〜11時 / 夕方 17〜22時 / 夜 22〜翌5時)。通常セリフと合算して抽選
+        static readonly string[] SpeechLinesMorning =
+        {
+            "おはよ〜！今日もうたおうね♪",
+            "あさのうた、きもちいいよ〜",
+        };
+        static readonly string[] SpeechLinesEvening =
+        {
+            "こんばんは〜♪",
+            "夜はこれからだよ〜！",
+        };
+        static readonly string[] SpeechLinesNight =
+        {
+            "よふかしカラオケだ〜♪",
+            "そろそろおやすみ？もう1曲だけ？",
         };
 
         public System.Action OnTapped;
@@ -42,17 +77,18 @@ namespace YukaNavi.UI
         /// </summary>
         public string[] CustomLines;
 
-        /// <summary>
-        /// キャラ画像ごとのセリフ (customSprites と同じ並び)。表示中のキャラの要素が
-        /// null/空のときは CustomLines へフォールバックする。
-        /// </summary>
-        public string[][] CustomLinesPerCharacter;
+        /// <summary>スキンの時間帯セリフ (朝)。CustomLines と合算して抽選される。</summary>
+        public string[] CustomLinesMorning;
+        /// <summary>スキンの時間帯セリフ (夕方)。</summary>
+        public string[] CustomLinesEvening;
+        /// <summary>スキンの時間帯セリフ (夜)。</summary>
+        public string[] CustomLinesNight;
 
         Image _image;
         RectTransform _rect;
-        Sprite[] _expressions;
-        Sprite _eyesClosed;
-        int _expressionIndex;
+        List<MascotCharacter> _characters;
+        int _charIndex;
+        int _exprIndex; // 0 = 立ち絵、1〜 = Expressions[_exprIndex - 1]
         float _baseY;
         float _nextBlinkTime;
         bool _blinking;
@@ -63,41 +99,54 @@ namespace YukaNavi.UI
 
         bool _isCustom;
 
+        MascotCharacter CurrentCharacter
+        {
+            get { return _characters[_charIndex]; }
+        }
+
         /// <summary>
         /// 下端中央アンカーで立ち絵を生成する。
-        /// customSprites を渡すとスキンのカスタムキャラ (まばたきなし。複数枚ならタップで切替) になる。
+        /// characters を渡すとスキンのカスタムキャラ (null ならデフォルトのゆかりちゃん) になる。
         /// </summary>
         public static MascotView Create(Transform parent, Vector2 size, float baseY,
-                                        Sprite[] customSprites = null)
+                                        List<MascotCharacter> characters = null)
         {
             var go = new GameObject("Mascot");
             go.transform.SetParent(parent, false);
             var view = go.AddComponent<MascotView>();
-            view.Build(size, baseY, customSprites);
+            view.Build(size, baseY, characters);
             return view;
         }
 
-        void Build(Vector2 size, float baseY, Sprite[] customSprites)
+        void Build(Vector2 size, float baseY, List<MascotCharacter> characters)
         {
-            if (customSprites != null && customSprites.Length > 0)
+            if (characters != null && characters.Count > 0)
             {
                 _isCustom = true;
-                _expressions = customSprites;
-                _eyesClosed = null;
+                _characters = characters;
             }
             else
             {
-                _expressions = new Sprite[ExpressionPaths.Length];
-                for (int i = 0; i < ExpressionPaths.Length; i++)
+                // デフォルト (ゆかりちゃん): 立ち絵 + 表情3種 + 目閉じ。カスタムと同じ巡回に載せる
+                var expressions = new Sprite[DefaultExpressionPaths.Length];
+                for (int i = 0; i < DefaultExpressionPaths.Length; i++)
                 {
-                    _expressions[i] = UiFactory.LoadSprite(ExpressionPaths[i]);
+                    expressions[i] = UiFactory.LoadSprite(DefaultExpressionPaths[i]);
                 }
-                _eyesClosed = UiFactory.LoadSprite("Art/Mascot/yukari_expr_eyes_closed");
+                _characters = new List<MascotCharacter>
+                {
+                    new MascotCharacter
+                    {
+                        Base = UiFactory.LoadSprite(DefaultBasePath),
+                        EyesClosed = UiFactory.LoadSprite(DefaultEyesClosedPath),
+                        Expressions = expressions,
+                    },
+                };
             }
             _nextBlinkTime = Time.time + Random.Range(2f, 4f);
 
             _image = gameObject.AddComponent<Image>();
-            _image.sprite = _expressions[0];
+            _image.sprite = _characters[0].Base;
             _image.preserveAspect = true;
 
             _rect = _image.rectTransform;
@@ -190,8 +239,9 @@ namespace YukaNavi.UI
                 _rect.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(Time.time * 0.45f) * 0.5f);
             }
 
-            // 通常表情のときだけランダム間隔でまばたき
-            if (_expressionIndex == 0 && !_blinking && _eyesClosed != null && Time.time >= _nextBlinkTime)
+            // 立ち絵のときだけランダム間隔でまばたき (目閉じ差分があるキャラのみ)
+            if (_exprIndex == 0 && !_blinking && CurrentCharacter.EyesClosed != null
+                && Time.time >= _nextBlinkTime)
             {
                 StartCoroutine(BlinkRoutine());
             }
@@ -203,10 +253,19 @@ namespace YukaNavi.UI
             {
                 return;
             }
-            _expressionIndex = (_expressionIndex + 1) % _expressions.Length;
-            if (_expressions[_expressionIndex] != null)
+            // 現在キャラの表情を一巡してから次のキャラへ (デフォルトは 1キャラ + 表情3種の巡回)
+            var ch = CurrentCharacter;
+            int total = 1 + (ch.Expressions != null ? ch.Expressions.Length : 0);
+            _exprIndex++;
+            if (_exprIndex >= total)
             {
-                _image.sprite = _expressions[_expressionIndex];
+                _exprIndex = 0;
+                _charIndex = (_charIndex + 1) % _characters.Count;
+            }
+            var sprite = CurrentSprite();
+            if (sprite != null)
+            {
+                _image.sprite = sprite;
             }
             Se.Play(Se.Tap);
             if (_squash != null)
@@ -214,23 +273,110 @@ namespace YukaNavi.UI
                 StopCoroutine(_squash);
             }
             _squash = StartCoroutine(SquashRoutine());
-            // セリフの優先順: 表示中キャラ専用 → スキン全体 → デフォルト (カスタムキャラはなし)
-            string[] lines = null;
-            if (CustomLinesPerCharacter != null && _expressionIndex < CustomLinesPerCharacter.Length)
+            string line = PickLine();
+            if (line != null)
             {
-                lines = CustomLinesPerCharacter[_expressionIndex];
+                Say(line);
+            }
+            OnTapped?.Invoke();
+        }
+
+        /// <summary>いま表示すべきスプライト (表情が読めていないときは立ち絵のまま)。</summary>
+        Sprite CurrentSprite()
+        {
+            var ch = CurrentCharacter;
+            if (_exprIndex == 0)
+            {
+                return ch.Base;
+            }
+            return (ch.Expressions != null && _exprIndex - 1 < ch.Expressions.Length)
+                ? ch.Expressions[_exprIndex - 1] : ch.Base;
+        }
+
+        /// <summary>
+        /// セリフの優先順: 表示中の表情専用 → キャラ専用 → スキン全体 (時間帯 + 通常の合算)
+        /// → デフォルト (時間帯 + 通常の合算。カスタムキャラはなし)。
+        /// </summary>
+        string PickLine()
+        {
+            var ch = CurrentCharacter;
+            string[] lines = null;
+            if (_exprIndex > 0 && ch.ExpressionTalk != null && _exprIndex - 1 < ch.ExpressionTalk.Length)
+            {
+                lines = ch.ExpressionTalk[_exprIndex - 1];
             }
             if (lines == null || lines.Length == 0)
             {
-                lines = (CustomLines != null && CustomLines.Length > 0)
-                    ? CustomLines
-                    : (_isCustom ? null : SpeechLines);
+                lines = ch.Talk;
             }
-            if (lines != null && lines.Length > 0)
+            if (lines == null || lines.Length == 0)
             {
-                Say(lines[Random.Range(0, lines.Length)]);
+                lines = MergeLines(TimeOfDayCustomLines(), CustomLines);
             }
-            OnTapped?.Invoke();
+            if ((lines == null || lines.Length == 0) && !_isCustom)
+            {
+                lines = MergeLines(TimeOfDayDefaultLines(), DefaultLines());
+            }
+            if (lines == null || lines.Length == 0)
+            {
+                return null;
+            }
+            return lines[Random.Range(0, lines.Length)];
+        }
+
+        string[] TimeOfDayCustomLines()
+        {
+            switch (SkinManager.GetTimeOfDaySuffix(System.DateTime.Now.Hour))
+            {
+                case "morning": return CustomLinesMorning;
+                case "evening": return CustomLinesEvening;
+                case "night": return CustomLinesNight;
+                default: return null;
+            }
+        }
+
+        /// <summary>デフォルトの通常セリフ (拡張パックの talk.json があればそちらを使う)。</summary>
+        static string[] DefaultLines()
+        {
+            var pack = DefaultThemePack.GetTalk();
+            return PackOrBuiltin(pack != null ? pack.Talk : null, SpeechLines);
+        }
+
+        /// <summary>デフォルトの時間帯セリフ (拡張パックの talk.json があればそちらを使う)。</summary>
+        static string[] TimeOfDayDefaultLines()
+        {
+            var pack = DefaultThemePack.GetTalk();
+            switch (SkinManager.GetTimeOfDaySuffix(System.DateTime.Now.Hour))
+            {
+                case "morning":
+                    return PackOrBuiltin(pack != null ? pack.TalkMorning : null, SpeechLinesMorning);
+                case "evening":
+                    return PackOrBuiltin(pack != null ? pack.TalkEvening : null, SpeechLinesEvening);
+                case "night":
+                    return PackOrBuiltin(pack != null ? pack.TalkNight : null, SpeechLinesNight);
+                default:
+                    return null;
+            }
+        }
+
+        static string[] PackOrBuiltin(List<string> packLines, string[] builtin)
+        {
+            return (packLines != null && packLines.Count > 0) ? packLines.ToArray() : builtin;
+        }
+
+        /// <summary>2つのセリフ配列を合算する (どちらも空なら null)。</summary>
+        static string[] MergeLines(string[] a, string[] b)
+        {
+            bool hasA = a != null && a.Length > 0;
+            bool hasB = b != null && b.Length > 0;
+            if (hasA && hasB)
+            {
+                var merged = new string[a.Length + b.Length];
+                a.CopyTo(merged, 0);
+                b.CopyTo(merged, a.Length);
+                return merged;
+            }
+            return hasA ? a : (hasB ? b : null);
         }
 
         /// <summary>タップ時のスクイーズ (ぷにっと潰れて戻る)。</summary>
@@ -251,11 +397,16 @@ namespace YukaNavi.UI
         IEnumerator BlinkRoutine()
         {
             _blinking = true;
-            _image.sprite = _eyesClosed;
-            yield return new WaitForSeconds(0.12f);
-            if (_expressionIndex == 0)
+            var eyesClosed = CurrentCharacter.EyesClosed;
+            if (eyesClosed != null)
             {
-                _image.sprite = _expressions[0];
+                _image.sprite = eyesClosed;
+            }
+            yield return new WaitForSeconds(0.12f);
+            if (_exprIndex == 0)
+            {
+                // タップでキャラが替わっていても、いま表示中のキャラの立ち絵へ戻す
+                _image.sprite = CurrentCharacter.Base;
             }
             _blinking = false;
             _nextBlinkTime = Time.time + Random.Range(2.5f, 6f);
