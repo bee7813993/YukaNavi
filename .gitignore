@@ -72,3 +72,6 @@ Thumbs.db
 /*.pdf
 # セッション間の引き継ぎメモ (一時的な作業メモ)
 /docs/SESSION_HANDOFF_*.md
+# ビルド時に生成されるビルド情報 (Editor/BuildInfoGenerator が書き出す)
+/Assets/YukaNavi/Resources/build_info.json
+/Assets/YukaNavi/Resources/build_info.json.meta
