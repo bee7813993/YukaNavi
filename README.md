@@ -103,6 +103,11 @@ SDK のソースを読んで確定させた、ハマりどころ。`Live2DMascot
   後から `.motion3.json` を Resources に置き足しても登録されず、再生時に
   `Not found motion from CubismFadeMotionList` になる。モーションを増やすときは
   必ず `model3.json` の `Motions` にも追加する
+- **`fadeMotionList` は `AnimationClip.GetInstanceID()` をキーにモーションを逆引きする**。
+  この値を書き込むのはエディタのインポータだけで実行時には更新されないが、
+  Android / Windows ビルドでタップ動作が正常なことを確認済み (2026-07)。
+  モーション差し替え時に**古いクリップを指す `{fileID: 0}` のエントリが残る**ことがあり、
+  そのままだと次回インポートで `ArgumentNullException` になるので手で削除する
 - **実行時に `AddComponent` すると `Reset()` は呼ばれない** (Unity 全般の仕様)。
   `CubismHarmonicMotionController.ChannelTimescales` は `Reset()` でしか初期化されないため、
   自前で配列を用意しないと毎フレーム `NullReferenceException` になる

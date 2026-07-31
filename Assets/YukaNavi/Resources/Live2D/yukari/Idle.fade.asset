@@ -10,14 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8f1ee1adc36a8a04a8d7c42ac5d6bc27, type: 3}
-  m_Name: TapBody.fade
+  m_Name: Idle.fade
   m_EditorClassIdentifier: Live2D.Cubism::Live2D.Cubism.Framework.MotionFade.CubismFadeMotionData
-  MotionName: Assets\YukaNavi\Resources\Live2D\yukari/TapBody.motion3.json
+  MotionName: Assets\YukaNavi\Resources\Live2D\yukari/Idle.motion3.json
   ModelFadeInTime: 0.8
   ModelFadeOutTime: 0.8
   FadeInTime: 0.8
   FadeOutTime: 0.8
   ParameterIds:
+  - ParamAngleX
   - ParamAngleY
   - ParamAngleZ
   - ParamBodyAngleX
@@ -35,8 +36,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 0.2
-      value: -3
+      time: 4
+      value: -24
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -44,8 +45,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 0.467
-      value: 2
+      time: 8
+      value: 20
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -53,8 +54,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 0.8
-      value: -1
+      time: 12
+      value: -8
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -62,9 +63,9 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 1.467
-      value: -0.007
-      inSlope: 0.386807
+      time: 15.967
+      value: -0.002
+      inSlope: 0.09906741
       outSlope: 0
       tangentMode: 0
       weightedMode: 0
@@ -85,8 +86,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 0.2
-      value: -4
+      time: 4
+      value: 12
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -94,8 +95,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 0.467
-      value: 2
+      time: 8
+      value: -12
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -103,8 +104,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 0.8
-      value: -1
+      time: 12
+      value: 4
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -112,9 +113,9 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 1.467
-      value: -0.007
-      inSlope: 0.386807
+      time: 15.967
+      value: 0.001
+      inSlope: -0.049155585
       outSlope: 0
       tangentMode: 0
       weightedMode: 0
@@ -135,8 +136,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 0.2
-      value: -2
+      time: 4
+      value: 8
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -144,8 +145,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 0.467
-      value: 3
+      time: 8
+      value: -8
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -153,8 +154,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 0.8
-      value: -1
+      time: 12
+      value: 4
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -162,9 +163,9 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 1.467
-      value: -0.007
-      inSlope: 0.386807
+      time: 15.967
+      value: 0.001
+      inSlope: -0.049155585
       outSlope: 0
       tangentMode: 0
       weightedMode: 0
@@ -185,8 +186,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 0.2
-      value: -3
+      time: 4
+      value: -10
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -194,8 +195,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 0.467
-      value: 2
+      time: 8
+      value: 10
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -203,8 +204,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 0.8
-      value: -1
+      time: 12
+      value: -8
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -212,9 +213,59 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 1.467
-      value: -0.007
-      inSlope: 0.386807
+      time: 15.967
+      value: -0.002
+      inSlope: 0.09906741
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  - serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 4
+      value: 8
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 8
+      value: -8
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 12
+      value: 4
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 15.967
+      value: 0.001
+      inSlope: -0.049155585
       outSlope: 0
       tangentMode: 0
       weightedMode: 0
@@ -228,9 +279,11 @@ MonoBehaviour:
   - -1
   - -1
   - -1
+  - -1
   ParameterFadeOutTimes:
   - -1
   - -1
   - -1
   - -1
-  MotionLength: 1.467
+  - -1
+  MotionLength: 15.967

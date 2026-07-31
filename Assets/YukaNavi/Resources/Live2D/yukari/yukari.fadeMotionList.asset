@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 403ae2dd693bb1d4b924f6b8d206b053, type: 3}
   m_Name: yukari.fadeMotionList
   m_EditorClassIdentifier: Live2D.Cubism::Live2D.Cubism.Framework.MotionFade.CubismFadeMotionList
-  MotionInstanceIds: 9052f8ffba52f8ff
+  MotionInstanceIds: 9052f8ffa21bfeff
   CubismFadeMotionObjects:
   - {fileID: 11400000, guid: 2fd4c64e7e940f8438c500276791168a, type: 2}
   - {fileID: 11400000, guid: add873aadf1968b4483d5e8c391f6cc4, type: 2}
