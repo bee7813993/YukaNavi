@@ -34,8 +34,29 @@ namespace YukaNavi.UI
         Sprite _closeSprite;
         bool _menuOpen;
         Coroutine _menuAnim;
+        bool _builtWithNotice;       // メニュー構築時の機材係お知らせの有無
+        bool _rebuildAfterMenuClose; // メニュー展開中に有無が変わったときの作り直し予約
 
         public static GlobalNav Instance { get; private set; }
+
+        /// <summary>
+        /// 機材係お知らせの有無が変わったらメニューを作り直す (AppRoot が NoticeService.Changed
+        /// から呼ぶ)。内容だけの変化ではメニュー構成は変わらないため何もしない。
+        /// メニュー展開中は目の前で消えると困るので、閉じたあとに作り直す。
+        /// </summary>
+        public void OnNoticeChanged()
+        {
+            if (_builtWithNotice == NoticeService.HasNotice)
+            {
+                return;
+            }
+            if (_menuOpen)
+            {
+                _rebuildAfterMenuClose = true;
+                return;
+            }
+            Rebuild();
+        }
 
         public static GlobalNav Create(Transform canvasParent, ScreenManager screens)
         {
@@ -58,6 +79,7 @@ namespace YukaNavi.UI
                 StopCoroutine(_menuAnim); // 破棄済みの UI を触らないよう開閉アニメを止める
                 _menuAnim = null;
             }
+            _rebuildAfterMenuClose = false; // 作り直しで予約分も反映される
             _menuOpen = false;
             for (int i = transform.childCount - 1; i >= 0; i--)
             {
@@ -120,6 +142,9 @@ namespace YukaNavi.UI
             // 横向き (ダッシュボード表示中) は縦の余裕がないため、バナーは出さず
             // グリッド項目で代替する
             bool landscape = Screen.width > Screen.height;
+            // 機材係お知らせがあるときだけ「おしらせ」を主要機能と同列に出す
+            bool showNotice = NoticeService.HasNotice;
+            _builtWithNotice = showNotice;
             if (!landscape)
             {
                 AddBigBanner(_menuContent, 0, "曲をさがす",
@@ -128,6 +153,10 @@ namespace YukaNavi.UI
                 AddBigBanner(_menuContent, 1, "予約一覧",
                     "Art/UI/Banners/yukanavi_banner_queue_1000x220",
                     () => _screens.Show<QueueScreen>());
+                if (showNotice)
+                {
+                    AddNoticeBanner(_menuContent, 2);
+                }
             }
 
             // 機能グリッド (2列)。リンクラ同様に下部 (ナビバーの上) に寄せ、中間はホームが透ける
@@ -147,7 +176,8 @@ namespace YukaNavi.UI
             gridLayout.childAlignment = TextAnchor.LowerCenter;
             // ダッシュボードはタブレット級の端末にだけ案内する (スマホでは実用にならない)
             bool showDashboard = DashboardScreen.DeviceSupported;
-            int itemCount = (landscape ? 7 : 5) + (showDashboard ? 1 : 0); // 横向きはバナー代替の2項目が増える
+            int itemCount = (landscape ? 7 : 5) + (showDashboard ? 1 : 0) // 横向きはバナー代替の2項目が増える
+                + (landscape && showNotice ? 1 : 0); // 横向きはお知らせもグリッドで代替
             int rowCount = Mathf.CeilToInt(itemCount / (float)gridLayout.constraintCount);
             grid.sizeDelta = new Vector2(0f, cellH * rowCount + 24f * (rowCount - 1));
 
@@ -157,6 +187,12 @@ namespace YukaNavi.UI
                     "Art/UI/Icons/yukanavi_icon_search_song_256", () => _screens.Show<SearchScreen>());
                 AddGridItem(grid, "予約一覧", "順番の確認と操作",
                     "Art/UI/Icons/yukanavi_icon_queue_256", () => _screens.Show<QueueScreen>());
+                if (showNotice)
+                {
+                    // 専用アイコン素材が無いため iconPath = null (「！」の丸を描く)
+                    AddGridItem(grid, "おしらせ", "機材係からのお知らせ",
+                        null, () => _screens.Show<NoticeScreen>());
+                }
             }
 
             AddGridItem(grid, "マイページ", "履歴・お気に入り",
@@ -205,22 +241,114 @@ namespace YukaNavi.UI
             });
         }
 
-        /// <summary>メニュー下部の機能カード (アイコン+ラベル+説明)。</summary>
+        /// <summary>
+        /// お知らせ用の「！」丸マーク (専用アイコン素材が無いためコードで描く)。
+        /// </summary>
+        static void AddNoticeMark(Transform parent, Vector2 anchoredPosition, float size)
+        {
+            var go = new GameObject("NoticeMark");
+            go.transform.SetParent(parent, false);
+            var circle = go.AddComponent<Image>();
+            circle.sprite = UiFactory.CircleSprite;
+            circle.color = UiFactory.Primary;
+            circle.raycastTarget = false;
+            var rect = circle.rectTransform;
+            rect.anchorMin = rect.anchorMax = new Vector2(0f, 0.5f);
+            rect.pivot = new Vector2(0f, 0.5f);
+            rect.anchoredPosition = anchoredPosition;
+            rect.sizeDelta = new Vector2(size, size);
+            var mark = UiFactory.CreateText(go.transform, "Mark", "！",
+                Mathf.RoundToInt(size * 0.42f), Color.white);
+            mark.fontStyle = FontStyle.Bold;
+            UiFactory.FitLabel(mark);
+            UiFactory.StretchFull(mark.rectTransform);
+        }
+
+        /// <summary>
+        /// メニュー上部の機材係お知らせバナー (画像バナーの並びの3枚目)。
+        /// 専用のバナー素材が無いためコードで描く。
+        /// </summary>
+        void AddNoticeBanner(RectTransform parent, int index)
+        {
+            var go = new GameObject("Notice");
+            go.transform.SetParent(parent, false);
+            var img = go.AddComponent<Image>();
+            img.color = new Color(1f, 1f, 1f, 0.94f);
+            UiFactory.Roundify(img);
+            var rect = img.rectTransform;
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, -60f - index * 245f);
+            rect.sizeDelta = new Vector2(0f, 220f);
+            UiFactory.AddShadow(go, 5f);
+
+            AddNoticeMark(go.transform, new Vector2(48f, 0f), 110f);
+
+            float labelH = UiFactory.LineHeight(44);
+            var label = UiFactory.CreateText(go.transform, "Label", "おしらせ", 44,
+                UiFactory.PrimaryDark, TextAnchor.LowerLeft);
+            label.fontStyle = FontStyle.Bold;
+            var labelRect = label.rectTransform;
+            labelRect.anchorMin = new Vector2(0f, 0.5f);
+            labelRect.anchorMax = new Vector2(1f, 0.5f);
+            labelRect.pivot = new Vector2(0.5f, 0f);
+            labelRect.anchoredPosition = new Vector2(0f, 2f);
+            labelRect.offsetMin = new Vector2(200f, labelRect.offsetMin.y);
+            labelRect.offsetMax = new Vector2(-90f, labelRect.offsetMax.y);
+            labelRect.sizeDelta = new Vector2(labelRect.sizeDelta.x, labelH);
+
+            var caption = UiFactory.CreateText(go.transform, "Caption", "機材係からのお知らせ", 26,
+                UiFactory.TextMuted, TextAnchor.UpperLeft);
+            var captionRect = caption.rectTransform;
+            captionRect.anchorMin = new Vector2(0f, 0.5f);
+            captionRect.anchorMax = new Vector2(1f, 0.5f);
+            captionRect.pivot = new Vector2(0.5f, 1f);
+            captionRect.anchoredPosition = new Vector2(0f, -6f);
+            captionRect.offsetMin = new Vector2(200f, captionRect.offsetMin.y);
+            captionRect.offsetMax = new Vector2(-90f, captionRect.offsetMax.y);
+            captionRect.sizeDelta = new Vector2(captionRect.sizeDelta.x, UiFactory.LineHeight(26));
+
+            var arrow = UiFactory.CreateText(go.transform, "Arrow", "›", 56, UiFactory.PrimaryPale);
+            var arrowRect = arrow.rectTransform;
+            arrowRect.anchorMin = arrowRect.anchorMax = new Vector2(1f, 0.5f);
+            arrowRect.pivot = new Vector2(1f, 0.5f);
+            arrowRect.anchoredPosition = new Vector2(-28f, 0f);
+            arrowRect.sizeDelta = new Vector2(56f, 72f);
+
+            var button = go.AddComponent<Button>();
+            go.AddComponent<PressEffect>();
+            button.onClick.AddListener(() =>
+            {
+                CloseMenu();
+                Se.Play(Se.Transition);
+                _screens.Show<NoticeScreen>();
+            });
+        }
+
+        /// <summary>メニュー下部の機能カード (アイコン+ラベル+説明)。iconPath = null は「！」丸で代替。</summary>
         void AddGridItem(RectTransform grid, string label, string caption, string iconPath,
                          System.Action onClick)
         {
             var button = UiFactory.CreateButton(grid, label, "",
                 new Color(1f, 1f, 1f, 0.88f), Color.white); // 半透明白 (背景がうっすら透ける)
 
-            var icon = UiFactory.CreateImage(button.transform, "Icon", iconPath);
-            icon.color = UiFactory.Primary; // 白単色素材を紫に着色
-            icon.preserveAspect = true;
-            icon.raycastTarget = false;
-            var iconRect = icon.rectTransform;
-            iconRect.anchorMin = iconRect.anchorMax = new Vector2(0f, 0.5f);
-            iconRect.pivot = new Vector2(0f, 0.5f);
-            iconRect.anchoredPosition = new Vector2(28f, 0f);
-            iconRect.sizeDelta = new Vector2(72f, 72f);
+            if (iconPath == null)
+            {
+                AddNoticeMark(button.transform, new Vector2(28f, 0f), 72f);
+            }
+            else
+            {
+                var icon = UiFactory.CreateImage(button.transform, "Icon", iconPath);
+                icon.color = UiFactory.Primary; // 白単色素材を紫に着色
+                icon.preserveAspect = true;
+                icon.raycastTarget = false;
+                var iconRect = icon.rectTransform;
+                iconRect.anchorMin = iconRect.anchorMax = new Vector2(0f, 0.5f);
+                iconRect.pivot = new Vector2(0f, 0.5f);
+                iconRect.anchoredPosition = new Vector2(28f, 0f);
+                iconRect.sizeDelta = new Vector2(72f, 72f);
+            }
 
             // ラベル (上) + キャプション (下)。高さは文字の大きさ設定に追従し、
             // 収まらない文言は枠内で自動縮小する (固定配置だと大きい設定で重なる)
@@ -370,6 +498,13 @@ namespace YukaNavi.UI
             if (!open)
             {
                 _menuPanel.SetActive(false);
+                if (_rebuildAfterMenuClose)
+                {
+                    // 展開中に機材係お知らせの有無が変わっていた分をここで反映する
+                    _rebuildAfterMenuClose = false;
+                    Rebuild();
+                    yield break; // Rebuild が自分 (このコルーチン) を止めている
+                }
             }
             _menuAnim = null;
         }

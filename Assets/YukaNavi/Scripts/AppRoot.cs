@@ -121,6 +121,7 @@ namespace YukaNavi
             _screens.Register<PeriodScreen>();
             _screens.Register<RequestDetailScreen>();
             _screens.Register<DashboardScreen>();
+            _screens.Register<NoticeScreen>();
 
             // 下部の常時表示ナビゲーションバー (戻る / メニュー / ホーム)
             GlobalNav.Create(canvasGo.transform, _screens);
@@ -134,6 +135,20 @@ namespace YukaNavi
 
             // デフォルトテーマ拡張パック (季節 BGM 等) の更新確認。失敗しても現行データで動く
             DefaultThemePack.CheckForUpdateAsync();
+
+            // 機材係お知らせ (リクエスト一覧の表示メッセージ内のアプリ向け要素) の取得。
+            // 有無が変わったらメニューを作り直して「おしらせ」導線を出し入れする
+            NoticeService.Changed += () =>
+            {
+                if (GlobalNav.Instance != null)
+                {
+                    GlobalNav.Instance.OnNoticeChanged();
+                }
+            };
+            if (AppConfig.IsConfigured)
+            {
+                _ = NoticeService.RefreshAsync();
+            }
 
             if (AppConfig.IsConfigured)
             {

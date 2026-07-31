@@ -79,6 +79,7 @@ namespace YukaNavi.UI
         Text _nameText;
         GameObject _banner;
         Text _bannerText;
+        GameObject _noticeChip;
         GameObject _backgroundGo;
         Texture2D _backgroundTexture; // スキン画像背景 (GameObject 破棄では解放されないため個別に持つ)
         string _timedBgPath;          // 表示中の時間帯背景のファイル名 (null = 時間帯背景なし)
@@ -344,6 +345,29 @@ namespace YukaNavi.UI
             _bgmButton.onClick.AddListener(ToggleSoundPanel);
             UpdateBgmButton();
             BuildSoundPanel(buttonTop + 88f + 12f);
+
+            // 機材係からのお知らせがあるときだけ出す控えめなチップ (タップでお知らせ画面へ)。
+            // 上部はティッカーの初期位置 (y=-240〜) と被るため、ナビバーの上の左下に置く
+            // (パーツ移動モード中は操作ヒントの帯と重なるので UpdateNoticeChip が隠す)
+            const string noticeLabel = "おしらせがあるよ♪";
+            var noticeChip = UiFactory.CreateButton(transform, "NoticeChip", "",
+                new Color(1f, 1f, 1f, 0.85f), UiFactory.PrimaryDark, 24);
+            var chipLabel = noticeChip.GetComponentInChildren<Text>();
+            chipLabel.text = noticeLabel;
+            UiFactory.FitLabelOneLine(chipLabel);
+            var chipRect = noticeChip.GetComponent<RectTransform>();
+            chipRect.anchorMin = chipRect.anchorMax = new Vector2(0f, 0f);
+            chipRect.pivot = new Vector2(0f, 0f);
+            chipRect.anchoredPosition = new Vector2(24f, GlobalNav.BarHeight + 24f);
+            chipRect.sizeDelta = new Vector2(
+                UiFactory.EstimateTextWidth(noticeLabel, 24) + 64f, 76f);
+            noticeChip.onClick.AddListener(() =>
+            {
+                Se.Play(Se.Transition);
+                Manager.Show<NoticeScreen>();
+            });
+            _noticeChip = noticeChip.gameObject;
+            UpdateNoticeChip();
 
             // 移動モードのヒント (ナビバーの上)
             var hint = UiFactory.CreateText(transform, "EditHint",
@@ -694,6 +718,7 @@ namespace YukaNavi.UI
             item.Group.SetAsLastSibling();
             _editOverlay.SetActive(true);
             _editHint.SetActive(true);
+            UpdateNoticeChip(); // ヒントの帯と重なるお知らせチップを隠す
             Se.Play(Se.Tap); // 長押し成立の合図
         }
 
@@ -718,6 +743,7 @@ namespace YukaNavi.UI
             {
                 Se.Play(Se.Confirm);
             }
+            UpdateNoticeChip(); // 移動モードで隠していたお知らせチップを戻す
         }
 
         void HideItem(MovableItem item)
@@ -1325,11 +1351,37 @@ namespace YukaNavi.UI
             string username = AppConfig.Username;
             _nameText.text = string.IsNullOrEmpty(username) ? "(よやくすると入ります)" : username;
             _ = LoadRoomNameAsync();
+            // 機材係お知らせの確認 (取得済みで新しければ何もしない)。結果は Changed 購読で反映
+            UpdateNoticeChip();
+            _ = NoticeService.RefreshAsync();
             if (_polling != null)
             {
                 StopCoroutine(_polling); // 背後表示のまま OnShow が再度呼ばれても二重ポーリングしない
             }
             _polling = StartCoroutine(PollRoutine());
+        }
+
+        void OnEnable()
+        {
+            NoticeService.Changed += UpdateNoticeChip;
+        }
+
+        void OnDisable()
+        {
+            NoticeService.Changed -= UpdateNoticeChip;
+        }
+
+        /// <summary>
+        /// 機材係お知らせチップの表示切替 (NoticeService.Changed と移動モードの出入りから呼ばれる)。
+        /// 移動モード中は操作ヒントの帯と重なるため隠す。
+        /// </summary>
+        void UpdateNoticeChip()
+        {
+            if (_noticeChip == null)
+            {
+                return; // RebuildAll の谷間 (作り直し前) は次の BuildUi が反映する
+            }
+            _noticeChip.SetActive(NoticeService.HasNotice && _editing == HomeItem.None);
         }
 
         /// <summary>RebuildAll 用: 子と一緒に消えないリソースとスキン適用状態を片付ける。</summary>

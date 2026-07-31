@@ -6,6 +6,7 @@ Unity 6 製、Android / Windows 先行(iOS は後続)。名前はカラオケ機
 - **設計書**: [docs/design.md](docs/design.md)
 - **API 仕様書**(サーバーとの契約): [KaraokeRequestorWeb の api/README.md](https://github.com/bee7813993/KaraokeRequestorWeb/blob/master/api/README.md)
 - **きせかえスキン仕様書**: [docs/skin-spec.md](docs/skin-spec.md)(skin.json 全キー・挙動・フォールバック順)。配布手順は [docs/skin-dlc.md](docs/skin-dlc.md)、Web 制作ツールは [tools/skin-maker/](tools/skin-maker/)
+- **機材係提供コンテンツ (アプリ内おしらせ) 仕様**: [docs/notice-content.md](docs/notice-content.md)(`class="yukanavi-notice"` の書き方・対応タグ・リンクの扱い)
 - **マスコット素材の原本**: [art/mascot/](art/mascot/)(Unity プロジェクト作成後に `Assets/` へ取り込む)
 
 ## セットアップ

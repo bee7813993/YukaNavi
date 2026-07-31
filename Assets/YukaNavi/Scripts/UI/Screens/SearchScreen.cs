@@ -115,7 +115,7 @@ namespace YukaNavi.UI
             AddWayCard(grid, "シリーズ名で探す", "シリーズから作品を\nたどってさがす",
                 () => NameIndexScreen.Open(Manager, "group"));
             AddWayCard(grid, "お気に入り検索", "☆保存した歌手・\n作品・ワードから",
-                () => MypageScreen.Open(Manager, 3));
+                () => MypageScreen.Open(Manager, 2));
             _urlCard = AddWayCard(grid, "URLでリクエスト", "YouTube等のURLを\n直接再生する",
                 () => UrlRequestScreen.Open(Manager)).gameObject;
 
