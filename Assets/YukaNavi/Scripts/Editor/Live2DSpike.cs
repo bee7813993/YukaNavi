@@ -75,7 +75,10 @@ namespace YukaNavi.EditorTools
             rect.offsetMax = Vector2.zero;
 
             var renderer = viewGo.AddComponent<Live2DMascotRenderer>();
-            renderer.Load(prefab);
+            // 待機モーションのクリップも渡す (SDK が motion3.json から生成した .anim)
+            var idleClip = AssetDatabase.LoadAssetAtPath<AnimationClip>(
+                System.IO.Path.GetDirectoryName(ModelPath).Replace("\\", "/") + "/motions/Idle.anim");
+            renderer.Load(prefab, idleClip);
 
             Debug.Log("[YukaNavi] Live2D スパイクを表示しました (カメラは自動でフィットします)。\n"
                 + "確認する点: (1) 背景の上にモデルが重なって見えるか (2) 周囲が透過して抜けているか "
@@ -239,6 +242,78 @@ namespace YukaNavi.EditorTools
             {
                 var p = parts[i];
                 sb.AppendLine($"    {p.name} / {p.b.size} / opacity={p.opacity:F2} / mask={p.isMask}");
+            }
+            Debug.Log(sb.ToString());
+        }
+
+        /// <summary>
+        /// Live2D の動き (モーション・まばたき・物理) が実際に動いているかを調べる (診断用)。
+        /// 見た目では判断しづらいので、Animator の再生状況とパラメータの変化量を数値で出す。
+        /// </summary>
+        [MenuItem("YukaNavi/Live2D/動作診断: モーション・まばたき・物理を確認 (再生中)")]
+        public static void DiagnoseMotion()
+        {
+            if (!EditorApplication.isPlaying)
+            {
+                Debug.LogError("[YukaNavi] 再生 (▶) 中に実行してください");
+                return;
+            }
+            var stage = GameObject.Find("Live2DStage");
+            var model = stage != null ? stage.transform.Find("Model") : null;
+            if (model == null)
+            {
+                Debug.LogError("[YukaNavi] Live2D モデルが見つかりません (Live2D 表示中に実行してください)");
+                return;
+            }
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("[YukaNavi] Live2D 動作診断");
+
+            // モーション再生は CubismMotionController で行う (Animator の controller は
+            // SDK が空のものしか作らないため使っていない。未設定で正常)
+            var motionController = model.GetComponent("CubismMotionController");
+            sb.AppendLine("  CubismMotionController: "
+                + (motionController != null ? "あり (この経由で待機モーションを再生)" : "なし → 待機モーションは動きません"));
+
+            // 各コントローラの有無 (Cubism の型は名前で照合)
+            foreach (var name in new[] { "CubismUpdateController", "CubismEyeBlinkController",
+                "CubismAutoEyeBlinkInput", "CubismPhysicsController", "CubismFadeController",
+                "CubismExpressionController", "CubismRenderController" })
+            {
+                sb.AppendLine($"  {name}: " + (model.GetComponent(name) != null ? "あり" : "なし"));
+            }
+
+            // パラメータの実値 (動いていれば時間で変わる)。
+            // CubismParameter.Value はプロパティではなくフィールドなので GetField で読む
+            sb.AppendLine("  パラメータの現在値 (2回実行して変化していれば動いている):");
+            int shown = 0;
+            foreach (var t in model.GetComponentsInChildren<Transform>())
+            {
+                // 待機モーションが動かす対象と、まばたきの確認用
+                if (!(t.name.Contains("Angle") || t.name.Contains("Breath") || t.name.Contains("EyeLOpen")))
+                {
+                    continue;
+                }
+                var param = t.GetComponent("CubismParameter");
+                if (param == null)
+                {
+                    continue;
+                }
+                var valueField = param.GetType().GetField("Value",
+                    BindingFlags.Public | BindingFlags.Instance);
+                if (valueField == null)
+                {
+                    continue;
+                }
+                sb.AppendLine($"    {t.name} = {valueField.GetValue(param)}");
+                if (++shown >= 8)
+                {
+                    break;
+                }
+            }
+            if (shown == 0)
+            {
+                sb.AppendLine("    (パラメータが見つかりませんでした)");
             }
             Debug.Log(sb.ToString());
         }

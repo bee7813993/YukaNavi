@@ -50,9 +50,12 @@ namespace YukaNavi.UI
         /// <summary>
         /// モデルを読み込んで表示を開始する。表示先はこのコンポーネントと同じ GameObject
         /// (RawImage を追加する) なので、呼び出し側は RectTransform で表示枠を用意しておくこと。
+        /// idleClip に待機モーション (Cubism が motion3.json から生成した .anim) を渡すと
+        /// ループ再生する。
         /// textureWidth/Height は描画解像度 (既定はデフォルト立ち絵と同じ 1024x1536)。
         /// </summary>
-        public void Load(GameObject modelPrefab, int textureWidth = 1024, int textureHeight = 1536)
+        public void Load(GameObject modelPrefab, AnimationClip idleClip = null,
+                         int textureWidth = 1024, int textureHeight = 1536)
         {
             Unload();
             if (modelPrefab == null)
@@ -76,6 +79,7 @@ namespace YukaNavi.UI
             _modelGo = Instantiate(modelPrefab, _stage.transform);
             _modelGo.name = "Model";
             _modelGo.transform.localPosition = StageOffset; // 親ではなくモデル自身に載せる (仕様参照)
+            SetUpMotionAndBlink(_modelGo, idleClip);
 
             var cameraGo = new GameObject("Live2DCamera");
             cameraGo.transform.SetParent(_stage.transform, false);
@@ -223,6 +227,61 @@ namespace YukaNavi.UI
             _camera.orthographicSize = halfHeight;
             _camera.transform.position = new Vector3(bounds.center.x, bounds.center.y, bounds.center.z - 10f);
             return true;
+        }
+
+        /// <summary>
+        /// モーション再生と自動まばたきを有効にする。
+        ///
+        /// Cubism SDK が model3.json のインポート時に付けてくれるのは「適用する側」だけで、
+        /// 動かすための入力は付かない。具体的には:
+        /// - CubismEyeBlinkController (まばたきを適用) は付くが、値を作る
+        ///   CubismAutoEyeBlinkInput は付かない (= まばたきしない)
+        /// - Animator は付くが、生成される AnimatorController は空
+        ///   (DefaultState も Motions も無い) ため、そのままでは何も再生されない
+        /// そのため、ここで両方を補う。モーションは AnimatorController を組み立てるのではなく、
+        /// SDK の CubismMotionController でクリップを直接再生する (公式サンプルと同じ方式)。
+        ///
+        /// Cubism の型を直接書くと SDK 未導入の環境でコンパイルが通らなくなるため、
+        /// 型名の文字列から解決して扱う (SDK が無ければ何もしない)。
+        /// </summary>
+        static void SetUpMotionAndBlink(GameObject model, AnimationClip idleClip)
+        {
+            // 自動まばたき。CubismEyeBlinkController が付いているモデルにだけ意味がある
+            AddCubismComponent(model, "Live2D.Cubism.Framework.CubismAutoEyeBlinkInput");
+
+            if (idleClip == null)
+            {
+                return;
+            }
+            var controller = AddCubismComponent(model, "Live2D.Cubism.Framework.Motion.CubismMotionController");
+            if (controller == null)
+            {
+                return;
+            }
+            // PlayAnimation(clip, layerIndex, priority, isLoop, speed)
+            var play = controller.GetType().GetMethod("PlayAnimation",
+                BindingFlags.Public | BindingFlags.Instance);
+            if (play == null)
+            {
+                return;
+            }
+            // priority は CubismMotionPriority.PriorityNormal (=2) 相当。定数を直接参照しないため数値で渡す
+            play.Invoke(controller, new object[] { idleClip, 0, 2, true, 1f });
+        }
+
+        /// <summary>
+        /// Cubism のコンポーネントを型名から取得する (無ければ追加する)。
+        /// SDK 未導入や名前変更で型が見つからないときは null を返す。
+        /// </summary>
+        static Component AddCubismComponent(GameObject target, string fullTypeName)
+        {
+            var type = System.Type.GetType(fullTypeName + ", Live2D.Cubism");
+            if (type == null)
+            {
+                return null;
+            }
+            var existing = target.GetComponent(type);
+            return existing != null ? existing : target.AddComponent(type);
         }
 
         /// <summary>

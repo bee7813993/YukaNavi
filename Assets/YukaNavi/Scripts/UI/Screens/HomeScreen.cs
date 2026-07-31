@@ -27,10 +27,13 @@ namespace YukaNavi.UI
         const float PollIntervalSeconds = 5f;
 
         /// <summary>
-        /// デフォルトテーマの Live2D モデル (Resources 配下)。置かれていれば静止画の代わりに使う。
-        /// モデルは未制作 — 制作仕様は art/mascot/live2d_parts/MODEL_REQUEST.md
+        /// デフォルトテーマの Live2D モデルを置くフォルダ (Resources 配下)。
+        /// ここに Cubism のモデル一式を入れると、静止画の代わりにそれが表示される。
+        /// Cubism SDK は model3.json のインポート時に "<名前>.model3.json.prefab" を
+        /// 自動生成するため、ファイル名を決め打ちせずフォルダ内から拾う (下記 LoadLive2DPrefab)。
+        /// 制作仕様は art/mascot/live2d_parts/MODEL_REQUEST.md
         /// </summary>
-        const string Live2DModelPath = "Live2D/yukari";
+        const string Live2DModelFolder = "Live2D/yukari";
 
         // 時計・メッセージ・マスコットの表示/位置/大きさはスキンごとに保存する (HomeLayoutStore)。
         // 表示のオン/オフはきせかえ画面に統合した。
@@ -1067,12 +1070,23 @@ namespace YukaNavi.UI
             //  art/mascot/live2d_parts/MODEL_REQUEST.md)。
             // スキンがキャラ画像を指定しているときはそちらを優先する
             // (スキンからの Live2D 指定は将来対応)
-            GameObject live2dPrefab = null;
-            if (customs == null)
+            GameObject live2dPrefab = customs == null ? LoadLive2DPrefab() : null;
+            // 待機モーションのクリップも同じフォルダから拾う。Cubism が生成する
+            // AnimatorController は空 (DefaultState も Motions も無い) なので使わず、
+            // クリップを CubismMotionController で直接再生する
+            AnimationClip live2dIdleClip = null;
+            if (live2dPrefab != null)
             {
-                live2dPrefab = Resources.Load<GameObject>(Live2DModelPath);
+                foreach (var clip in Resources.LoadAll<AnimationClip>(Live2DModelFolder))
+                {
+                    if (clip != null && clip.name.IndexOf("Idle", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        live2dIdleClip = clip;
+                        break;
+                    }
+                }
             }
-            _mascot = MascotView.Create(group, size, 0f, customs, live2dPrefab);
+            _mascot = MascotView.Create(group, size, 0f, customs, live2dPrefab, live2dIdleClip);
             // スキンにセリフが設定されていればタップ時にランダムで表示する
             // (キャラごとの talk があれば表示中のキャラのものが優先される)
             _mascot.CustomLines = (skin.Talk != null && skin.Talk.Count > 0)
@@ -1083,6 +1097,26 @@ namespace YukaNavi.UI
             _mascot.SuppressTap = () => _editing == HomeItem.Mascot;
             // 描画順: 背景[0] → パーティクル[1] → マスコット[2]
             group.SetSiblingIndex(2);
+        }
+
+        /// <summary>
+        /// デフォルトテーマの Live2D モデルのプレハブを読む (無ければ null = 静止画のまま)。
+        /// Cubism SDK は model3.json のインポート時にプレハブを自動生成するが、その名前は
+        /// "<モデル名>.model3.json.prefab" になりモデル名に依存する。名前を決め打ちすると
+        /// モデルを差し替えたときに読めなくなるため、フォルダ内から拾う。
+        /// </summary>
+        static GameObject LoadLive2DPrefab()
+        {
+            var candidates = Resources.LoadAll<GameObject>(Live2DModelFolder);
+            foreach (var candidate in candidates)
+            {
+                // Cubism のモデルには CubismModel が付いている (SDK 未導入なら見つからない)
+                if (candidate != null && candidate.GetComponent("CubismModel") != null)
+                {
+                    return candidate;
+                }
+            }
+            return candidates.Length > 0 ? candidates[0] : null;
         }
 
         /// <summary>ティッカーの1行分のテキストを作る (長い曲名は行内で切り詰め)。</summary>
