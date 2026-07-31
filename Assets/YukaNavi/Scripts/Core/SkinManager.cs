@@ -10,6 +10,10 @@ namespace YukaNavi.Core
     public class SkinDef
     {
         [JsonProperty("name")] public string Name;
+        /// <summary>作者名 (任意)。きせかえ一覧に表示される</summary>
+        [JsonProperty("author")] public string Author;
+        /// <summary>スキンの説明 (任意)</summary>
+        [JsonProperty("description")] public string Description;
         [JsonProperty("background")] public SkinLayer Background;
         [JsonProperty("character")] public SkinLayer Character;
         /// <summary>
@@ -17,18 +21,61 @@ namespace YukaNavi.Core
         /// 配布スキン用の拡張で、アプリの編集モーダルでは単数のみ扱う。
         /// </summary>
         [JsonProperty("backgrounds")] public List<SkinLayer> Backgrounds;
+        /// <summary>昼 (6:00〜18:00) の背景。あれば backgrounds / background より優先で先頭になる</summary>
+        [JsonProperty("background_day")] public SkinLayer BackgroundDay;
+        /// <summary>夜 (18:00〜翌6:00) の背景。あれば backgrounds / background より優先で先頭になる</summary>
+        [JsonProperty("background_night")] public SkinLayer BackgroundNight;
+        /// <summary>
+        /// 季節×昼夜の背景。あれば background_day / background_night よりさらに優先。
+        /// 季節は気象学的区分 (3〜5月=春 / 6〜8月=夏 / 9〜11月=秋 / 12〜2月=冬)
+        /// </summary>
+        [JsonProperty("background_spring_day")] public SkinLayer BackgroundSpringDay;
+        [JsonProperty("background_spring_night")] public SkinLayer BackgroundSpringNight;
+        [JsonProperty("background_summer_day")] public SkinLayer BackgroundSummerDay;
+        [JsonProperty("background_summer_night")] public SkinLayer BackgroundSummerNight;
+        [JsonProperty("background_autumn_day")] public SkinLayer BackgroundAutumnDay;
+        [JsonProperty("background_autumn_night")] public SkinLayer BackgroundAutumnNight;
+        [JsonProperty("background_winter_day")] public SkinLayer BackgroundWinterDay;
+        [JsonProperty("background_winter_night")] public SkinLayer BackgroundWinterNight;
         /// <summary>キャラ画像 (複数。マスコットのタップで切替)。単数 character と併用可</summary>
         [JsonProperty("characters")] public List<SkinLayer> Characters;
+        /// <summary>予約完了画面のポーズ絵 (type="image")。null = キャラの1枚目 → デフォルト</summary>
+        [JsonProperty("pose_complete")] public SkinLayer PoseComplete;
         /// <summary>スキン専用 BGM (type="audio")。null = アプリのデフォルト BGM</summary>
         [JsonProperty("bgm")] public SkinLayer Bgm;
         /// <summary>昼 (6:00〜18:00) の BGM。あれば bgm より優先</summary>
         [JsonProperty("bgm_day")] public SkinLayer BgmDay;
         /// <summary>夜 (18:00〜翌6:00) の BGM。あれば bgm より優先</summary>
         [JsonProperty("bgm_night")] public SkinLayer BgmNight;
+        /// <summary>
+        /// 季節×昼夜の BGM。あれば bgm_day / bgm_night よりさらに優先。
+        /// 季節は気象学的区分 (3〜5月=春 / 6〜8月=夏 / 9〜11月=秋 / 12〜2月=冬)
+        /// </summary>
+        [JsonProperty("bgm_spring_day")] public SkinLayer BgmSpringDay;
+        [JsonProperty("bgm_spring_night")] public SkinLayer BgmSpringNight;
+        [JsonProperty("bgm_summer_day")] public SkinLayer BgmSummerDay;
+        [JsonProperty("bgm_summer_night")] public SkinLayer BgmSummerNight;
+        [JsonProperty("bgm_autumn_day")] public SkinLayer BgmAutumnDay;
+        [JsonProperty("bgm_autumn_night")] public SkinLayer BgmAutumnNight;
+        [JsonProperty("bgm_winter_day")] public SkinLayer BgmWinterDay;
+        [JsonProperty("bgm_winter_night")] public SkinLayer BgmWinterNight;
+        /// <summary>効果音の差し替え (type="audio")。null = アプリ標準の音</summary>
+        [JsonProperty("se_tap")] public SkinLayer SeTap;
+        [JsonProperty("se_confirm")] public SkinLayer SeConfirm;
+        [JsonProperty("se_error")] public SkinLayer SeError;
+        [JsonProperty("se_transition")] public SkinLayer SeTransition;
+        /// <summary>予約完了音の差し替え (type="audio")</summary>
+        [JsonProperty("se_complete")] public SkinLayer SeComplete;
         /// <summary>リモコンのレコード盤画像 (type="image")。null = アプリ標準の盤</summary>
         [JsonProperty("record")] public SkinLayer Record;
         /// <summary>マスコットをタップしたときのセリフ (1要素=1つ、ランダム表示)。null = 標準</summary>
         [JsonProperty("talk")] public List<string> Talk;
+        /// <summary>朝 (5:00〜11:00) のセリフ。talk と合わせて抽選される</summary>
+        [JsonProperty("talk_morning")] public List<string> TalkMorning;
+        /// <summary>夕方 (17:00〜22:00) のセリフ。talk と合わせて抽選される</summary>
+        [JsonProperty("talk_evening")] public List<string> TalkEvening;
+        /// <summary>夜 (22:00〜翌5:00) のセリフ。talk と合わせて抽選される</summary>
+        [JsonProperty("talk_night")] public List<string> TalkNight;
         /// <summary>テーマ色。null = 既定 (紫)</summary>
         [JsonProperty("theme")] public SkinTheme Theme;
         /// <summary>ホーム画面パーツの配置 (時計など)。null = 未設定 (初期配置)</summary>
@@ -76,6 +123,16 @@ namespace YukaNavi.Core
         /// null ならスキン全体の talk にフォールバック。
         /// </summary>
         [JsonProperty("talk")] public List<string> Talk;
+        /// <summary>
+        /// 目閉じ差分のファイル (characters の要素で使う)。指定するとそのキャラがまばたきする。
+        /// 立ち絵と同じポーズ・同じ解像度の透過 PNG 推奨。
+        /// </summary>
+        [JsonProperty("eyes_closed")] public string EyesClosed;
+        /// <summary>
+        /// 表情差分 (characters の要素で使う)。タップで 立ち絵 → 表情1 → 表情2 → … と巡回し、
+        /// 一巡すると次のキャラへ切り替わる。
+        /// </summary>
+        [JsonProperty("expressions")] public List<SkinExpression> Expressions;
         /// <summary>背景の回転 (度、90単位)</summary>
         [JsonProperty("rotation")] public float Rotation = 0f;
         /// <summary>背景のズーム (1 = 画面を覆うちょうどの大きさ)</summary>
@@ -85,6 +142,21 @@ namespace YukaNavi.Core
         /// <summary>背景の位置調整 (画面高さに対する比率)</summary>
         [JsonProperty("offset_y")] public float OffsetY = 0f;
     }
+
+    /// <summary>キャラの表情差分1枚分。</summary>
+    public class SkinExpression
+    {
+        /// <summary>表情画像 (立ち絵と同じポーズ・同じ解像度の透過 PNG 推奨)</summary>
+        [JsonProperty("file")] public string File;
+        /// <summary>この表情のときのセリフ (任意)。無ければキャラ → スキン全体の talk へ</summary>
+        [JsonProperty("talk")] public List<string> Talk;
+    }
+
+    /// <summary>
+    /// 季節 (気象学的区分: 3〜5月=春 / 6〜8月=夏 / 9〜11月=秋 / 12〜2月=冬)。
+    /// アニメ期のインデックス区分 (PeriodScreen: 1〜3月=冬 等) とは別物なので混同しないこと。
+    /// </summary>
+    public enum Season { Spring, Summer, Autumn, Winter }
 
     /// <summary>
     /// スキン (きせかえ) の管理。persistentDataPath/skins/ 配下のフォルダをスキャンする。
@@ -172,17 +244,43 @@ namespace YukaNavi.Core
                 "- ファイルが見つからない場合はデフォルトに戻ります\r\n" +
                 "\r\n" +
                 "配布スキン向けの拡張 (skin.json に追記):\r\n" +
+                "  \"author\": \"作者名\",\r\n" +
+                "  \"description\": \"スキンの説明\",\r\n" +
                 "  \"backgrounds\": [ {\"type\":\"video\",\"file\":\"bg1.mp4\"},\r\n" +
                 "                    {\"type\":\"image\",\"file\":\"bg2.png\"} ],\r\n" +
                 "  \"characters\":  [ {\"type\":\"image\",\"file\":\"chara1.png\",\r\n" +
-                "                     \"talk\":[\"キャラ1のセリフ\"]},\r\n" +
+                "                     \"talk\":[\"キャラ1のセリフ\"],\r\n" +
+                "                     \"eyes_closed\":\"chara1_blink.png\",\r\n" +
+                "                     \"expressions\":[ {\"file\":\"chara1_smile.png\",\r\n" +
+                "                                       \"talk\":[\"えへへ♪\"]} ]},\r\n" +
                 "                    {\"type\":\"image\",\"file\":\"chara2.png\"} ],\r\n" +
+                "  \"pose_complete\": {\"type\":\"image\",\"file\":\"pose.png\"},\r\n" +
                 "  \"bgm_day\":   {\"type\":\"audio\",\"file\":\"bgm_day.ogg\"},\r\n" +
-                "  \"bgm_night\": {\"type\":\"audio\",\"file\":\"bgm_night.ogg\"}\r\n" +
+                "  \"bgm_night\": {\"type\":\"audio\",\"file\":\"bgm_night.ogg\"},\r\n" +
+                "  \"bgm_spring_day\": {\"type\":\"audio\",\"file\":\"spring_day.ogg\"},\r\n" +
+                "  \"background_night\": {\"type\":\"image\",\"file\":\"bg_night.png\"},\r\n" +
+                "  \"background_winter_day\": {\"type\":\"image\",\"file\":\"bg_wd.png\"},\r\n" +
+                "  \"se_tap\": {\"type\":\"audio\",\"file\":\"tap.ogg\"},\r\n" +
+                "  \"talk_morning\": [\"おはよ〜！\"]\r\n" +
+                "- author / description: 作者名と説明。きせかえ一覧に表示されます\r\n" +
                 "- backgrounds: 複数の背景。ホームの背景 (何もないところ) をタップで切替\r\n" +
                 "- characters: 複数のキャラ。マスコットをタップで切替。各キャラに talk を\r\n" +
                 "  書くとそのキャラ専用のセリフになる (無ければスキン全体の talk)\r\n" +
+                "- eyes_closed: 目閉じ差分。書くとそのキャラがまばたきします\r\n" +
+                "- expressions: 表情差分。タップで 立ち絵 → 表情 → … → 次のキャラ と巡回。\r\n" +
+                "  表情に talk を書くとその表情のときだけのセリフになります\r\n" +
+                "- pose_complete: 予約完了画面のポーズ絵 (無ければキャラの1枚目)\r\n" +
                 "- bgm_day / bgm_night: 昼 (6時〜18時) と夜で BGM を自動で切替\r\n" +
+                "- bgm_<季節>_<昼夜>: 季節×昼夜の BGM。spring / summer / autumn / winter ×\r\n" +
+                "  day / night の8種。季節は 3〜5月=春 / 6〜8月=夏 / 9〜11月=秋 / 12〜2月=冬。\r\n" +
+                "  優先順: 季節×昼夜 → bgm_day/bgm_night → bgm → アプリ標準\r\n" +
+                "- background_day / background_night / background_<季節>_<昼夜>: 背景も同様に\r\n" +
+                "  時間帯・季節で自動切替 (指定時はタップ巡回の1枚目になる)\r\n" +
+                "- se_tap / se_confirm / se_error / se_transition / se_complete: 効果音の\r\n" +
+                "  差し替え (タップ音 / 決定音 / エラー音 / 画面切替音 / 予約完了音)\r\n" +
+                "- talk_morning / talk_evening / talk_night: 時間帯セリフ。朝 (5時〜11時) /\r\n" +
+                "  夕方 (17時〜22時) / 夜 (22時〜翌5時) に talk と合わせて抽選されます\r\n" +
+                "- thumbnail.png をフォルダに置くと一覧にサムネイルが出ます (記載不要)\r\n" +
                 "- いずれも従来の単数指定 (background / character / bgm) と併用できます\r\n";
         }
 
@@ -252,13 +350,101 @@ namespace YukaNavi.Core
             }
             CheckLayer(skin, skin.Background, "background", "image/video", problems);
             CheckLayers(skin, skin.Backgrounds, "backgrounds", "image/video", problems);
+            CheckLayer(skin, skin.BackgroundDay, "background_day", "image/video", problems);
+            CheckLayer(skin, skin.BackgroundNight, "background_night", "image/video", problems);
+            CheckLayer(skin, skin.BackgroundSpringDay, "background_spring_day", "image/video", problems);
+            CheckLayer(skin, skin.BackgroundSpringNight, "background_spring_night", "image/video", problems);
+            CheckLayer(skin, skin.BackgroundSummerDay, "background_summer_day", "image/video", problems);
+            CheckLayer(skin, skin.BackgroundSummerNight, "background_summer_night", "image/video", problems);
+            CheckLayer(skin, skin.BackgroundAutumnDay, "background_autumn_day", "image/video", problems);
+            CheckLayer(skin, skin.BackgroundAutumnNight, "background_autumn_night", "image/video", problems);
+            CheckLayer(skin, skin.BackgroundWinterDay, "background_winter_day", "image/video", problems);
+            CheckLayer(skin, skin.BackgroundWinterNight, "background_winter_night", "image/video", problems);
             CheckLayer(skin, skin.Character, "character", "image/none", problems);
             CheckLayers(skin, skin.Characters, "characters", "image", problems);
+            CheckCharacterExtras(skin, skin.Character, "character", problems);
+            if (skin.Characters != null)
+            {
+                for (int i = 0; i < skin.Characters.Count; i++)
+                {
+                    CheckCharacterExtras(skin, skin.Characters[i], "characters[" + i + "]", problems);
+                }
+            }
+            CheckLayer(skin, skin.PoseComplete, "pose_complete", "image", problems);
             CheckLayer(skin, skin.Bgm, "bgm", "audio", problems);
             CheckLayer(skin, skin.BgmDay, "bgm_day", "audio", problems);
             CheckLayer(skin, skin.BgmNight, "bgm_night", "audio", problems);
+            CheckLayer(skin, skin.BgmSpringDay, "bgm_spring_day", "audio", problems);
+            CheckLayer(skin, skin.BgmSpringNight, "bgm_spring_night", "audio", problems);
+            CheckLayer(skin, skin.BgmSummerDay, "bgm_summer_day", "audio", problems);
+            CheckLayer(skin, skin.BgmSummerNight, "bgm_summer_night", "audio", problems);
+            CheckLayer(skin, skin.BgmAutumnDay, "bgm_autumn_day", "audio", problems);
+            CheckLayer(skin, skin.BgmAutumnNight, "bgm_autumn_night", "audio", problems);
+            CheckLayer(skin, skin.BgmWinterDay, "bgm_winter_day", "audio", problems);
+            CheckLayer(skin, skin.BgmWinterNight, "bgm_winter_night", "audio", problems);
+            CheckLayer(skin, skin.SeTap, "se_tap", "audio", problems);
+            CheckLayer(skin, skin.SeConfirm, "se_confirm", "audio", problems);
+            CheckLayer(skin, skin.SeError, "se_error", "audio", problems);
+            CheckLayer(skin, skin.SeTransition, "se_transition", "audio", problems);
+            CheckLayer(skin, skin.SeComplete, "se_complete", "audio", problems);
             CheckLayer(skin, skin.Record, "record", "image", problems);
             return problems;
+        }
+
+        /// <summary>
+        /// アプリ内の編集モーダルが扱わない拡張フィールド (複数指定・季節/昼夜・SE・時間帯セリフ等)
+        /// を持つか。配布スキンの編集時に「保持される」旨の案内を出す判定に使う。
+        /// </summary>
+        public static bool HasExtendedFields(SkinDef skin)
+        {
+            return (skin.Backgrounds != null && skin.Backgrounds.Count > 0)
+                || (skin.Characters != null && skin.Characters.Count > 0)
+                || skin.BgmDay != null || skin.BgmNight != null
+                || skin.BgmSpringDay != null || skin.BgmSpringNight != null
+                || skin.BgmSummerDay != null || skin.BgmSummerNight != null
+                || skin.BgmAutumnDay != null || skin.BgmAutumnNight != null
+                || skin.BgmWinterDay != null || skin.BgmWinterNight != null
+                || skin.BackgroundDay != null || skin.BackgroundNight != null
+                || skin.BackgroundSpringDay != null || skin.BackgroundSpringNight != null
+                || skin.BackgroundSummerDay != null || skin.BackgroundSummerNight != null
+                || skin.BackgroundAutumnDay != null || skin.BackgroundAutumnNight != null
+                || skin.BackgroundWinterDay != null || skin.BackgroundWinterNight != null
+                || skin.PoseComplete != null
+                || skin.SeTap != null || skin.SeConfirm != null || skin.SeError != null
+                || skin.SeTransition != null || skin.SeComplete != null
+                || (skin.TalkMorning != null && skin.TalkMorning.Count > 0)
+                || (skin.TalkEvening != null && skin.TalkEvening.Count > 0)
+                || (skin.TalkNight != null && skin.TalkNight.Count > 0);
+        }
+
+        /// <summary>キャラ拡張 (eyes_closed / expressions) のファイル存在チェック。</summary>
+        static void CheckCharacterExtras(SkinDef skin, SkinLayer layer, string label, List<string> problems)
+        {
+            if (layer == null)
+            {
+                return;
+            }
+            if (!string.IsNullOrEmpty(layer.EyesClosed) && GetFilePath(skin, layer.EyesClosed) == null)
+            {
+                problems.Add(label + ": eyes_closed のファイルが見つかりません (" + layer.EyesClosed + ")");
+            }
+            if (layer.Expressions != null)
+            {
+                for (int i = 0; i < layer.Expressions.Count; i++)
+                {
+                    var expr = layer.Expressions[i];
+                    string exprLabel = label + ".expressions[" + i + "]";
+                    if (expr == null || string.IsNullOrEmpty(expr.File))
+                    {
+                        problems.Add(exprLabel + ": file がありません");
+                        continue;
+                    }
+                    if (GetFilePath(skin, expr.File) == null)
+                    {
+                        problems.Add(exprLabel + ": ファイルが見つかりません (" + expr.File + ")");
+                    }
+                }
+            }
         }
 
         static void CheckLayers(SkinDef skin, List<SkinLayer> layers, string label,
@@ -300,8 +486,8 @@ namespace YukaNavi.Core
                 return;
             }
             string ext = Path.GetExtension(layer.File).ToLowerInvariant();
-            // Unity のランタイム読み込みが非対応の音声形式
-            if (label.StartsWith("bgm") && (ext == ".m4a" || ext == ".aac"))
+            // Unity のランタイム読み込みが非対応の音声形式 (BGM・SE 共通)
+            if (validTypes == "audio" && (ext == ".m4a" || ext == ".aac"))
             {
                 problems.Add(label + ": m4a/aac は再生できません (mp3/ogg/wav に変換してください)");
             }
@@ -353,19 +539,167 @@ namespace YukaNavi.Core
             return list;
         }
 
+        // ---- 時刻・季節ヘルパー ----
+
+        /// <summary>月から季節を求める (3〜5月=春, 6〜8月=夏, 9〜11月=秋, 12〜2月=冬)。</summary>
+        public static Season GetSeason(int month)
+        {
+            if (month >= 3 && month <= 5) { return Season.Spring; }
+            if (month >= 6 && month <= 8) { return Season.Summer; }
+            if (month >= 9 && month <= 11) { return Season.Autumn; }
+            return Season.Winter;
+        }
+
+        /// <summary>昼 (6:00〜18:00) かどうか。</summary>
+        public static bool IsDaytime(int hour)
+        {
+            return hour >= 6 && hour < 18;
+        }
+
+        /// <summary>季節のファイル名サフィックス ("spring" 等)。</summary>
+        public static string SeasonSuffix(Season season)
+        {
+            switch (season)
+            {
+                case Season.Spring: return "spring";
+                case Season.Summer: return "summer";
+                case Season.Autumn: return "autumn";
+                default: return "winter";
+            }
+        }
+
         /// <summary>
-        /// 現在時刻に合った BGM レイヤー。昼 (6:00〜18:00) は bgm_day、夜は bgm_night を優先し、
-        /// 未指定なら従来の bgm (null = アプリのデフォルト BGM)。
+        /// セリフの時間帯サフィックス。朝 (5:00〜11:00)="morning" / 夕方 (17:00〜22:00)="evening" /
+        /// 夜 (22:00〜翌5:00)="night"。それ以外の昼間は null (通常セリフのみ)。
+        /// BGM・背景の昼夜 (6:00〜18:00) とは別の区分 (挨拶の自然さを優先)。
         /// </summary>
+        public static string GetTimeOfDaySuffix(int hour)
+        {
+            if (hour >= 5 && hour < 11) { return "morning"; }
+            if (hour >= 17 && hour < 22) { return "evening"; }
+            if (hour >= 22 || hour < 5) { return "night"; }
+            return null;
+        }
+
+        /// <summary>レイヤーにファイル指定があるか。</summary>
+        static bool HasFile(SkinLayer layer)
+        {
+            return layer != null && !string.IsNullOrEmpty(layer.File);
+        }
+
+        // ---- BGM の解決 ----
+
+        /// <summary>現在時刻に合った BGM レイヤー (null = アプリのデフォルト BGM)。</summary>
         public static SkinLayer GetBgmForNow(SkinDef skin)
         {
-            int hour = System.DateTime.Now.Hour;
-            var timed = (hour >= 6 && hour < 18) ? skin.BgmDay : skin.BgmNight;
-            if (timed != null && !string.IsNullOrEmpty(timed.File))
+            return GetBgmFor(skin, System.DateTime.Now);
+        }
+
+        /// <summary>
+        /// 指定時刻の BGM レイヤー。季節×昼夜 (bgm_spring_day 等) → 昼夜 (bgm_day / bgm_night) →
+        /// 従来の bgm の順で選ぶ (null = アプリのデフォルト BGM)。検証メニューから時刻を注入できる。
+        /// </summary>
+        public static SkinLayer GetBgmFor(SkinDef skin, System.DateTime now)
+        {
+            bool day = IsDaytime(now.Hour);
+            var seasonal = GetSeasonalBgm(skin, GetSeason(now.Month), day);
+            if (HasFile(seasonal))
+            {
+                return seasonal;
+            }
+            var timed = day ? skin.BgmDay : skin.BgmNight;
+            if (HasFile(timed))
             {
                 return timed;
             }
             return skin.Bgm;
+        }
+
+        static SkinLayer GetSeasonalBgm(SkinDef skin, Season season, bool day)
+        {
+            switch (season)
+            {
+                case Season.Spring: return day ? skin.BgmSpringDay : skin.BgmSpringNight;
+                case Season.Summer: return day ? skin.BgmSummerDay : skin.BgmSummerNight;
+                case Season.Autumn: return day ? skin.BgmAutumnDay : skin.BgmAutumnNight;
+                default: return day ? skin.BgmWinterDay : skin.BgmWinterNight;
+            }
+        }
+
+        // ---- 背景の解決 ----
+
+        /// <summary>
+        /// 指定時刻の時間帯背景 (季節×昼夜 → 昼夜の順、無ければ null)。
+        /// あれば背景リストの先頭 (タップ巡回の起点) として扱われる。
+        /// </summary>
+        public static SkinLayer GetTimedBackground(SkinDef skin, System.DateTime now)
+        {
+            bool day = IsDaytime(now.Hour);
+            var seasonal = GetSeasonalBackground(skin, GetSeason(now.Month), day);
+            if (HasFile(seasonal))
+            {
+                return seasonal;
+            }
+            var timed = day ? skin.BackgroundDay : skin.BackgroundNight;
+            return HasFile(timed) ? timed : null;
+        }
+
+        static SkinLayer GetSeasonalBackground(SkinDef skin, Season season, bool day)
+        {
+            switch (season)
+            {
+                case Season.Spring: return day ? skin.BackgroundSpringDay : skin.BackgroundSpringNight;
+                case Season.Summer: return day ? skin.BackgroundSummerDay : skin.BackgroundSummerNight;
+                case Season.Autumn: return day ? skin.BackgroundAutumnDay : skin.BackgroundAutumnNight;
+                default: return day ? skin.BackgroundWinterDay : skin.BackgroundWinterNight;
+            }
+        }
+
+        /// <summary>
+        /// 指定時刻の背景リスト。時間帯背景があれば先頭に置き、続けて従来の
+        /// background / backgrounds を並べる (タップ巡回で全部を回れる)。
+        /// </summary>
+        public static List<SkinLayer> GetBackgroundsFor(SkinDef skin, System.DateTime now)
+        {
+            var list = GetBackgrounds(skin);
+            var timed = GetTimedBackground(skin, now);
+            if (timed != null)
+            {
+                list.Insert(0, timed);
+            }
+            return list;
+        }
+
+        // ---- セリフの解決 ----
+
+        /// <summary>
+        /// 指定時刻のスキン全体セリフ (時間帯セリフ + 通常 talk の合算。1件も無ければ null)。
+        /// </summary>
+        public static List<string> GetTalkFor(SkinDef skin, System.DateTime now)
+        {
+            var list = new List<string>();
+            var timed = GetTimeOfDayTalk(skin, now.Hour);
+            if (timed != null)
+            {
+                list.AddRange(timed);
+            }
+            if (skin.Talk != null)
+            {
+                list.AddRange(skin.Talk);
+            }
+            return list.Count > 0 ? list : null;
+        }
+
+        /// <summary>指定時刻の時間帯セリフ (無ければ null)。</summary>
+        public static List<string> GetTimeOfDayTalk(SkinDef skin, int hour)
+        {
+            switch (GetTimeOfDaySuffix(hour))
+            {
+                case "morning": return skin.TalkMorning;
+                case "evening": return skin.TalkEvening;
+                case "night": return skin.TalkNight;
+                default: return null;
+            }
         }
 
         public static SkinDef Current()
@@ -496,6 +830,8 @@ namespace YukaNavi.Core
         /// 既存スキンを更新する。newBgSource / newCharSource / newBgmSource が null なら既存ファイルを維持する。
         /// charMode: 0=デフォルト (ゆかりちゃん) / 1=画像 / 2=キャラなし
         /// removeBgm=true でスキン BGM を外す (newBgmSource より優先)。
+        /// 編集モーダルが扱わない拡張フィールド (backgrounds / characters / 昼夜・季節 BGM 等) は
+        /// skin.json にそのまま維持される。
         /// </summary>
         public static bool UpdateSkin(SkinDef skin, string name, string newBgSource, string newCharSource,
                                       float bgRotation, float bgZoom, Vector2 bgOffset, int charMode,
@@ -619,18 +955,17 @@ namespace YukaNavi.Core
                     record = new SkinLayer { Type = "image", File = destName };
                 }
 
-                var def = new SkinDef
-                {
-                    Name = string.IsNullOrEmpty(name) ? skin.Name : name,
-                    Background = background,
-                    Character = character,
-                    Bgm = bgm,
-                    Record = record,
-                    Talk = (talkLines != null && talkLines.Count > 0) ? talkLines : null,
-                    Theme = string.IsNullOrEmpty(themePrimary) ? null : new SkinTheme { Primary = themePrimary },
-                    Layout = skin.Layout, // ホーム配置は編集操作では変えない (引き継ぐ)
-                };
-                string json = JsonConvert.SerializeObject(def, Formatting.Indented,
+                // skin を直接更新して丸ごと書き戻す (SaveLayoutItem と同じ方式)。
+                // 新規 SkinDef を組み立てると、編集モーダルが扱わない拡張フィールド
+                // (backgrounds / characters / 昼夜・季節 BGM 等) が skin.json から消えてしまう
+                skin.Name = string.IsNullOrEmpty(name) ? skin.Name : name;
+                skin.Background = background;
+                skin.Character = character;
+                skin.Bgm = bgm;
+                skin.Record = record;
+                skin.Talk = (talkLines != null && talkLines.Count > 0) ? talkLines : null;
+                skin.Theme = string.IsNullOrEmpty(themePrimary) ? null : new SkinTheme { Primary = themePrimary };
+                string json = JsonConvert.SerializeObject(skin, Formatting.Indented,
                     new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
                 File.WriteAllText(Path.Combine(skin.Folder, "skin.json"), json, new UTF8Encoding(false));
                 return true;

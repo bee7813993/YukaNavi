@@ -41,6 +41,7 @@ namespace YukaNavi.UI
         RenderTexture _texture;
         GameObject _stage; // シーンルート直下の隔離用コンテナ (Camera/Model はここに置く)
         GameObject _modelGo;
+        Live2DRuntimeLoader.Model _runtimeModel; // 実行時ロードのときだけ入る (破棄のために持つ)
         Camera _camera;
         Coroutine _fitRoutine;
         Coroutine _tapRoutine;
@@ -77,8 +78,36 @@ namespace YukaNavi.UI
                          AnimationClip tapClip = null,
                          int textureWidth = 1024, int textureHeight = 1536)
         {
+            LoadCore(modelPrefab, null, idleClip, tapClip, textureWidth, textureHeight);
+        }
+
+        /// <summary>
+        /// <see cref="Live2DRuntimeLoader"/> が実行時に組み立てたモデルを表示する
+        /// (デフォルトテーマ拡張パックで配信したモデル用)。モーションはモデルに付属するものを使う。
+        /// 渡したモデルの寿命はこのコンポーネントが持ち、Unload() でまとめて破棄する。
+        /// </summary>
+        public void Load(Live2DRuntimeLoader.Model runtimeModel,
+                         int textureWidth = 1024, int textureHeight = 1536)
+        {
+            if (runtimeModel == null)
+            {
+                Unload();
+                return;
+            }
+            LoadCore(null, runtimeModel, runtimeModel.IdleClip, runtimeModel.TapClip,
+                textureWidth, textureHeight);
+        }
+
+        /// <summary>
+        /// 表示の実体。モデルの供給元がプレハブ (Resources) か実行時ロードかだけが違い、
+        /// カメラ・RenderTexture まわりは共通。
+        /// </summary>
+        void LoadCore(GameObject modelPrefab, Live2DRuntimeLoader.Model runtimeModel,
+                      AnimationClip idleClip, AnimationClip tapClip,
+                      int textureWidth, int textureHeight)
+        {
             Unload();
-            if (modelPrefab == null)
+            if (modelPrefab == null && (runtimeModel == null || runtimeModel.GameObject == null))
             {
                 return;
             }
@@ -96,11 +125,22 @@ namespace YukaNavi.UI
             // (RawImage だけは呼び出し側が用意した UI の RectTransform=this.transform に乗せる)
             _stage = new GameObject("Live2DStage");
 
-            _modelGo = Instantiate(modelPrefab, _stage.transform);
+            if (runtimeModel != null)
+            {
+                // 実行時ロードのモデルは非アクティブで渡ってくる。位置を決めてから有効化する
+                _runtimeModel = runtimeModel;
+                _modelGo = runtimeModel.GameObject;
+                _modelGo.transform.SetParent(_stage.transform, false);
+            }
+            else
+            {
+                _modelGo = Instantiate(modelPrefab, _stage.transform);
+            }
             _modelGo.name = "Model";
             _modelGo.transform.localPosition = StageOffset; // 親ではなくモデル自身に載せる (仕様参照)
             _idleClip = idleClip;
             _tapClip = tapClip;
+            _modelGo.SetActive(true);
             SetUpMotionAndBlink(_modelGo, idleClip);
 
             var cameraGo = new GameObject("Live2DCamera");
@@ -159,6 +199,13 @@ namespace YukaNavi.UI
             {
                 Destroy(_stage);
                 _stage = null;
+            }
+            if (_runtimeModel != null)
+            {
+                // 実行時に生成したテクスチャ・クリップ・フェード情報は GameObject を消しても
+                // 残るので明示的に破棄する (GameObject 自体は _stage ごと破棄済み)
+                _runtimeModel.Dispose();
+                _runtimeModel = null;
             }
             if (_texture != null)
             {

@@ -19,6 +19,7 @@ namespace YukaNavi.UI
 
         RectTransform _listContent;
         readonly List<GameObject> _rows = new List<GameObject>();
+        readonly List<Object> _rowAssets = new List<Object>(); // 一覧サムネイルの Texture/Sprite
 
         // ホームの表示トグル (時計/メッセージ/マスコット)。配置は現在のスキンに保存される
         Button _clockToggle;
@@ -1127,6 +1128,7 @@ namespace YukaNavi.UI
             }
             AppConfig.SkinId = id;
             Bgm.RefreshForCurrentSkin();
+            Se.RefreshForCurrentSkin();
             SetMessage("スキンを取り込みました");
             Se.Play(Se.Confirm);
             if (ApplyThemeAndRebuild())
@@ -1437,6 +1439,11 @@ namespace YukaNavi.UI
                 _previewPlaceholderText.text = "背景を選ぶと\nプレビューが出ます";
             }
             _createModal.SetActive(true);
+            if (SkinManager.HasExtendedFields(skin))
+            {
+                // 配布スキンの拡張設定はこのモーダルでは編集できないが、保存で消えることもない
+                UiFactory.ShowToast("このスキンの拡張設定 (季節BGM・表情差分など) は編集後も保持されます");
+            }
         }
 
         /// <summary>端末のファイルピッカーで画像/動画を選ぶ。</summary>
@@ -1567,7 +1574,9 @@ namespace YukaNavi.UI
                 AppConfig.SkinId = id;
             }
             SkinManager.BumpRevision();
-            Bgm.RefreshForCurrentSkin();
+            // 編集では bgm.mp3 等の同名ファイルが上書きされることがあるため強制再読込
+            Bgm.RefreshForCurrentSkin(force: true);
+            Se.RefreshForCurrentSkin();
             Se.Play(Se.Confirm);
             _createModal.SetActive(false);
             if (ApplyThemeAndRebuild())
@@ -1592,6 +1601,15 @@ namespace YukaNavi.UI
                 Destroy(row);
             }
             _rows.Clear();
+            // GameObject の破棄では Texture/Sprite は解放されないため個別に破棄する
+            foreach (var asset in _rowAssets)
+            {
+                if (asset != null)
+                {
+                    Destroy(asset);
+                }
+            }
+            _rowAssets.Clear();
 
             string currentId = SkinManager.Current().Id;
             foreach (var skin in SkinManager.ListSkins())
@@ -1638,14 +1656,53 @@ namespace YukaNavi.UI
                 Apply(skinId);
             });
 
+            // サムネイル (フォルダに thumbnail.png があれば表示。skin.json への記載は不要)
+            float nameLeft = 24f;
+            if (skin.Folder != null)
+            {
+                var thumbTex = SkinManager.LoadTexture(skin, "thumbnail.png");
+                if (thumbTex != null)
+                {
+                    var thumbSprite = Sprite.Create(thumbTex,
+                        new Rect(0f, 0f, thumbTex.width, thumbTex.height),
+                        new Vector2(0.5f, 0.5f), 100f);
+                    _rowAssets.Add(thumbTex);
+                    _rowAssets.Add(thumbSprite);
+                    var thumbGo = new GameObject("Thumb");
+                    thumbGo.transform.SetParent(rowGo.transform, false);
+                    var thumbImg = thumbGo.AddComponent<Image>();
+                    thumbImg.sprite = thumbSprite;
+                    thumbImg.preserveAspect = true;
+                    thumbImg.raycastTarget = false;
+                    var thumbRect = thumbImg.rectTransform;
+                    thumbRect.anchorMin = thumbRect.anchorMax = new Vector2(0f, 0.5f);
+                    thumbRect.pivot = new Vector2(0f, 0.5f);
+                    thumbRect.anchoredPosition = new Vector2(14f, 0f);
+                    thumbRect.sizeDelta = new Vector2(84f, 84f);
+                    nameLeft = 14f + 84f + 14f; // サムネイルの分だけ名前を右へ
+                }
+            }
+
             string label = (broken || problems.Count > 0 ? "⚠ " : "")
                 + (selected ? "✓ " : "") + skin.Name;
+            bool hasAuthor = !string.IsNullOrEmpty(skin.Author);
             var text = UiFactory.CreateText(rowGo.transform, "Name", label, 32,
-                selected ? UiFactory.PrimaryDark : UiFactory.TextDark, TextAnchor.MiddleLeft);
+                selected ? UiFactory.PrimaryDark : UiFactory.TextDark,
+                hasAuthor ? TextAnchor.LowerLeft : TextAnchor.MiddleLeft);
             UiFactory.StretchFull(text.rectTransform);
-            text.rectTransform.offsetMin = new Vector2(24f, 6f);
+            // 作者名があるスキンは名前を上寄せにして、下の段に作者名を出す
+            text.rectTransform.offsetMin = new Vector2(nameLeft, hasAuthor ? 50f : 6f);
             text.rectTransform.offsetMax = new Vector2(-330f, -6f);
             UiFactory.FitLabelOneLine(text, 20); // 長い名前は1行に収まるよう縮める
+            if (hasAuthor)
+            {
+                var authorText = UiFactory.CreateText(rowGo.transform, "Author",
+                    "作者: " + skin.Author, 20, UiFactory.TextMuted, TextAnchor.UpperLeft);
+                UiFactory.StretchFull(authorText.rectTransform);
+                authorText.rectTransform.offsetMin = new Vector2(nameLeft, 10f);
+                authorText.rectTransform.offsetMax = new Vector2(-330f, -60f);
+                UiFactory.FitLabelOneLine(authorText, 14);
+            }
 
             // ユーザースキンには編集/共有/削除ボタンを付ける (壊れたスキンは削除のみ)
             if (skin.Folder != null)
@@ -1700,6 +1757,7 @@ namespace YukaNavi.UI
                             AppConfig.SkinId = "";
                         }
                         Bgm.RefreshForCurrentSkin();
+                        Se.RefreshForCurrentSkin();
                         Se.Play(Se.Confirm);
                         if (ApplyThemeAndRebuild())
                         {
@@ -1721,6 +1779,7 @@ namespace YukaNavi.UI
         {
             AppConfig.SkinId = skinId;
             Bgm.RefreshForCurrentSkin(); // スキン BGM も切り替える
+            Se.RefreshForCurrentSkin(); // スキン効果音も入れ替える
             Se.Play(Se.Confirm);
             if (ApplyThemeAndRebuild())
             {

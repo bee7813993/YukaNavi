@@ -80,7 +80,10 @@ namespace YukaNavi.UI
         GameObject _banner;
         Text _bannerText;
         GameObject _backgroundGo;
+        Texture2D _backgroundTexture; // スキン画像背景 (GameObject 破棄では解放されないため個別に持つ)
+        string _timedBgPath;          // 表示中の時間帯背景のファイル名 (null = 時間帯背景なし)
         MascotView _mascot;
+        readonly List<Object> _mascotAssets = new List<Object>(); // マスコット用に生成した Texture/Sprite
         VideoPlayer _videoPlayer;
         RenderTexture _videoTexture;
         string _appliedSkinId;
@@ -859,6 +862,15 @@ namespace YukaNavi.UI
                 _mascotItem = null;
                 _mascot = null;
             }
+            // GameObject の破棄では Texture/Sprite は解放されないため個別に破棄する
+            foreach (var asset in _mascotAssets)
+            {
+                if (asset != null)
+                {
+                    Destroy(asset);
+                }
+            }
+            _mascotAssets.Clear();
 
             BuildBackground(skin);
             BuildMascot(skin);
@@ -870,6 +882,11 @@ namespace YukaNavi.UI
             {
                 Destroy(_backgroundGo);
                 _backgroundGo = null;
+            }
+            if (_backgroundTexture != null)
+            {
+                Destroy(_backgroundTexture);
+                _backgroundTexture = null;
             }
             if (_videoPlayer != null)
             {
@@ -890,14 +907,15 @@ namespace YukaNavi.UI
         }
 
         /// <summary>
-        /// 背景タップ (前面に UI が無いところ) で次の背景へ。複数背景 (backgrounds) の
-        /// スキンだけで動く。選んだ背景はスキンごとに保存され、次回起動でも続く。
+        /// 背景タップ (前面に UI が無いところ) で次の背景へ。複数背景 (backgrounds や
+        /// 時間帯背景との組み合わせ) のスキンだけで動く。選んだ背景はスキンごとに保存され、
+        /// 次回起動でも続く。時間帯背景があるスキンでは先頭 (index 0) が時間帯背景になる。
         /// パーツ移動モード中は編集オーバーレイがタップを受けるためここには届かない。
         /// </summary>
         void CycleBackground()
         {
             var skin = _currentSkin ?? SkinManager.Current();
-            var layers = SkinManager.GetBackgrounds(skin);
+            var layers = SkinManager.GetBackgroundsFor(skin, System.DateTime.Now);
             if (skin.Folder == null || layers.Count <= 1)
             {
                 return;
@@ -921,7 +939,10 @@ namespace YukaNavi.UI
             bgButton.onClick.AddListener(CycleBackground);
 
             bool built = false;
-            var layers = SkinManager.GetBackgrounds(skin);
+            var now = System.DateTime.Now;
+            var timed = SkinManager.GetTimedBackground(skin, now);
+            _timedBgPath = timed != null ? timed.File : null; // 時間帯またぎの検知用 (Update)
+            var layers = SkinManager.GetBackgroundsFor(skin, now);
             if (skin.Folder != null && layers.Count > 0)
             {
                 int index = Mathf.Clamp(PlayerPrefs.GetInt(BgIndexKey(skin), 0), 0, layers.Count - 1);
@@ -940,6 +961,7 @@ namespace YukaNavi.UI
                     var tex = SkinManager.LoadTexture(skin, bgDef.File);
                     if (tex != null)
                     {
+                        _backgroundTexture = tex; // スキン切替・巡回時に破棄する
                         view.SetTexture(tex, (float)tex.width / tex.height);
                         built = true;
                     }
@@ -1017,8 +1039,7 @@ namespace YukaNavi.UI
 
         void BuildMascot(SkinDef skin)
         {
-            Sprite[] customs = null;
-            string[][] mascotTalks = null;
+            List<MascotView.MascotCharacter> customs = null;
             float scale = 1f;
             if (skin.Folder != null)
             {
@@ -1026,32 +1047,64 @@ namespace YukaNavi.UI
                 {
                     return; // キャラなしスキン
                 }
-                // 複数キャラ (characters) 対応。タップで次の画像に切り替わる
-                var sprites = new List<Sprite>();
-                var talks = new List<string[]>(); // sprites と同じ並びのキャラ別セリフ
+                // 複数キャラ (characters) 対応。タップで表情を一巡してから次のキャラに切り替わる
+                var list = new List<MascotView.MascotCharacter>();
                 foreach (var layer in SkinManager.GetCharacters(skin))
                 {
                     if (layer.Type != "image")
                     {
                         continue; // 未対応 type (live2d 等) は読み飛ばす
                     }
-                    var tex = SkinManager.LoadTexture(skin, layer.File);
-                    if (tex == null)
+                    var baseSprite = LoadMascotSprite(skin, layer.File);
+                    if (baseSprite == null)
                     {
                         continue;
                     }
-                    sprites.Add(Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height),
-                        new Vector2(0.5f, 0.5f), 100f));
-                    talks.Add(layer.Talk != null && layer.Talk.Count > 0 ? layer.Talk.ToArray() : null);
-                    if (sprites.Count == 1)
+                    var ch = new MascotView.MascotCharacter
+                    {
+                        Base = baseSprite,
+                        Talk = layer.Talk != null && layer.Talk.Count > 0 ? layer.Talk.ToArray() : null,
+                    };
+                    if (!string.IsNullOrEmpty(layer.EyesClosed))
+                    {
+                        // 読めなければ null のまま = まばたきなし
+                        ch.EyesClosed = LoadMascotSprite(skin, layer.EyesClosed);
+                    }
+                    if (layer.Expressions != null && layer.Expressions.Count > 0)
+                    {
+                        // 読めた表情だけを詰める (セリフの並びも同時に合わせて整合を保つ)
+                        var sprites = new List<Sprite>();
+                        var talks = new List<string[]>();
+                        foreach (var expr in layer.Expressions)
+                        {
+                            if (expr == null || string.IsNullOrEmpty(expr.File))
+                            {
+                                continue;
+                            }
+                            var sprite = LoadMascotSprite(skin, expr.File);
+                            if (sprite == null)
+                            {
+                                continue;
+                            }
+                            sprites.Add(sprite);
+                            talks.Add(expr.Talk != null && expr.Talk.Count > 0
+                                ? expr.Talk.ToArray() : null);
+                        }
+                        if (sprites.Count > 0)
+                        {
+                            ch.Expressions = sprites.ToArray();
+                            ch.ExpressionTalk = talks.ToArray();
+                        }
+                    }
+                    list.Add(ch);
+                    if (list.Count == 1)
                     {
                         scale = Mathf.Clamp(layer.Scale, 0.3f, 2f);
                     }
                 }
-                if (sprites.Count > 0)
+                if (list.Count > 0)
                 {
-                    customs = sprites.ToArray();
-                    mascotTalks = talks.ToArray();
+                    customs = list;
                 }
                 // 1枚も読めなければデフォルトのゆかりちゃんにフォールバック
             }
@@ -1065,47 +1118,21 @@ namespace YukaNavi.UI
             group.anchorMin = group.anchorMax = new Vector2(0.5f, 0f);
             group.pivot = new Vector2(0.5f, 0f);
             group.sizeDelta = size;
-            // デフォルトテーマの Live2D モデル。Resources に置かれていれば静止画の代わりに使う
-            // (モデルは未制作で、置くだけで有効になる。制作仕様は
-            //  art/mascot/live2d_parts/MODEL_REQUEST.md)。
-            // スキンがキャラ画像を指定しているときはそちらを優先する
-            // (スキンからの Live2D 指定は将来対応)
-            GameObject live2dPrefab = customs == null ? LoadLive2DPrefab() : null;
-            // 待機モーションのクリップも同じフォルダから拾う。Cubism が生成する
-            // AnimatorController は空 (DefaultState も Motions も無い) なので使わず、
-            // クリップを CubismMotionController で直接再生する
-            AnimationClip live2dIdleClip = null;
-            AnimationClip live2dTapClip = null;
-            if (live2dPrefab != null)
-            {
-                foreach (var clip in Resources.LoadAll<AnimationClip>(Live2DModelFolder))
-                {
-                    if (clip == null)
-                    {
-                        continue;
-                    }
-                    if (live2dIdleClip == null
-                        && clip.name.IndexOf("Idle", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        live2dIdleClip = clip;
-                    }
-                    else if (live2dTapClip == null
-                        && clip.name.IndexOf("Tap", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        live2dTapClip = clip;
-                    }
-                }
-            }
-            // 呼吸はアプリ側 (HarmonicMotion) が作る。モーションには呼吸を入れない約束なので
-            // 常に有効にしてよい (両方で呼吸すると ParamBreath の取り合いになる。
-            //  詳細は art/mascot/live2d_parts/MODEL_REQUEST.md の §6)
-            _mascot = MascotView.Create(group, size, 0f, customs, live2dPrefab,
-                live2dIdleClip, live2dTapClip, live2dAutoBreath: true);
+            // デフォルトテーマの Live2D モデル。スキンがキャラ画像を指定しているときは
+            // そちらを優先する (きせかえスキンからの Live2D 指定には対応しない。
+            //  ライセンス上の判断は docs/default-theme-pack.md の「Live2D モデルの配信」)
+            var live2d = customs == null ? ResolveLive2D() : null;
+            _mascot = MascotView.Create(group, size, 0f, customs, live2d);
             // スキンにセリフが設定されていればタップ時にランダムで表示する
-            // (キャラごとの talk があれば表示中のキャラのものが優先される)
+            // (表情 → キャラ → スキン全体の順で優先。時間帯セリフは通常セリフと合算)
             _mascot.CustomLines = (skin.Talk != null && skin.Talk.Count > 0)
                 ? skin.Talk.ToArray() : null;
-            _mascot.CustomLinesPerCharacter = mascotTalks;
+            _mascot.CustomLinesMorning = (skin.TalkMorning != null && skin.TalkMorning.Count > 0)
+                ? skin.TalkMorning.ToArray() : null;
+            _mascot.CustomLinesEvening = (skin.TalkEvening != null && skin.TalkEvening.Count > 0)
+                ? skin.TalkEvening.ToArray() : null;
+            _mascot.CustomLinesNight = (skin.TalkNight != null && skin.TalkNight.Count > 0)
+                ? skin.TalkNight.ToArray() : null;
             _mascotItem = SetupMovable(group, HomeLayoutStore.Mascot, HomeItem.Mascot, _mascot.gameObject);
             // 移動モード中はタップ演出 (表情切替・セリフ) を止める
             _mascot.SuppressTap = () => _editing == HomeItem.Mascot;
@@ -1114,10 +1141,89 @@ namespace YukaNavi.UI
         }
 
         /// <summary>
-        /// デフォルトテーマの Live2D モデルのプレハブを読む (無ければ null = 静止画のまま)。
+        /// デフォルトテーマの Live2D モデルを解決する (無ければ null = 静止画のまま)。
+        ///
+        /// 解決順は「デフォルトテーマ拡張パック → Resources」。パック側にモデルがあれば
+        /// アプリを更新せずにモデルを追加・差し替えできる (BGM やセリフと同じ考え方)。
+        /// パックの規約は docs/default-theme-pack.md を参照。
+        /// </summary>
+        static MascotView.Live2DSource ResolveLive2D()
+        {
+            // 拡張パック: default_theme/live2d/<任意名>/<任意名>.model3.json
+            var packModel3Json = FindPackLive2DModel();
+            if (packModel3Json != null)
+            {
+                var runtimeModel = Live2DRuntimeLoader.Load(packModel3Json);
+                if (runtimeModel != null)
+                {
+                    return new MascotView.Live2DSource { RuntimeModel = runtimeModel };
+                }
+                // 読めなければ組み込みモデルにフォールバックする (配信事故で無表示にしない)
+            }
+
+            var prefab = LoadLive2DPrefab();
+            if (prefab == null)
+            {
+                return null;
+            }
+            // 待機モーションのクリップも同じフォルダから拾う。Cubism が生成する
+            // AnimatorController は空 (DefaultState も Motions も無い) なので使わず、
+            // クリップを CubismMotionController で直接再生する
+            var source = new MascotView.Live2DSource { Prefab = prefab };
+            foreach (var clip in Resources.LoadAll<AnimationClip>(Live2DModelFolder))
+            {
+                if (clip == null)
+                {
+                    continue;
+                }
+                if (source.IdleClip == null
+                    && clip.name.IndexOf("Idle", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    source.IdleClip = clip;
+                }
+                else if (source.TapClip == null
+                    && clip.name.IndexOf("Tap", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    source.TapClip = clip;
+                }
+            }
+            return source;
+        }
+
+        /// <summary>
+        /// 拡張パック内の model3.json を探す (無ければ null)。
+        /// モデル名を決め打ちしないよう、live2d/ 直下の各フォルダから *.model3.json を拾う。
+        /// </summary>
+        static string FindPackLive2DModel()
+        {
+            var live2dRoot = DefaultThemePack.GetDirectoryPath("live2d");
+            if (live2dRoot == null)
+            {
+                return null;
+            }
+            try
+            {
+                foreach (var dir in System.IO.Directory.GetDirectories(live2dRoot))
+                {
+                    var found = System.IO.Directory.GetFiles(dir, "*.model3.json");
+                    if (found.Length > 0)
+                    {
+                        return found[0];
+                    }
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[YukaNavi] 拡張パックの Live2D モデルを探せませんでした: " + e.Message);
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Resources に組み込んだ Live2D モデルのプレハブを読む (無ければ null)。
         /// Cubism SDK は model3.json のインポート時にプレハブを自動生成するが、その名前は
-        /// "<モデル名>.model3.json.prefab" になりモデル名に依存する。名前を決め打ちすると
-        /// モデルを差し替えたときに読めなくなるため、フォルダ内から拾う。
+        /// モデル名に依存する。名前を決め打ちするとモデルを差し替えたときに読めなくなるため、
+        /// フォルダ内から CubismModel を持つものを拾う。
         /// </summary>
         static GameObject LoadLive2DPrefab()
         {
@@ -1130,7 +1236,25 @@ namespace YukaNavi.UI
                     return candidate;
                 }
             }
-            return candidates.Length > 0 ? candidates[0] : null;
+            return null;
+        }
+
+        /// <summary>
+        /// スキンフォルダの画像をマスコット用スプライトにする (失敗時 null)。
+        /// 生成した Texture/Sprite は破棄リストに登録し、スキン切替時にまとめて破棄する。
+        /// </summary>
+        Sprite LoadMascotSprite(SkinDef skin, string file)
+        {
+            var tex = SkinManager.LoadTexture(skin, file);
+            if (tex == null)
+            {
+                return null;
+            }
+            var sprite = Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height),
+                new Vector2(0.5f, 0.5f), 100f);
+            _mascotAssets.Add(tex);
+            _mascotAssets.Add(sprite);
+            return sprite;
         }
 
         /// <summary>ティッカーの1行分のテキストを作る (長い曲名は行内で切り詰め)。</summary>
@@ -1411,7 +1535,33 @@ namespace YukaNavi.UI
                 _dateText.text = now.ToString("MM/dd ddd").ToUpperInvariant();
                 _statusClockText.text = now.ToString("HH:mm");
                 UpdateBattery();
-                Bgm.RefreshForCurrentSkin(); // 昼夜 BGM の時間帯またぎ (変化がなければ何もしない)
+                Bgm.RefreshForCurrentSkin(); // 昼夜・季節 BGM の時間帯またぎ (変化がなければ何もしない)
+                RefreshTimedBackground(now); // 昼夜・季節背景の時間帯またぎ
+            }
+        }
+
+        /// <summary>
+        /// 時間帯背景 (background_day / 季節×昼夜) の切り替わりを反映する。
+        /// 自動背景 (リスト先頭) を表示中のときだけ作り直し、手動巡回中は邪魔しない。
+        /// </summary>
+        void RefreshTimedBackground(System.DateTime now)
+        {
+            var skin = _currentSkin ?? SkinManager.Current();
+            if (skin.Folder == null)
+            {
+                return;
+            }
+            var timed = SkinManager.GetTimedBackground(skin, now);
+            string path = timed != null ? timed.File : null;
+            if (path == _timedBgPath)
+            {
+                return; // 時間帯背景に変化なし
+            }
+            _timedBgPath = path;
+            if (PlayerPrefs.GetInt(BgIndexKey(skin), 0) == 0)
+            {
+                DestroyBackgroundResources();
+                BuildBackground(skin);
             }
         }
 

@@ -5,6 +5,7 @@ Unity 6 製、Android / Windows 先行(iOS は後続)。名前はカラオケ機
 
 - **設計書**: [docs/design.md](docs/design.md)
 - **API 仕様書**(サーバーとの契約): [KaraokeRequestorWeb の api/README.md](https://github.com/bee7813993/KaraokeRequestorWeb/blob/master/api/README.md)
+- **きせかえスキン仕様書**: [docs/skin-spec.md](docs/skin-spec.md)(skin.json 全キー・挙動・フォールバック順)。配布手順は [docs/skin-dlc.md](docs/skin-dlc.md)、Web 制作ツールは [tools/skin-maker/](tools/skin-maker/)
 - **マスコット素材の原本**: [art/mascot/](art/mascot/)(Unity プロジェクト作成後に `Assets/` へ取り込む)
 
 ## セットアップ
@@ -105,6 +106,19 @@ SDK のソースを読んで確定させた、ハマりどころ。`Live2DMascot
 - **実行時に `AddComponent` すると `Reset()` は呼ばれない** (Unity 全般の仕様)。
   `CubismHarmonicMotionController.ChannelTimescales` は `Reset()` でしか初期化されないため、
   自前で配列を用意しないと毎フレーム `NullReferenceException` になる
+
+#### モデルの供給元は 2 系統ある
+
+- **Resources 組み込み** (`Assets/YukaNavi/Resources/Live2D/yukari/`)。エディタの Cubism
+  インポータがプレハブに変換したものを読む。ビルドに焼き込まれるのでアプリ更新が必要
+- **デフォルトテーマ拡張パック** (`persistentDataPath/default_theme/live2d/`)。
+  Cubism の書き出し一式をそのまま置き、`Live2DRuntimeLoader` が実行時に組み立てる。
+  **アプリを更新せずにモデルを追加・差し替えできる**。配信手順と制約は
+  [docs/default-theme-pack.md](docs/default-theme-pack.md) を参照
+
+解決順は「パック → Resources → 静止画」。**きせかえスキンからは Live2D を指定できない**
+(Live2D の「拡張性アプリケーション」ライセンスに該当するのを避けるための線引き。
+理由は上記ドキュメントに記載)。
 
 #### モデルを差し替えるとき
 
