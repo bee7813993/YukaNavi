@@ -79,6 +79,20 @@ SDK のソースを読んで確定させた、ハマりどころ。`Live2DMascot
   `cameraType` の Game / SceneView 以外を弾くため)。プレビューで表示確認をしないこと
 - `RenderTexture` に描画する場合、Unity 6 の Render Graph API は**depth buffer 必須**
   (`new RenderTexture(w, h, 24, ...)`)。無いと何も描かれない
+- **SDK が付けるのは「適用する側」だけで、動かす入力は付かない**。モデルを置いただけでは
+  静止したままなので、アプリ側で次を補う (`Live2DMascotRenderer.SetUpMotionAndBlink`):
+  - まばたき: `CubismEyeBlinkController` (適用) は付くが、値を作る
+    **`CubismAutoEyeBlinkInput` は付かない**ので自分で追加する
+  - 待機モーション: `Animator` は付くが、生成される **`AnimatorController` は空**
+    (`DefaultState` も `Motions` も無い) で使えない。公式サンプルと同じく
+    **`CubismMotionController.PlayAnimation(clip, ...)`** でクリップを直接再生する
+- インポートで生成されるプレハブ名は**モデル名依存** (`<モデル名>.prefab`)。
+  `Resources.Load` でパスを決め打ちせず、フォルダ内から `CubismModel` を持つものを探すと
+  モデルを差し替えても動く
+- **`CubismRenderer.Opacity` は internal、`CubismParameter.Value` はプロパティではなくフィールド**。
+  リフレクションで読むときは `BindingFlags.NonPublic` / `GetField` が要る
+- モデルを一度置いたフォルダの**親にも空の `*.fadeMotionList.asset` が作られることがある**。
+  中身が null のまま残ると、次のインポートで `ArgumentNullException` を投げるので削除する
 
 ## 開発時の接続先
 
