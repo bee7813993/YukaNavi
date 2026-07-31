@@ -73,17 +73,18 @@ namespace YukaNavi.UI
         public static MascotView Create(Transform parent, Vector2 size, float baseY,
                                         Sprite[] customSprites = null,
                                         GameObject live2dPrefab = null,
-                                        AnimationClip live2dIdleClip = null)
+                                        AnimationClip live2dIdleClip = null,
+                                        AnimationClip live2dTapClip = null)
         {
             var go = new GameObject("Mascot");
             go.transform.SetParent(parent, false);
             var view = go.AddComponent<MascotView>();
-            view.Build(size, baseY, customSprites, live2dPrefab, live2dIdleClip);
+            view.Build(size, baseY, customSprites, live2dPrefab, live2dIdleClip, live2dTapClip);
             return view;
         }
 
         void Build(Vector2 size, float baseY, Sprite[] customSprites, GameObject live2dPrefab,
-                   AnimationClip live2dIdleClip)
+                   AnimationClip live2dIdleClip, AnimationClip live2dTapClip)
         {
             bool useLive2D = live2dPrefab != null;
             if (useLive2D)
@@ -137,7 +138,7 @@ namespace YukaNavi.UI
                 var viewRect = viewGo.AddComponent<RectTransform>();
                 UiFactory.StretchFull(viewRect);
                 _live2d = viewGo.AddComponent<Live2DMascotRenderer>();
-                _live2d.Load(live2dPrefab, live2dIdleClip);
+                _live2d.Load(live2dPrefab, live2dIdleClip, live2dTapClip);
             }
 
             var button = gameObject.AddComponent<Button>();
@@ -243,8 +244,12 @@ namespace YukaNavi.UI
             {
                 return;
             }
-            // Live2D 版の表情・タップモーションはモデル側の担当 (将来 TapBody モーションを再生する)
-            if (_live2d == null && _expressions != null && _expressions.Length > 0)
+            if (_live2d != null)
+            {
+                // Live2D 版はモデルの TapBody モーションで反応する
+                _live2d.PlayTapMotion();
+            }
+            else if (_expressions != null && _expressions.Length > 0)
             {
                 _expressionIndex = (_expressionIndex + 1) % _expressions.Length;
                 if (_expressions[_expressionIndex] != null)
@@ -253,11 +258,16 @@ namespace YukaNavi.UI
                 }
             }
             Se.Play(Se.Tap);
-            if (_squash != null)
+            // スクイーズ (画像全体をぷにっと潰す) は静止画版の演出。Live2D では
+            // モデル自身が動くので重ねると不自然になるため行わない
+            if (_live2d == null)
             {
-                StopCoroutine(_squash);
+                if (_squash != null)
+                {
+                    StopCoroutine(_squash);
+                }
+                _squash = StartCoroutine(SquashRoutine());
             }
-            _squash = StartCoroutine(SquashRoutine());
             // セリフの優先順: 表示中キャラ専用 → スキン全体 → デフォルト (カスタムキャラはなし)
             string[] lines = null;
             if (CustomLinesPerCharacter != null && _expressionIndex < CustomLinesPerCharacter.Length)

@@ -43,6 +43,10 @@ namespace YukaNavi.UI
         GameObject _modelGo;
         Camera _camera;
         Coroutine _fitRoutine;
+        Coroutine _tapRoutine;
+        Component _motionController; // CubismMotionController (型を直接参照しないため Component で持つ)
+        AnimationClip _idleClip;
+        AnimationClip _tapClip;
 
         /// <summary>モデルの描画範囲が確定し、カメラを合わせ終えたら true。</summary>
         public bool IsReady { get; private set; }
@@ -51,10 +55,11 @@ namespace YukaNavi.UI
         /// モデルを読み込んで表示を開始する。表示先はこのコンポーネントと同じ GameObject
         /// (RawImage を追加する) なので、呼び出し側は RectTransform で表示枠を用意しておくこと。
         /// idleClip に待機モーション (Cubism が motion3.json から生成した .anim) を渡すと
-        /// ループ再生する。
+        /// ループ再生する。tapClip はタップ時に PlayTapMotion() で再生する。
         /// textureWidth/Height は描画解像度 (既定はデフォルト立ち絵と同じ 1024x1536)。
         /// </summary>
         public void Load(GameObject modelPrefab, AnimationClip idleClip = null,
+                         AnimationClip tapClip = null,
                          int textureWidth = 1024, int textureHeight = 1536)
         {
             Unload();
@@ -79,6 +84,8 @@ namespace YukaNavi.UI
             _modelGo = Instantiate(modelPrefab, _stage.transform);
             _modelGo.name = "Model";
             _modelGo.transform.localPosition = StageOffset; // 親ではなくモデル自身に載せる (仕様参照)
+            _idleClip = idleClip;
+            _tapClip = tapClip;
             SetUpMotionAndBlink(_modelGo, idleClip);
 
             var cameraGo = new GameObject("Live2DCamera");
@@ -114,6 +121,14 @@ namespace YukaNavi.UI
                 StopCoroutine(_fitRoutine);
                 _fitRoutine = null;
             }
+            if (_tapRoutine != null)
+            {
+                StopCoroutine(_tapRoutine);
+                _tapRoutine = null;
+            }
+            _motionController = null;
+            _idleClip = null;
+            _tapClip = null;
             if (_view != null)
             {
                 Destroy(_view);
@@ -244,7 +259,7 @@ namespace YukaNavi.UI
         /// Cubism の型を直接書くと SDK 未導入の環境でコンパイルが通らなくなるため、
         /// 型名の文字列から解決して扱う (SDK が無ければ何もしない)。
         /// </summary>
-        static void SetUpMotionAndBlink(GameObject model, AnimationClip idleClip)
+        void SetUpMotionAndBlink(GameObject model, AnimationClip idleClip)
         {
             // 自動まばたき。CubismEyeBlinkController が付いているモデルにだけ意味がある
             AddCubismComponent(model, "Live2D.Cubism.Framework.CubismAutoEyeBlinkInput");
@@ -253,20 +268,60 @@ namespace YukaNavi.UI
             {
                 return;
             }
-            var controller = AddCubismComponent(model, "Live2D.Cubism.Framework.Motion.CubismMotionController");
-            if (controller == null)
+            _motionController = AddCubismComponent(model,
+                "Live2D.Cubism.Framework.Motion.CubismMotionController");
+            PlayMotion(idleClip, loop: true, force: false);
+        }
+
+        /// <summary>
+        /// タップ時のモーションを再生する (設定されていなければ何もしない)。
+        /// 待機モーションより優先して割り込み、終わると待機に戻る。
+        /// </summary>
+        public void PlayTapMotion()
+        {
+            if (_tapClip == null || _motionController == null)
+            {
+                return;
+            }
+            PlayMotion(_tapClip, loop: false, force: true);
+            if (_idleClip != null)
+            {
+                // 単発再生のあとは何も流れなくなるので、長さぶん待って待機に戻す
+                if (_tapRoutine != null)
+                {
+                    StopCoroutine(_tapRoutine);
+                }
+                _tapRoutine = StartCoroutine(BackToIdleRoutine(_tapClip.length));
+            }
+        }
+
+        IEnumerator BackToIdleRoutine(float tapLength)
+        {
+            yield return new WaitForSeconds(tapLength);
+            PlayMotion(_idleClip, loop: true, force: true);
+            _tapRoutine = null;
+        }
+
+        /// <summary>
+        /// CubismMotionController でクリップを再生する。
+        /// force=true は CubismMotionPriority.PriorityForce 相当で、再生中のモーションに割り込む。
+        /// 優先度は SDK の定数を直接参照しないため数値で渡す
+        /// (None=0 / Idle=1 / Normal=2 / Force=3)。
+        /// </summary>
+        void PlayMotion(AnimationClip clip, bool loop, bool force)
+        {
+            if (_motionController == null || clip == null)
             {
                 return;
             }
             // PlayAnimation(clip, layerIndex, priority, isLoop, speed)
-            var play = controller.GetType().GetMethod("PlayAnimation",
+            var play = _motionController.GetType().GetMethod("PlayAnimation",
                 BindingFlags.Public | BindingFlags.Instance);
             if (play == null)
             {
                 return;
             }
-            // priority は CubismMotionPriority.PriorityNormal (=2) 相当。定数を直接参照しないため数値で渡す
-            play.Invoke(controller, new object[] { idleClip, 0, 2, true, 1f });
+            play.Invoke(_motionController, new object[] { clip, 0, force ? 3 : 2, loop, 1f });
         }
 
         /// <summary>

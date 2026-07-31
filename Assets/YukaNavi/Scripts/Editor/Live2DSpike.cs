@@ -78,7 +78,9 @@ namespace YukaNavi.EditorTools
             // 待機モーションのクリップも渡す (SDK が motion3.json から生成した .anim)
             var idleClip = AssetDatabase.LoadAssetAtPath<AnimationClip>(
                 System.IO.Path.GetDirectoryName(ModelPath).Replace("\\", "/") + "/motions/Idle.anim");
-            renderer.Load(prefab, idleClip);
+            var tapClip = AssetDatabase.LoadAssetAtPath<AnimationClip>(
+                System.IO.Path.GetDirectoryName(ModelPath).Replace("\\", "/") + "/motions/TapBody.anim");
+            renderer.Load(prefab, idleClip, tapClip);
 
             Debug.Log("[YukaNavi] Live2D スパイクを表示しました (カメラは自動でフィットします)。\n"
                 + "確認する点: (1) 背景の上にモデルが重なって見えるか (2) 周囲が透過して抜けているか "
