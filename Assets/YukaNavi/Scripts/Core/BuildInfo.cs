@@ -81,7 +81,13 @@ namespace YukaNavi.Core
             }
             if (!string.IsNullOrEmpty(data.branch) && data.branch != "master")
             {
-                line += " (" + data.branch + ")";
+                // Claude の作業ブランチの接頭辞は情報にならないので省く
+                string branch = data.branch;
+                if (branch.StartsWith("claude/"))
+                {
+                    branch = branch.Substring("claude/".Length);
+                }
+                line += " (" + branch + ")";
             }
             return line;
 #endif
