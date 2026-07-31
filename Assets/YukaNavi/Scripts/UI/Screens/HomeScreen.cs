@@ -1075,6 +1075,7 @@ namespace YukaNavi.UI
             // AnimatorController は空 (DefaultState も Motions も無い) なので使わず、
             // クリップを CubismMotionController で直接再生する
             AnimationClip live2dIdleClip = null;
+            AnimationClip live2dNoBreathClip = null;
             AnimationClip live2dTapClip = null;
             if (live2dPrefab != null)
             {
@@ -1084,7 +1085,12 @@ namespace YukaNavi.UI
                     {
                         continue;
                     }
-                    if (live2dIdleClip == null
+                    // 呼吸を含まない待機モーション。これがあるとアプリ側の自動呼吸に切り替わる
+                    if (clip.name.IndexOf("NoBreath", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        live2dNoBreathClip = clip;
+                    }
+                    else if (live2dIdleClip == null
                         && clip.name.IndexOf("Idle", System.StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         live2dIdleClip = clip;
@@ -1096,8 +1102,11 @@ namespace YukaNavi.UI
                     }
                 }
             }
+            // 呼吸なしの待機モーションが置かれていれば、呼吸はアプリ側 (HarmonicMotion) が作る。
+            // 両方で呼吸すると ParamBreath の取り合いになるので、どちらか一方だけを使う
+            bool useAutoBreath = live2dNoBreathClip != null;
             _mascot = MascotView.Create(group, size, 0f, customs, live2dPrefab,
-                live2dIdleClip, live2dTapClip);
+                useAutoBreath ? live2dNoBreathClip : live2dIdleClip, live2dTapClip, useAutoBreath);
             // スキンにセリフが設定されていればタップ時にランダムで表示する
             // (キャラごとの talk があれば表示中のキャラのものが優先される)
             _mascot.CustomLines = (skin.Talk != null && skin.Talk.Count > 0)

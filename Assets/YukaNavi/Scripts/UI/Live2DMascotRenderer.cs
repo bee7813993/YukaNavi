@@ -52,6 +52,21 @@ namespace YukaNavi.UI
         public bool IsReady { get; private set; }
 
         /// <summary>
+        /// 呼吸をアプリ側で自動生成するか (既定 false)。Load() より前に設定する。
+        ///
+        /// false: 待機モーションに含まれる ParamBreath のカーブで呼吸する (制作側が意図した
+        ///        タイミングになり、体の動きと同期する)。
+        /// true : SDK の HarmonicMotion で ParamBreath をサイン波で揺らす。モーションに
+        ///        呼吸が入っていないモデルでも呼吸させられる。
+        /// **両方を有効にすると ParamBreath の取り合いになるので、モーション側に
+        /// 呼吸が入っている場合は false のままにすること。**
+        /// </summary>
+        public bool UseAutoBreath { get; set; }
+
+        /// <summary>自動呼吸の 1 周期の長さ (秒)。ゆっくりした呼吸で 3〜4 秒程度。</summary>
+        public float AutoBreathDuration { get; set; } = 3.5f;
+
+        /// <summary>
         /// モデルを読み込んで表示を開始する。表示先はこのコンポーネントと同じ GameObject
         /// (RawImage を追加する) なので、呼び出し側は RectTransform で表示枠を用意しておくこと。
         /// idleClip に待機モーション (Cubism が motion3.json から生成した .anim) を渡すと
@@ -264,6 +279,11 @@ namespace YukaNavi.UI
             // 自動まばたき。CubismEyeBlinkController が付いているモデルにだけ意味がある
             AddCubismComponent(model, "Live2D.Cubism.Framework.CubismAutoEyeBlinkInput");
 
+            if (UseAutoBreath)
+            {
+                SetUpAutoBreath(model);
+            }
+
             if (idleClip == null)
             {
                 return;
@@ -322,6 +342,92 @@ namespace YukaNavi.UI
                 return;
             }
             play.Invoke(_motionController, new object[] { clip, 0, force ? 3 : 2, loop, 1f });
+        }
+
+        /// <summary>
+        /// SDK の HarmonicMotion で ParamBreath を自動的に揺らす (呼吸)。
+        /// SDK にはまばたきのような専用の自動呼吸コンポーネントが無く、
+        /// 「指定パラメータをサイン波で動かす」HarmonicMotion がその役割にあたる。
+        /// パラメータを後から足すので、収集し直すため Refresh() を呼ぶ
+        /// (SDK のコメントにも「追加・削除の後に呼ぶこと」と書かれている)。
+        /// </summary>
+        void SetUpAutoBreath(GameObject model)
+        {
+            const string ns = "Live2D.Cubism.Framework.HarmonicMotion.";
+            var controller = AddCubismComponent(model, ns + "CubismHarmonicMotionController");
+            if (controller == null)
+            {
+                return;
+            }
+            // ChannelTimescales は SDK の Reset() で初期化されるが、Reset は
+            // エディタで手動追加したときにしか呼ばれない。実行時に AddComponent すると
+            // null のままで、LateUpdate の Play(ChannelTimescales) が
+            // NullReferenceException を投げ続けるので自分で用意する
+            var controllerType = controller.GetType();
+            var timescalesField = controllerType.GetField("ChannelTimescales",
+                BindingFlags.Public | BindingFlags.Instance);
+            if (timescalesField != null && timescalesField.GetValue(controller) == null)
+            {
+                // 本数は SDK の DefaultChannelCount に合わせる (private const なので読めなければ 1)
+                int channelCount = 1;
+                var countField = controllerType.GetField("DefaultChannelCount",
+                    BindingFlags.NonPublic | BindingFlags.Static);
+                if (countField != null && countField.FieldType == typeof(int))
+                {
+                    channelCount = Mathf.Max(1, (int)countField.GetValue(null));
+                }
+                var timescales = new float[channelCount];
+                for (int i = 0; i < timescales.Length; i++)
+                {
+                    timescales[i] = 1f; // 等速
+                }
+                timescalesField.SetValue(controller, timescales);
+            }
+            // ParamBreath のパラメータオブジェクトを探して揺れの設定を付ける
+            Component breathParameter = null;
+            foreach (var t in model.GetComponentsInChildren<Transform>())
+            {
+                if (t.name != "ParamBreath")
+                {
+                    continue;
+                }
+                breathParameter = AddCubismComponent(t.gameObject, ns + "CubismHarmonicMotionParameter");
+                break;
+            }
+            if (breathParameter == null)
+            {
+                Debug.LogWarning("[YukaNavi] Live2D: ParamBreath が無いため自動呼吸を設定できませんでした");
+                return;
+            }
+
+            var paramType = breathParameter.GetType();
+            SetField(breathParameter, paramType, "Channel", 0);
+            SetField(breathParameter, paramType, "Duration", AutoBreathDuration);
+            // 原点を中心に往復させる (Centric = 2)。呼吸は吸って吐いての往復なのでこれが合う
+            var directionField = paramType.GetField("Direction", BindingFlags.Public | BindingFlags.Instance);
+            if (directionField != null && directionField.FieldType.IsEnum)
+            {
+                directionField.SetValue(breathParameter, System.Enum.ToObject(directionField.FieldType, 2));
+            }
+            // ParamBreath は 0〜1。中心 0.5 で振幅いっぱいに動かす
+            SetField(breathParameter, paramType, "NormalizedOrigin", 0.5f);
+            SetField(breathParameter, paramType, "NormalizedRange", 0.5f);
+
+            var refresh = controller.GetType().GetMethod("Refresh",
+                BindingFlags.Public | BindingFlags.Instance);
+            if (refresh != null)
+            {
+                refresh.Invoke(controller, null);
+            }
+        }
+
+        static void SetField(object target, System.Type type, string name, object value)
+        {
+            var field = type.GetField(name, BindingFlags.Public | BindingFlags.Instance);
+            if (field != null)
+            {
+                field.SetValue(target, value);
+            }
         }
 
         /// <summary>

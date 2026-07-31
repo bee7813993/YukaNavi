@@ -74,17 +74,18 @@ namespace YukaNavi.UI
                                         Sprite[] customSprites = null,
                                         GameObject live2dPrefab = null,
                                         AnimationClip live2dIdleClip = null,
-                                        AnimationClip live2dTapClip = null)
+                                        AnimationClip live2dTapClip = null,
+                                        bool live2dAutoBreath = false)
         {
             var go = new GameObject("Mascot");
             go.transform.SetParent(parent, false);
             var view = go.AddComponent<MascotView>();
-            view.Build(size, baseY, customSprites, live2dPrefab, live2dIdleClip, live2dTapClip);
+            view.Build(size, baseY, customSprites, live2dPrefab, live2dIdleClip, live2dTapClip, live2dAutoBreath);
             return view;
         }
 
         void Build(Vector2 size, float baseY, Sprite[] customSprites, GameObject live2dPrefab,
-                   AnimationClip live2dIdleClip, AnimationClip live2dTapClip)
+                   AnimationClip live2dIdleClip, AnimationClip live2dTapClip, bool live2dAutoBreath)
         {
             bool useLive2D = live2dPrefab != null;
             if (useLive2D)
@@ -138,6 +139,7 @@ namespace YukaNavi.UI
                 var viewRect = viewGo.AddComponent<RectTransform>();
                 UiFactory.StretchFull(viewRect);
                 _live2d = viewGo.AddComponent<Live2DMascotRenderer>();
+                _live2d.UseAutoBreath = live2dAutoBreath; // Load より前に決めておく必要がある
                 _live2d.Load(live2dPrefab, live2dIdleClip, live2dTapClip);
             }
 

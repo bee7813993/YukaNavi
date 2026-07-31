@@ -93,6 +93,13 @@ SDK のソースを読んで確定させた、ハマりどころ。`Live2DMascot
   リフレクションで読むときは `BindingFlags.NonPublic` / `GetField` が要る
 - モデルを一度置いたフォルダの**親にも空の `*.fadeMotionList.asset` が作られることがある**。
   中身が null のまま残ると、次のインポートで `ArgumentNullException` を投げるので削除する
+- 呼吸は**アプリ側 (`HarmonicMotion`) で `ParamBreath` を揺らしている**。SDK にまばたきの
+  ような専用の自動呼吸コンポーネントは無く、これが相当機能。モーション側にも呼吸を
+  入れると同じパラメータの取り合いになるので、**どちらか一方**にすること
+  (`Live2DMascotRenderer.UseAutoBreath`。Resources に `Idle_NoBreath` を置くと自動で有効)
+- **実行時に `AddComponent` すると `Reset()` は呼ばれない** (Unity 全般の仕様)。
+  `CubismHarmonicMotionController.ChannelTimescales` は `Reset()` でしか初期化されないため、
+  自前で配列を用意しないと毎フレーム `NullReferenceException` になる
 
 ## 開発時の接続先
 
