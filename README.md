@@ -169,32 +169,38 @@ Cubism Editor の書き出し (`art/mascot/live2d_parts/export/`) を、その�
 
 ### クラウドビルドで SDK の submodule を取らせる
 
-**Build Automation に「submodule を含める」ようなトグルは無い** (2026-08 時点。
-Settings → Source control にも、ビルド構成の Advanced Settings にも項目は無い)。
-submodule の取得は自動で試みられるので、**論点は private リポジトリへの認証だけ**。
+**Build Automation に「submodule を含める」ようなトグルは無い** (2026-08 時点)。
+submodule は自動で取得されるが、[公式のトラブルシュート][uba-submodule]が
+**「submodule は相対パスか SSH パスで設定すること」**と指定している。
+絶対 HTTPS URL だと、親リポジトリ用に Build Automation が埋め込んだ認証情報が
+引き継がれず、private リポジトリの取得に失敗する (実際に一度そうなった)。
 
-**認証が通らなくてもビルド自体は成功してしまい、SDK が空のまま iOS だけ Live2D が
-無効 (静止画) になる。** エラーにならないので気づきにくい。
+そのため [.gitmodules](.gitmodules) は**相対パス** `../YukaNavi-CubismSDK.git`
+にしてある。親の origin (`https://github.com/bee7813993/YukaNavi.git`) を基準に
+解決されるので、同じ認証情報がそのまま効き、SSH 鍵も Deploy key も要らない。
+ローカルの clone (HTTPS / SSH どちらでも) でも同じ理屈で解決する。
 
-まず現行の認証で通るか試す:
+[uba-submodule]: https://docs.unity.com/en-us/build-automation/check-build-results/troubleshoot-build-failures/git-clone-hangs
 
-1. Settings → Source control の **Personal Access Token** が
-   `YukaNavi-CubismSDK` も読めるか確認する
-   (classic なら `repo` スコープ、fine-grained なら対象リポジトリに追加。
-    足りなければ **Reauthorize** で取り直す)
-2. iOS ビルドを 1 回流し、ログに `Submodule 'Assets/Live2D'` のクローンが
-   出ているか見る。`Authentication failed` や `could not read Username` が
-   出ていれば認証不足
+注意点:
 
-通らない場合は SSH の Deploy key に切り替える:
+- **submodule を追加・変更した直後は Clean Build を 1 回通す。**
+  Build Automation はワークスペースをキャッシュしていて、2 回目以降は
+  `git pull` で済ませる。`pull` では submodule は初期化されない
+- 使っている **Personal Access Token が `YukaNavi-CubismSDK` を読めること**
+  (classic なら `repo` スコープ、fine-grained なら対象リポジトリに追加。
+   足りなければ Settings → Source control で **Reauthorize**)
+- PAT の権限を広げたくない場合は SSH に切り替える。Settings → Source control の
+  **Show SSH key** の公開鍵を GitHub アカウントの SSH keys か
+  `YukaNavi-CubismSDK` の **Deploy keys** に登録し、`.gitmodules` を
+  絶対 SSH URL (`git@github.com:bee7813993/YukaNavi-CubismSDK.git`) にする
+  (相対パスは親が HTTPS なら HTTPS に解決されるため、SSH に寄せるなら絶対 URL が要る)
 
-1. Settings → Source control の **Show SSH key** で公開鍵をコピー
-2. `YukaNavi-CubismSDK` の Settings → **Deploy keys** に登録 (read のみで可)
-3. `.gitmodules` の URL を SSH 形式に変える
-   (`git@github.com:bee7813993/YukaNavi-CubismSDK.git`)
+**SDK が届かなくてもビルドは成功し、iOS だけ Live2D が無効 (静止画) になる。**
+気づけるように、届いていないビルドには次の 2 つの印が出る:
 
-最終確認は、**iPhone 実機でホームのマスコットが動いているか**を見るのが早い
-(静止画に落ちていれば SDK が届いていない)。
+- ビルドログの警告 `[YukaNavi] LIVE2D-SDK-MISSING`
+- **設定画面のビルド情報の末尾に `/ Live2D なし`** (実機で見るのが一番早い)
 
 ## 開発時の接続先
 
