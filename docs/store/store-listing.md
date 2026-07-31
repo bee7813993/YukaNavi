@@ -155,3 +155,49 @@ App Store の「概要」と同文を使用する (上記をそのまま貼り�
 | Google Play | 1080×1920 | スマートフォン用 |
 
 各 6 枚: 01_home / 02_search / 03_result / 04_reserve / 05_queue / 06_skin
+
+---
+
+## リリースノート (バージョンごとの「新機能」)
+
+App Store の「このバージョンの新機能」/ Google Play の「リリースノート」に貼り付ける。
+
+**書式**: 下記のとおり `<ja-JP>` / `<en-US>` タグで言語を併記する。
+**文字数制限**: タグ込みの全体で **500 文字以内**。日本語より英語が膨らみやすいので、
+超えたときは英語の説明文から削る (見出しは残し、補足語を落とす)。
+
+### v1.0.1 (487 文字)
+
+```
+<ja-JP>
+■ ゆかりちゃんが動くように
+まばたきや呼吸をして、タップにも反応します。
+
+■ うたった曲を整理しやすく
+歌った回数の多い順に並び、選んでまとめて削除・ぜんぶ削除ができます。
+
+■ 会場からのおしらせ
+機材係の方のお知らせをアプリの中で読めます。
+
+■ その他
+きせかえの画像を写真アプリから選べるようになりました。
+</ja-JP>
+
+<en-US>
+■ Yukari-chan comes to life
+She blinks, breathes, and reacts when you tap her.
+
+■ Tidy up your song history
+Sorted by how often you've sung them. Delete selected or clear all.
+
+■ Notices from your venue
+Read the venue's announcements in the app.
+
+■ Other
+Pick skin images from your photo app.
+</en-US>
+```
+
+対象 PR: #46〜#52 (v1.0.0 = PR #45 時点からの差分)。
+掲載を見送った変更: 開発者向けのビルド情報表示 (#51)、きせかえ背景の季節ごと昼夜切り替え
+(スキン自作者向けで一般利用者に見えにくいため)、あかりちゃんの素材 (アプリ未組み込み)。
