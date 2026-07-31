@@ -1,0 +1,59 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "yukari.moc3",
+		"Textures": [
+			"yukari.2048/texture_00.png"
+		],
+		"Physics": "yukari.physics3.json",
+		"DisplayInfo": "yukari.cdi3.json",
+		"Expressions": [
+			{
+				"Name": "Smile",
+				"File": "Smile.exp3.json"
+			},
+			{
+				"Name": "Surprised",
+				"File": "Surprised.exp3.json"
+			},
+			{
+				"Name": "Wink",
+				"File": "Wink.exp3.json"
+			}
+		],
+		"Motions": {
+			"TapBody": [
+				{
+					"File": "TapBody.motion3.json",
+					"FadeInTime": 0.15,
+					"FadeOutTime": 0.3
+				}
+			],
+			"Idle": [
+				{
+					"File": "Idle.motion3.json",
+					"FadeInTime": 0.8,
+					"FadeOutTime": 0.8
+				}
+			]
+		}
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": [
+				"ParamEyeLOpen",
+				"ParamEyeROpen"
+			]
+		},
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": [
+				"ParamMouthOpenY"
+			]
+		}
+	],
+	"HitAreas": []
+}
