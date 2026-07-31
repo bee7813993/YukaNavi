@@ -29,22 +29,38 @@ Unity 6 製、Android / Windows 先行(iOS は後続)。名前はカラオケ機
 4. `art/mascot/` の素材を `Assets/YukaNavi/Art/Mascot/` へコピー
 5. ブランチを切ってコミット → PR
 
-### 3. Live2D Cubism SDK の導入(キャラの Live2D 対応時)
+### 3. Live2D Cubism SDK の取得(submodule)
 
-SDK は**再配布不可**のためリポジトリに含まれない(`Assets/Live2D/` は .gitignore 済み)。
-クローンした環境で Live2D を触るときは、各自で以下を実施する。
+SDK は**再配布不可**のため、public なこのリポジトリには置けない。
+かわりに **private リポジトリ [YukaNavi-CubismSDK](https://github.com/bee7813993/YukaNavi-CubismSDK)
+を `Assets/Live2D/` に submodule として参照**している。
 
-1. [Live2D 公式サイト](https://www.live2d.com/sdk/download/unity/)から
-   **「Cubism SDK for Unity(URP版)」**をダウンロード
-   (ページに URP 版と BiRP 版があるので注意。R5 以降は Built-in RP / HDRP がサポート外)
-2. unitypackage をプロジェクトにインポート(`Assets/Live2D/` に入る)
-3. `Assets/Settings/UniversalRP.asset` の Renderer List に
-   `Assets/Live2D/Cubism/Rendering/URP/CubismURPRenderer.asset` を追加し、**Default に設定**
-   ([公式手順](https://docs.live2d.com/en/cubism-sdk-tutorials/urp-import/))。この設定はコミット済みなので、
-   SDK を入れると参照が解決して有効になる
-4. 導入した SDK バージョンをこの README に記録すること
+```bash
+git submodule update --init --recursive
+```
 
-導入済み SDK バージョン: **Cubism 5 SDK for Unity R5** (`5-r.5` / 2026-04-02、URP 版)
+クローン時にまとめて取るなら `git clone --recurse-submodules`。
+private リポジトリなので、**アクセス権のある GitHub アカウントでの認証が必要**。
+権限が無い環境では SDK が空のままになるが、その場合もアプリはコンパイル・起動でき、
+マスコットが静止画にフォールバックするだけ (後述の「モデルの供給元」を参照)。
+
+導入済み SDK バージョン: **Cubism 5 SDK for Unity R5** (`5-r.5` / 2026-04-02、URP 版)。
+更新手順は submodule 側の README に記載。
+
+`Assets/Settings/UniversalRP.asset` の Renderer List には
+`Assets/Live2D/Cubism/Rendering/URP/CubismURPRenderer.asset` を Default として設定済み
+([公式手順](https://docs.live2d.com/en/cubism-sdk-tutorials/urp-import/))。
+submodule を取得すると参照が解決して有効になる。
+
+#### なぜ submodule にしているか
+
+**iOS は Unity Build Automation (クラウド) でビルドしている**ため、SDK を単に
+.gitignore するとクラウド側に SDK が無く、iOS だけ Live2D が無効になって
+静止画にフォールバックしてしまう (実際に一度そうなった)。
+private リポジトリの submodule なら、第三者への配布にはならず、
+クラウドビルドにも SDK を届けられる。
+
+**SDK を置いたリポジトリを public にしないこと。**
 
 #### このプロジェクトでの判断(公式手順との差分)
 
@@ -145,6 +161,40 @@ Cubism Editor の書き出し (`art/mascot/live2d_parts/export/`) を、その�
 
 書き出しに紛れ込む**全パラメータが値 0 の `.exp3.json`** (Cubism がモーション編集時に
 作ることがある) は何もしないファイルなので取り込まない。
+
+## ビルド
+
+- **Android / Windows**: ローカルビルド
+- **iOS**: Unity Build Automation (クラウド)。Mac が手元に無いため
+
+### クラウドビルドで SDK の submodule を取らせる
+
+**Build Automation に「submodule を含める」ようなトグルは無い** (2026-08 時点。
+Settings → Source control にも、ビルド構成の Advanced Settings にも項目は無い)。
+submodule の取得は自動で試みられるので、**論点は private リポジトリへの認証だけ**。
+
+**認証が通らなくてもビルド自体は成功してしまい、SDK が空のまま iOS だけ Live2D が
+無効 (静止画) になる。** エラーにならないので気づきにくい。
+
+まず現行の認証で通るか試す:
+
+1. Settings → Source control の **Personal Access Token** が
+   `YukaNavi-CubismSDK` も読めるか確認する
+   (classic なら `repo` スコープ、fine-grained なら対象リポジトリに追加。
+    足りなければ **Reauthorize** で取り直す)
+2. iOS ビルドを 1 回流し、ログに `Submodule 'Assets/Live2D'` のクローンが
+   出ているか見る。`Authentication failed` や `could not read Username` が
+   出ていれば認証不足
+
+通らない場合は SSH の Deploy key に切り替える:
+
+1. Settings → Source control の **Show SSH key** で公開鍵をコピー
+2. `YukaNavi-CubismSDK` の Settings → **Deploy keys** に登録 (read のみで可)
+3. `.gitmodules` の URL を SSH 形式に変える
+   (`git@github.com:bee7813993/YukaNavi-CubismSDK.git`)
+
+最終確認は、**iPhone 実機でホームのマスコットが動いているか**を見るのが早い
+(静止画に落ちていれば SDK が届いていない)。
 
 ## 開発時の接続先
 

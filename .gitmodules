@@ -1,0 +1,3 @@
+[submodule "Assets/Live2D"]
+	path = Assets/Live2D
+	url = https://github.com/bee7813993/YukaNavi-CubismSDK.git

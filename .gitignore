@@ -53,10 +53,10 @@ ExportedObj/
 .DS_Store
 Thumbs.db
 
-# ===== Live2D Cubism SDK (再配布不可のためコミットしない) =====
-# 導入手順は README.md を参照
-/[Aa]ssets/Live2D/
-/[Aa]ssets/Live2D.meta
+# ===== Live2D Cubism SDK =====
+# 再配布不可のため public なこのリポジトリ本体には置けず、private リポジトリ
+# (YukaNavi-CubismSDK) を Assets/Live2D/ に submodule として参照している。
+# 取得は `git submodule update --init --recursive`。詳細は README.md を参照
 
 # ===== サンプルスキンの配布用 zip =====
 # 中身は同じフォルダの展開済み素材と完全に同一で、make_zip 系スクリプトで
