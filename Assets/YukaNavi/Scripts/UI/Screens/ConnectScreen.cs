@@ -163,10 +163,19 @@ namespace YukaNavi.UI
             SetTopRect(fontBar, y, 84f);
             y -= 84f + 28f;
 
-            // アプリバージョン (ProjectSettings の bundleVersion)
-            var versionText = UiFactory.CreateText(content, "Version",
-                "ゆかナビ v" + Application.version, 22, UiFactory.TextMuted);
-            float versionH = UiFactory.LineHeight(22);
+            // アプリバージョン (ProjectSettings の bundleVersion)。
+            // 開発ビルドの判別用に、ビルド時点の情報 (日時・コミット) があれば2行目に出す
+            string versionLabel = "ゆかナビ v" + Application.version;
+            int versionLines = 1;
+            string buildDetail = BuildInfo.Describe();
+            if (!string.IsNullOrEmpty(buildDetail))
+            {
+                versionLabel += "\n" + buildDetail;
+                versionLines = 2;
+            }
+            var versionText = UiFactory.CreateText(content, "Version", versionLabel, 22,
+                UiFactory.TextMuted);
+            float versionH = versionLines * UiFactory.LineHeight(22);
             SetTopRect(versionText.rectTransform, y, versionH);
             y -= versionH + 32f;
 
