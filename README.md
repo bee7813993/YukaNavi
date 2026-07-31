@@ -93,13 +93,38 @@ SDK のソースを読んで確定させた、ハマりどころ。`Live2DMascot
   リフレクションで読むときは `BindingFlags.NonPublic` / `GetField` が要る
 - モデルを一度置いたフォルダの**親にも空の `*.fadeMotionList.asset` が作られることがある**。
   中身が null のまま残ると、次のインポートで `ArgumentNullException` を投げるので削除する
-- 呼吸は**アプリ側 (`HarmonicMotion`) で `ParamBreath` を揺らしている**。SDK にまばたきの
+- 呼吸は**アプリ側 (`HarmonicMotion`) で `ParamBreath` を揺らしている**
+  (`Live2DMascotRenderer.UseAutoBreath`、ホームでは常時 on)。SDK にまばたきの
   ような専用の自動呼吸コンポーネントは無く、これが相当機能。モーション側にも呼吸を
-  入れると同じパラメータの取り合いになるので、**どちらか一方**にすること
-  (`Live2DMascotRenderer.UseAutoBreath`。Resources に `Idle_NoBreath` を置くと自動で有効)
+  入れると同じパラメータの取り合いになるので、**`Idle` には `ParamBreath` のキーを
+  打たない**約束にしている (`art/mascot/live2d_parts/MODEL_REQUEST.md` §6)
+- **`fadeMotionList` に載るのは `model3.json` に書かれたモーションだけ**。
+  後から `.motion3.json` を Resources に置き足しても登録されず、再生時に
+  `Not found motion from CubismFadeMotionList` になる。モーションを増やすときは
+  必ず `model3.json` の `Motions` にも追加する
 - **実行時に `AddComponent` すると `Reset()` は呼ばれない** (Unity 全般の仕様)。
   `CubismHarmonicMotionController.ChannelTimescales` は `Reset()` でしか初期化されないため、
   自前で配列を用意しないと毎フレーム `NullReferenceException` になる
+
+#### モデルを差し替えるとき
+
+Cubism Editor の書き出し (`art/mascot/live2d_parts/export/`) を、そのまま Resources へ
+コピーしてはいけない。**ファイル名を `yukari.*` に統一する規約**で運用している
+(`Assets/YukaNavi/Resources/Live2D/yukari/`)。手順:
+
+1. `export/` と Resources のファイルをハッシュで突き合わせ、**変わったものだけ**コピーする
+   (リグだけ直した場合は `.moc3` だけが変わる。テクスチャや physics まで毎回入れ替えない)
+2. コピー先の名前は `yukari.moc3` / `yukari.physics3.json` / `yukari.cdi3.json` /
+   `yukari.2048/texture_00.png`。**`.meta` は上書きせず既存を残す** (guid が変わると
+   プレハブの参照が切れる)
+3. **`yukari.model3.json` は Resources 側が正**。Cubism Editor の書き出しには
+   `Motions` セクションが無く、上書きするとモーションが全部消える
+4. Unity にフォーカスを戻して再インポートさせる (`yukari.asset` / `.prefab` /
+   `*.anim` / `*.fade.asset` が再生成される)
+5. 再生して呼吸・まばたき・タップを確認
+
+書き出しに紛れ込む**全パラメータが値 0 の `.exp3.json`** (Cubism がモーション編集時に
+作ることがある) は何もしないファイルなので取り込まない。
 
 ## 開発時の接続先
 
