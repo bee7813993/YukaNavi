@@ -50,6 +50,14 @@ default_theme_pack_v2.zip
 │   ├─ yukanavi_home_loop_spring_day.ogg  ← 季節×昼夜 BGM (あるものだけでよい)
 │   ├─ yukanavi_home_loop_spring_night.ogg
 │   ├─ ... (summer / autumn / winter × day / night、計8種まで)
+├─ live2d/                                ← Live2D モデル (任意)
+│   └─ yukari/
+│       ├─ yukari.model3.json
+│       ├─ yukari.moc3
+│       ├─ yukari.2048/texture_00.png
+│       ├─ yukari.physics3.json
+│       ├─ Idle.motion3.json
+│       └─ TapBody.motion3.json
 └─ talk.json                              ← セリフの差し替え (任意)
 ```
 
@@ -61,6 +69,54 @@ default_theme_pack_v2.zip
 - 8種すべて揃える必要はない。無い組み合わせは基本ループ曲 (アプリ内蔵) になる
 - 仕様は既存 BGM と同じ 16 秒程度の自然ループ推奨 (ogg 推奨)
 - スキンが BGM を持つ場合はスキンが優先 (パックはデフォルトテーマの音)
+
+### Live2D モデルの配信
+
+ホーム画面のマスコットを Live2D モデルに差し替える。**アプリを更新せずにモデルを
+追加・差し替えできる**のがこの仕組みの主目的。
+
+- 置き場所は `live2d/<任意のフォルダ名>/`。その直下に `*.model3.json` があれば拾う
+  (フォルダ名・モデル名は決め打ちしない。複数フォルダがある場合は最初に見つかったもの)
+- 中身は **Cubism Editor の書き出し一式そのまま**。アプリ側が
+  `CubismModel3Json` の実行時ロード API で組み立てる ([Live2DRuntimeLoader.cs](../Assets/YukaNavi/Scripts/UI/Live2DRuntimeLoader.cs))
+- **`model3.json` の `Motions` に `Idle` / `TapBody` を必ず記載する**。
+  Cubism Editor の書き出しには `Motions` セクションが入らないので手で足す。
+  記載が無いモーションはフェード情報が作られず再生できない
+- `Idle` に `ParamBreath` のキーを打たないこと (呼吸はアプリ側が作る)。
+  モデル制作の詳細仕様は [MODEL_REQUEST.md](../art/mascot/live2d_parts/MODEL_REQUEST.md)
+- 解決順は **パック → Resources (アプリ組み込み) → 静止画**。パックのモデルが
+  読めなかった場合は組み込みモデルに自動で戻るので、配信事故でマスコットが消えることはない
+- スキンがキャラ画像を持つ場合はスキンが優先 (Live2D は表示されない)
+
+#### 制約
+
+- **`moc3` のバージョンが Cubism Core の対応を超えていると読めない**。
+  新しい Cubism Editor で書き出したモデルは、アプリ側の SDK 更新 (= アプリ更新) が
+  必要になることがある。書き出し時の moc3 バージョンは据え置きにするのが安全
+- 表情 (`exp3.json`) は現状アプリ側で未使用。入れておいても読み込まれない
+- 実行時に生成したテクスチャ・クリップは `Live2DRuntimeLoader.Model.Dispose()` で破棄する
+  (スキン切替時に `Live2DMascotRenderer.Unload()` から呼ばれる)
+
+#### きせかえスキンでは Live2D を許可しない
+
+`skin.json` に Live2D のキーは**意図的に用意していない**。ユーザーが持ち込む zip から
+任意の Live2D モデルを読み込めるようにすると、Live2D の
+[拡張性アプリケーション](https://www.live2d.com/sdk/license/expandable/) に該当するため。
+
+> ファイルやデータの追加や組み合わせ等によって不特定多数のモデルを利用および生成する派生作品
+
+同ライセンスは審査・契約が必須で、**「有効な収益モデルを有していること (原則として
+完全無料は許諾対象外)」**が条件に含まれる。ゆかナビは無料・アプリ内課金なし・広告なし
+([store-listing.md](store/store-listing.md)) なので、そもそも許諾を受けられない可能性が高い。
+専用ロゴの表示義務や四半期ごとの売上報告義務も付く。
+
+一方、**このパックで配るのは自分たちの単一作品の更新**であり、「不特定多数のモデル」でも
+「複数作品のコレクション/ポータル」でもないため通常の出版許諾の範囲に収まる。
+この線引きを保つため、Live2D モデルの供給元はパックと Resources だけにしている
+(実装上も `Live2DRuntimeLoader` を `SkinManager` 系から呼ばない)。
+
+将来きせかえ側にも広げるなら、事前に Live2D へ「無料アプリでの可否」「公式配布限定なら
+該当しないと言えるか」の 2 点を確認すること。
 
 ### talk.json
 

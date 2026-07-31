@@ -44,6 +44,27 @@ namespace YukaNavi.Core
             }
         }
 
+        /// <summary>
+        /// パック内フォルダの絶対パスを返す (無ければ null)。
+        /// Live2D モデルのように「フォルダ丸ごと」で配るアセットの入口。
+        /// </summary>
+        public static string GetDirectoryPath(string relativePath)
+        {
+            if (string.IsNullOrEmpty(relativePath) || relativePath.Contains(".."))
+            {
+                return null;
+            }
+            try
+            {
+                string path = Path.Combine(PackRoot, relativePath);
+                return Directory.Exists(path) ? path : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         /// <summary>拡張子違いを順に探してパック内ファイルの絶対パスを返す (無ければ null)。</summary>
         public static string FindFile(string relativePathNoExt, params string[] extensions)
         {

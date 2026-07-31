@@ -26,6 +26,15 @@ namespace YukaNavi.UI
 
         const float PollIntervalSeconds = 5f;
 
+        /// <summary>
+        /// デフォルトテーマの Live2D モデルを置くフォルダ (Resources 配下)。
+        /// ここに Cubism のモデル一式を入れると、静止画の代わりにそれが表示される。
+        /// Cubism SDK は model3.json のインポート時に "<名前>.model3.json.prefab" を
+        /// 自動生成するため、ファイル名を決め打ちせずフォルダ内から拾う (下記 LoadLive2DPrefab)。
+        /// 制作仕様は art/mascot/live2d_parts/MODEL_REQUEST.md
+        /// </summary>
+        const string Live2DModelFolder = "Live2D/yukari";
+
         // 時計・メッセージ・マスコットの表示/位置/大きさはスキンごとに保存する (HomeLayoutStore)。
         // 表示のオン/オフはきせかえ画面に統合した。
 
@@ -1109,7 +1118,11 @@ namespace YukaNavi.UI
             group.anchorMin = group.anchorMax = new Vector2(0.5f, 0f);
             group.pivot = new Vector2(0.5f, 0f);
             group.sizeDelta = size;
-            _mascot = MascotView.Create(group, size, 0f, customs);
+            // デフォルトテーマの Live2D モデル。スキンがキャラ画像を指定しているときは
+            // そちらを優先する (きせかえスキンからの Live2D 指定には対応しない。
+            //  ライセンス上の判断は docs/default-theme-pack.md の「Live2D モデルの配信」)
+            var live2d = customs == null ? ResolveLive2D() : null;
+            _mascot = MascotView.Create(group, size, 0f, customs, live2d);
             // スキンにセリフが設定されていればタップ時にランダムで表示する
             // (表情 → キャラ → スキン全体の順で優先。時間帯セリフは通常セリフと合算)
             _mascot.CustomLines = (skin.Talk != null && skin.Talk.Count > 0)
@@ -1125,6 +1138,105 @@ namespace YukaNavi.UI
             _mascot.SuppressTap = () => _editing == HomeItem.Mascot;
             // 描画順: 背景[0] → パーティクル[1] → マスコット[2]
             group.SetSiblingIndex(2);
+        }
+
+        /// <summary>
+        /// デフォルトテーマの Live2D モデルを解決する (無ければ null = 静止画のまま)。
+        ///
+        /// 解決順は「デフォルトテーマ拡張パック → Resources」。パック側にモデルがあれば
+        /// アプリを更新せずにモデルを追加・差し替えできる (BGM やセリフと同じ考え方)。
+        /// パックの規約は docs/default-theme-pack.md を参照。
+        /// </summary>
+        static MascotView.Live2DSource ResolveLive2D()
+        {
+            // 拡張パック: default_theme/live2d/<任意名>/<任意名>.model3.json
+            var packModel3Json = FindPackLive2DModel();
+            if (packModel3Json != null)
+            {
+                var runtimeModel = Live2DRuntimeLoader.Load(packModel3Json);
+                if (runtimeModel != null)
+                {
+                    return new MascotView.Live2DSource { RuntimeModel = runtimeModel };
+                }
+                // 読めなければ組み込みモデルにフォールバックする (配信事故で無表示にしない)
+            }
+
+            var prefab = LoadLive2DPrefab();
+            if (prefab == null)
+            {
+                return null;
+            }
+            // 待機モーションのクリップも同じフォルダから拾う。Cubism が生成する
+            // AnimatorController は空 (DefaultState も Motions も無い) なので使わず、
+            // クリップを CubismMotionController で直接再生する
+            var source = new MascotView.Live2DSource { Prefab = prefab };
+            foreach (var clip in Resources.LoadAll<AnimationClip>(Live2DModelFolder))
+            {
+                if (clip == null)
+                {
+                    continue;
+                }
+                if (source.IdleClip == null
+                    && clip.name.IndexOf("Idle", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    source.IdleClip = clip;
+                }
+                else if (source.TapClip == null
+                    && clip.name.IndexOf("Tap", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    source.TapClip = clip;
+                }
+            }
+            return source;
+        }
+
+        /// <summary>
+        /// 拡張パック内の model3.json を探す (無ければ null)。
+        /// モデル名を決め打ちしないよう、live2d/ 直下の各フォルダから *.model3.json を拾う。
+        /// </summary>
+        static string FindPackLive2DModel()
+        {
+            var live2dRoot = DefaultThemePack.GetDirectoryPath("live2d");
+            if (live2dRoot == null)
+            {
+                return null;
+            }
+            try
+            {
+                foreach (var dir in System.IO.Directory.GetDirectories(live2dRoot))
+                {
+                    var found = System.IO.Directory.GetFiles(dir, "*.model3.json");
+                    if (found.Length > 0)
+                    {
+                        return found[0];
+                    }
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[YukaNavi] 拡張パックの Live2D モデルを探せませんでした: " + e.Message);
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Resources に組み込んだ Live2D モデルのプレハブを読む (無ければ null)。
+        /// Cubism SDK は model3.json のインポート時にプレハブを自動生成するが、その名前は
+        /// モデル名に依存する。名前を決め打ちするとモデルを差し替えたときに読めなくなるため、
+        /// フォルダ内から CubismModel を持つものを拾う。
+        /// </summary>
+        static GameObject LoadLive2DPrefab()
+        {
+            var candidates = Resources.LoadAll<GameObject>(Live2DModelFolder);
+            foreach (var candidate in candidates)
+            {
+                // Cubism のモデルには CubismModel が付いている (SDK 未導入なら見つからない)
+                if (candidate != null && candidate.GetComponent("CubismModel") != null)
+                {
+                    return candidate;
+                }
+            }
+            return null;
         }
 
         /// <summary>
