@@ -167,23 +167,33 @@ Cubism Editor の書き出し (`art/mascot/live2d_parts/export/`) を、その�
 - **Android / Windows**: ローカルビルド
 - **iOS**: Unity Build Automation (クラウド)。Mac が手元に無いため
 
-### Unity Build Automation で submodule を有効にする
+### クラウドビルドで SDK の submodule を取らせる
 
-SDK は private リポジトリの submodule なので、クラウドビルドがそれを取得できるよう
-以下を一度だけ設定する。**未設定だと SDK が空のままビルドが通り、iOS だけ Live2D が
-無効 (静止画) になる** — エラーにならないので気づきにくい。
+**Build Automation に「submodule を含める」ようなトグルは無い** (2026-08 時点。
+Settings → Source control にも、ビルド構成の Advanced Settings にも項目は無い)。
+submodule の取得は自動で試みられるので、**論点は private リポジトリへの認証だけ**。
 
-1. Unity Cloud の Build Automation → 対象の Build Configuration → **Source Control**
-2. **Include submodules (サブモジュールを含める)** を有効にする
-3. private リポジトリを読めるよう認証を通す。どちらかを行う:
-   - GitHub 連携を使っている場合、Unity Cloud の GitHub App に
-     `YukaNavi-CubismSDK` へのアクセスを許可する
-   - SSH 方式の場合、Unity Cloud が表示する公開鍵を
-     `YukaNavi-CubismSDK` の **Deploy keys** に登録し、
-     `.gitmodules` の URL を SSH 形式に変更する
-4. ビルドログに `Submodule 'Assets/Live2D'` のクローンが出ることを確認する
+**認証が通らなくてもビルド自体は成功してしまい、SDK が空のまま iOS だけ Live2D が
+無効 (静止画) になる。** エラーにならないので気づきにくい。
 
-ビルド後の確認は、**iPhone 実機でホームのマスコットが動いているか**を見るのが早い
+まず現行の認証で通るか試す:
+
+1. Settings → Source control の **Personal Access Token** が
+   `YukaNavi-CubismSDK` も読めるか確認する
+   (classic なら `repo` スコープ、fine-grained なら対象リポジトリに追加。
+    足りなければ **Reauthorize** で取り直す)
+2. iOS ビルドを 1 回流し、ログに `Submodule 'Assets/Live2D'` のクローンが
+   出ているか見る。`Authentication failed` や `could not read Username` が
+   出ていれば認証不足
+
+通らない場合は SSH の Deploy key に切り替える:
+
+1. Settings → Source control の **Show SSH key** で公開鍵をコピー
+2. `YukaNavi-CubismSDK` の Settings → **Deploy keys** に登録 (read のみで可)
+3. `.gitmodules` の URL を SSH 形式に変える
+   (`git@github.com:bee7813993/YukaNavi-CubismSDK.git`)
+
+最終確認は、**iPhone 実機でホームのマスコットが動いているか**を見るのが早い
 (静止画に落ちていれば SDK が届いていない)。
 
 ## 開発時の接続先
