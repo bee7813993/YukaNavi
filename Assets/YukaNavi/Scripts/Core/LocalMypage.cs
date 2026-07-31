@@ -158,17 +158,40 @@ namespace YukaNavi.Core
             }
         }
 
-        /// <summary>履歴 (最終予約日時の新しい順)。</summary>
+        /// <summary>履歴 (うたった回数の多い順、同数は最終予約日時の新しい順)。</summary>
         public static List<Item> GetHistory()
         {
             var list = new List<Item>(GetStore().History);
-            list.Sort((a, b) => b.LastAt.CompareTo(a.LastAt));
+            list.Sort(CompareHistory);
             return list;
+        }
+
+        /// <summary>履歴の表示順 (回数降順 → 最終予約日時降順)。サーバー履歴の表示にも使う。</summary>
+        public static int CompareHistory(Item a, Item b)
+        {
+            return a.Times != b.Times
+                ? b.Times.CompareTo(a.Times)
+                : b.LastAt.CompareTo(a.LastAt);
         }
 
         public static void RemoveHistory(string fullpath)
         {
             GetStore().History.RemoveAll(i => i.FullPath == fullpath);
+            Save();
+        }
+
+        /// <summary>履歴から複数曲をまとめて削除する (保存と Changed 通知は1回)。</summary>
+        public static void RemoveHistoryMany(IEnumerable<string> fullpaths)
+        {
+            var set = new HashSet<string>(fullpaths);
+            GetStore().History.RemoveAll(i => set.Contains(i.FullPath));
+            Save();
+        }
+
+        /// <summary>履歴を全て削除する。</summary>
+        public static void ClearHistory()
+        {
+            GetStore().History.Clear();
             Save();
         }
 

@@ -167,6 +167,7 @@ namespace YukaNavi.Core
                     });
                 }
             }
+            list.Sort(LocalMypage.CompareHistory); // ローカルと同じ表示順 (回数降順)
             return list;
         }
 
@@ -314,6 +315,87 @@ namespace YukaNavi.Core
             if (IsLinked)
             {
                 await AppConfig.CreateClient().MypageRemoveAsync(Uid, "history", fullpath);
+            }
+        }
+
+        /// <summary>
+        /// 履歴から複数曲をまとめて削除する。リンク済みならサーバーからも1曲ずつ削除する
+        /// (サーバー API に一括削除は無い)。progress は (完了数, 総数)。
+        /// 途中で通信に失敗した場合は例外 (ローカルは削除済み。未削除分はサーバーに残る)。
+        /// </summary>
+        public static async Task RemoveHistoryManyAsync(
+            List<string> fullpaths, System.Action<int, int> progress = null)
+        {
+            LocalMypage.RemoveHistoryMany(fullpaths);
+            if (!IsLinked)
+            {
+                return;
+            }
+            var client = AppConfig.CreateClient();
+            for (int i = 0; i < fullpaths.Count; i++)
+            {
+                await client.MypageRemoveAsync(Uid, "history", fullpaths[i]);
+                progress?.Invoke(i + 1, fullpaths.Count);
+            }
+        }
+
+        /// <summary>
+        /// 履歴を全て削除する。リンク済みならサーバーの履歴も全て削除する
+        /// (ローカルも空にしないと、別サーバーを経由して戻ったときの再統合
+        /// [EnsureResyncAsync] で復活してしまう)。
+        /// サーバーの一覧 API は最大 200 件ずつしか返さないため、
+        /// 空になるまで「取得 → 1件ずつ削除」を繰り返す。
+        /// </summary>
+        public static async Task ClearHistoryAsync(System.Action<int, int> progress = null)
+        {
+            if (!IsLinked)
+            {
+                LocalMypage.ClearHistory();
+                return;
+            }
+            var client = AppConfig.CreateClient();
+            // 総数は summary から (進捗表示用。取れなくても削除は続行する)
+            int total = 0;
+            try
+            {
+                total = (await client.MypageSummaryAsync(Uid)).History;
+            }
+            catch (System.Exception)
+            {
+            }
+            LocalMypage.ClearHistory();
+            int deleted = 0;
+            string previousFirst = null;
+            while (true)
+            {
+                var data = await client.MypageListAsync(Uid, "history");
+                var paths = new List<string>();
+                if (data.Items != null)
+                {
+                    foreach (var item in data.Items)
+                    {
+                        if (!string.IsNullOrEmpty(item.FullPath))
+                        {
+                            paths.Add(item.FullPath);
+                        }
+                    }
+                }
+                if (paths.Count == 0)
+                {
+                    break;
+                }
+                // 削除しても消えない行が残った場合の無限ループ防止
+                if (paths[0] == previousFirst)
+                {
+                    break;
+                }
+                previousFirst = paths[0];
+                foreach (var path in paths)
+                {
+                    await client.MypageRemoveAsync(Uid, "history", path);
+                    deleted++;
+                    progress?.Invoke(deleted, System.Math.Max(total, deleted));
+                }
             }
         }
 
