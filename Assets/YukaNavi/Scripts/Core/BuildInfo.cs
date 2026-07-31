@@ -1,12 +1,16 @@
 using UnityEngine;
+#if UNITY_EDITOR
+using System.Diagnostics;
+using System.IO;
+#endif
 
 namespace YukaNavi.Core
 {
     /// <summary>
-    /// ビルド時点の情報 (日時・git コミット)。設定画面のバージョン表示に添えて、
-    /// 開発中のビルドが「どの時点のものか」を判別できるようにする。
-    /// データはビルド直前に Editor/BuildInfoGenerator が
-    /// Resources/build_info.json へ書き出す (リポジトリにはコミットしない)。
+    /// 実行中のコードが「どの時点のものか」を設定画面のバージョン表示に添える。
+    /// - ビルド版: ビルド直前に Editor/BuildInfoGenerator が書き出した
+    ///   Resources/build_info.json (日時・git コミット) を表示する
+    /// - エディタ: 常に作業ツリーのコードが動くため、git の現在位置をその場で取得して表示する
     /// </summary>
     public static class BuildInfo
     {
@@ -56,14 +60,15 @@ namespace YukaNavi.Core
         }
 
         /// <summary>
-        /// 設定画面に出す1行 (例: "build 2026-07-31 21:04 / ec0d0cb+ (feat/xxx)")。
-        /// エディタではビルド前のコードが動いているため固定文言、
-        /// ビルド情報の無い実行ファイルでは空を返す。
+        /// 設定画面に出す1行。
+        /// ビルド版: "build 2026-07-31 21:04 / ec0d0cb+ (feat/xxx)"
+        /// エディタ: "エディタ実行 / ec0d0cb+ (feat/xxx)"
+        /// ビルド情報の無い実行ファイルでは空を返す (表示しない)。
         /// </summary>
         public static string Describe()
         {
 #if UNITY_EDITOR
-            return "エディタ実行 (ビルド前)";
+            return DescribeEditor();
 #else
             var data = Load();
             if (data == null || string.IsNullOrEmpty(data.builtAt))
@@ -79,18 +84,22 @@ namespace YukaNavi.Core
             {
                 line += " / " + data.commit + (data.dirty ? "+" : "");
             }
-            if (!string.IsNullOrEmpty(data.branch) && data.branch != "master")
-            {
-                // Claude の作業ブランチの接頭辞は情報にならないので省く
-                string branch = data.branch;
-                if (branch.StartsWith("claude/"))
-                {
-                    branch = branch.Substring("claude/".Length);
-                }
-                line += " (" + branch + ")";
-            }
-            return line;
+            return line + BranchSuffix(data.branch);
 #endif
+        }
+
+        /// <summary>ブランチの表示 (" (name)")。master と Claude の作業接頭辞は情報にならないので省く。</summary>
+        static string BranchSuffix(string branch)
+        {
+            if (string.IsNullOrEmpty(branch) || branch == "master")
+            {
+                return "";
+            }
+            if (branch.StartsWith("claude/"))
+            {
+                branch = branch.Substring("claude/".Length);
+            }
+            return " (" + branch + ")";
         }
 
         /// <summary>UCB のマニフェストからビルド情報を復元する (git が使えなかったとき用)。</summary>
@@ -124,5 +133,68 @@ namespace YukaNavi.Core
                 return null;
             }
         }
+
+#if UNITY_EDITOR
+        static string _editorDescribe;
+
+        static string DescribeEditor()
+        {
+            if (_editorDescribe != null)
+            {
+                return _editorDescribe;
+            }
+            string commit = RunGit("rev-parse --short HEAD");
+            if (string.IsNullOrEmpty(commit))
+            {
+                _editorDescribe = "エディタ実行 (ビルド前)"; // git が無い環境
+            }
+            else
+            {
+                bool dirty = !string.IsNullOrEmpty(RunGit("status --porcelain -uno"));
+                _editorDescribe = "エディタ実行 / " + commit + (dirty ? "+" : "")
+                    + BranchSuffix(RunGit("rev-parse --abbrev-ref HEAD"));
+            }
+            return _editorDescribe;
+        }
+
+        /// <summary>
+        /// プロジェクトルートで git コマンドを実行して標準出力を返す。失敗したら null。
+        /// エディタ専用 (BuildInfoGenerator のビルド時書き出しもこれを使う)。
+        /// </summary>
+        public static string RunGit(string arguments)
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = arguments,
+                    WorkingDirectory = Path.GetDirectoryName(Application.dataPath),
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                };
+                using (var process = Process.Start(startInfo))
+                {
+                    string output = process.StandardOutput.ReadToEnd();
+                    if (!process.WaitForExit(5000))
+                    {
+                        process.Kill();
+                        return null;
+                    }
+                    if (process.ExitCode != 0)
+                    {
+                        return null;
+                    }
+                    return output.Trim();
+                }
+            }
+            catch (System.Exception)
+            {
+                return null; // git 不在などは「情報なし」扱い (動作は止めない)
+            }
+        }
+#endif
     }
 }

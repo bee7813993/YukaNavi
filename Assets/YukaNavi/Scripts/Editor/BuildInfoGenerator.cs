@@ -1,10 +1,10 @@
-using System.Diagnostics;
 using System.IO;
 using System.Text;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
+using YukaNavi.Core;
 
 namespace YukaNavi.EditorTools
 {
@@ -23,52 +23,16 @@ namespace YukaNavi.EditorTools
 
         public void OnPreprocessBuild(BuildReport report)
         {
-            var data = new Core.BuildInfo.Data
+            var data = new BuildInfo.Data
             {
                 builtAt = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
-                commit = Git("rev-parse --short HEAD"),
-                branch = Git("rev-parse --abbrev-ref HEAD"),
+                commit = BuildInfo.RunGit("rev-parse --short HEAD"),
+                branch = BuildInfo.RunGit("rev-parse --abbrev-ref HEAD"),
                 // 未追跡ファイルは無視 (作業メモ等で常に + が付くのを避ける)
-                dirty = !string.IsNullOrEmpty(Git("status --porcelain -uno")),
+                dirty = !string.IsNullOrEmpty(BuildInfo.RunGit("status --porcelain -uno")),
             };
             File.WriteAllText(OutputPath, JsonUtility.ToJson(data), new UTF8Encoding(false));
             AssetDatabase.ImportAsset(OutputPath); // 書いた直後のビルドに確実に含める
-        }
-
-        /// <summary>git コマンドの標準出力 (1行)。失敗したら null。</summary>
-        static string Git(string arguments)
-        {
-            try
-            {
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "git",
-                    Arguments = arguments,
-                    WorkingDirectory = Path.GetDirectoryName(Application.dataPath),
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true,
-                };
-                using (var process = Process.Start(startInfo))
-                {
-                    string output = process.StandardOutput.ReadToEnd();
-                    if (!process.WaitForExit(5000))
-                    {
-                        process.Kill();
-                        return null;
-                    }
-                    if (process.ExitCode != 0)
-                    {
-                        return null;
-                    }
-                    return output.Trim();
-                }
-            }
-            catch (System.Exception)
-            {
-                return null; // git 不在などはビルド情報なしで続行 (ビルドは止めない)
-            }
         }
     }
 }

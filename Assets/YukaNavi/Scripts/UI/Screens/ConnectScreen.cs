@@ -164,14 +164,15 @@ namespace YukaNavi.UI
             y -= 84f + 28f;
 
             // アプリバージョン (ProjectSettings の bundleVersion)。
-            // 開発ビルドの判別用に、ビルド時点の情報 (日時・コミット) があれば2行目に出す
+            // 開発時の判別用に、ビルド時点 (エディタでは git の現在位置) を2行目に出す
             string versionLabel = "ゆかナビ v" + Application.version;
             int versionLines = 1;
             string buildDetail = BuildInfo.Describe();
             if (!string.IsNullOrEmpty(buildDetail))
             {
                 versionLabel += "\n" + buildDetail;
-                versionLines = 2;
+                // ブランチ名が長いときの折り返しも高さに入れる (行幅 = 1080 - 90*2)
+                versionLines += UiFactory.EstimateWrapLines(buildDetail, 22, 900f);
             }
             var versionText = UiFactory.CreateText(content, "Version", versionLabel, 22,
                 UiFactory.TextMuted);
