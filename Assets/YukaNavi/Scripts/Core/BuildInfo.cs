@@ -21,6 +21,12 @@ namespace YukaNavi.Core
             public string commit;  // git の短縮ハッシュ (取得できなければ空)
             public string branch;  // ビルド時のブランチ (master なら表示しない)
             public bool dirty;     // コミットしていない変更を含むビルド (表示は「+」)
+
+            // Cubism SDK (submodule) がビルドに含まれていない。マスコットが静止画に
+            // フォールバックしただけのビルドはエラーにならず気づけないので、実機で
+            // 見えるようにする。「無い」ときだけ true にするのは、SDK の情報を持たない
+            // UCB マニフェストからの復元で誤って「なし」と出さないため
+            public bool live2dMissing;
         }
 
         /// <summary>
@@ -84,7 +90,7 @@ namespace YukaNavi.Core
             {
                 line += " / " + data.commit + (data.dirty ? "+" : "");
             }
-            return line + BranchSuffix(data.branch);
+            return line + BranchSuffix(data.branch) + (data.live2dMissing ? " / Live2D なし" : "");
 #endif
         }
 

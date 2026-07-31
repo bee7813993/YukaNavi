@@ -1,3 +1,5 @@
 [submodule "Assets/Live2D"]
 	path = Assets/Live2D
-	url = https://github.com/bee7813993/YukaNavi-CubismSDK.git
+	# 相対パス。親リポジトリの origin を基準に解決されるので、Unity Build Automation が
+	# 埋め込んだ認証情報がそのまま private リポジトリにも効く (README「ビルド」参照)
+	url = ../YukaNavi-CubismSDK.git
