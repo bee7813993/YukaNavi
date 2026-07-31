@@ -49,6 +49,14 @@ namespace YukaNavi.Api
         public Task<ServerInfoDto> GetServerInfoAsync()
             => GetApiAsync<ServerInfoDto>("api/server_info.php", false);
 
+        /// <summary>
+        /// Web 版リクエスト一覧ページ (requestlist_only.php) の HTML を取得する。
+        /// 「リクエスト一覧(トップ)画面表示メッセージ」は API に公開されていないため、
+        /// 機材係お知らせ (NoticeService) はこのページから抽出する。
+        /// </summary>
+        public Task<string> GetRequestListPageAsync()
+            => GetTextAsync("requestlist_only.php", true);
+
         /// <summary>機能フラグ取得。アプリ起動時に1回呼んで UI 出し分けに使う。</summary>
         public Task<CapabilitiesDto> GetCapabilitiesAsync()
             => GetApiAsync<CapabilitiesDto>("api/capabilities.php");
