@@ -9,7 +9,7 @@
   <link rel="icon" href="../../assets/yukanavi-icon.png">
   <link rel="stylesheet" href="../../assets/style.css">
   <style>
-    /* アプリ入手案内: iOS(App Store 恒久設置) / Android(正式公開までオープンテスト案内) */
+    /* アプリ入手案内: iOS(App Store) / Android(Google Play) 恒久設置 */
     .app-invite {
       margin: 1.75rem auto 0;
       padding: 1.5rem 1.25rem;
@@ -39,26 +39,12 @@
       font-size: 1rem;
       letter-spacing: .02em;
     }
-    .app-button {
-      display: inline-block;
-      padding: .8rem 1.4rem;
-      font-weight: 700;
-      text-decoration: none;
-      border-radius: 999px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
-    }
-    .app-android { background: #3ddc84; color: #0b3d22; } /* Android グリーン */
-    .app-button:hover, .app-button:focus { filter: brightness(1.06); }
-    .app-store-badge-link {
+    .store-badge-link {
       display: inline-block;
       line-height: 0;
     }
-    .app-store-badge-link:hover, .app-store-badge-link:focus { filter: brightness(1.06); }
-    .app-store-badge {
-      width: 150px;
-      height: 55px;
-      max-width: 100%;
-    }
+    .store-badge-link:hover, .store-badge-link:focus { filter: brightness(1.06); }
+    .store-badge { max-width: 100%; }
     .app-qr {
       display: block;
       width: 160px; height: auto;
@@ -92,16 +78,16 @@
         <p class="eyebrow">YFRTeam presents</p>
         <h1 id="hero-title">ゆかナビ</h1>
         <p class="hero-copy">カラオケリクエストツール「ゆかり」を、手元のスマートフォンからもっと使いやすく。</p>
-        <p class="release-status">iOS版 配信中 ／ Android版 テスト参加者を募集中</p>
+        <p class="release-status">iOS版・Android版 配信中</p>
 
         <div class="app-invite">
-          <p class="app-lead">iOS版はApp Storeで配信中です。Android版は、正式公開に先がけてどなたでもテスト版をお試しいただけます。</p>
+          <p class="app-lead">iOS版・Android版とも、各ストアで配信中です。</p>
 
           <div class="app-grid">
             <div class="app-card">
               <h2 class="app-os">iPhone / iPad</h2>
-              <a class="app-store-badge-link" href="https://apps.apple.com/jp/app/%E3%82%86%E3%81%8B%E3%83%8A%E3%83%93/id6792447073">
-                <img class="app-store-badge" src="images/Download_on_the_App_Store_Badge_JP_RGB_blk_100317.svg"
+              <a class="store-badge-link" href="https://apps.apple.com/jp/app/%E3%82%86%E3%81%8B%E3%83%8A%E3%83%93/id6792447073">
+                <img class="store-badge" src="images/Download_on_the_App_Store_Badge_JP_RGB_blk_100317.svg"
                      width="150" height="55" alt="App Storeからダウンロード">
               </a>
               <img class="app-qr" src="images/ios_appstore_qr.png" width="370" height="370"
@@ -111,12 +97,13 @@
 
             <div class="app-card">
               <h2 class="app-os">Android</h2>
-              <a class="app-button app-android" href="https://play.google.com/apps/testing/com.yfrteam.yukanavi">
-                オープンテストに参加する
+              <a class="store-badge-link" href="https://play.google.com/store/apps/details?id=com.yfrteam.yukanavi">
+                <img class="store-badge" src="https://play.google.com/intl/en_us/badges/static/images/badges/ja_badge_web_generic.png"
+                     width="142" height="55" alt="Google Playで手に入れよう">
               </a>
-              <img class="app-qr" src="images/android_test_qr.png" width="370" height="370"
-                   alt="Android版 オープンテスト参加ページの QR コード" loading="lazy">
-              <p class="app-note">参加後、Google Play からインストールできます。</p>
+              <img class="app-qr" src="images/android_play_qr.png" width="370" height="370"
+                   alt="Google Play「ゆかナビ」ページの QR コード" loading="lazy">
+              <p class="app-note">Google Playで配信中です。</p>
             </div>
           </div>
 
