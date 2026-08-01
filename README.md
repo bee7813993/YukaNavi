@@ -170,37 +170,44 @@ Cubism Editor の書き出し (`art/mascot/live2d_parts/export/`) を、その�
 ### クラウドビルドで SDK の submodule を取らせる
 
 **Build Automation に「submodule を含める」ようなトグルは無い** (2026-08 時点)。
-submodule は自動で取得されるが、[公式のトラブルシュート][uba-submodule]が
-**「submodule は相対パスか SSH パスで設定すること」**と指定している。
-絶対 HTTPS URL だと、親リポジトリ用に Build Automation が埋め込んだ認証情報が
-引き継がれず、private リポジトリの取得に失敗する (実際に一度そうなった)。
+submodule は clone に合わせて自動で取得される。**2026-08-01 のビルドで
+実機まで動作確認済み** (それまで 2 回、SDK が届かず静止画のまま出ていた)。
 
-そのため [.gitmodules](.gitmodules) は**相対パス** `../YukaNavi-CubismSDK.git`
-にしてある。親の origin (`https://github.com/bee7813993/YukaNavi.git`) を基準に
-解決されるので、同じ認証情報がそのまま効き、SSH 鍵も Deploy key も要らない。
-ローカルの clone (HTTPS / SSH どちらでも) でも同じ理屈で解決する。
+成立させるのに必要だったのは次の 3 つ:
+
+1. **Personal Access Token が `YukaNavi-CubismSDK` を読めること。**
+   これが実際の原因だった。fine-grained トークンの対象リポジトリに入っておらず、
+   親リポジトリしか読めていなかった (classic なら `repo` スコープ、
+   fine-grained なら Repository access に対象を追加する)
+2. **[.gitmodules](.gitmodules) の URL を相対パス `../YukaNavi-CubismSDK.git` にする。**
+   [公式のトラブルシュート][uba-submodule]が「submodule は相対パスか SSH パスで
+   設定すること」と指定しているため。相対パスは親の origin
+   (`https://github.com/bee7813993/YukaNavi.git`) を基準に解決されるので、
+   同じ認証情報がそのまま効き、SSH 鍵も Deploy key も要らない。
+   ローカルの clone (HTTPS / SSH どちらでも) でも同じ理屈で解決する
+3. **submodule を追加・変更した直後は Clean Build を 1 回通す。**
+   Build Automation はワークスペースをキャッシュしていて 2 回目以降は
+   `git pull` で済ませる。`pull` では新しい submodule は初期化されない
 
 [uba-submodule]: https://docs.unity.com/en-us/build-automation/check-build-results/troubleshoot-build-failures/git-clone-hangs
 
-注意点:
+PAT の権限を広げたくない場合は SSH に切り替える。Settings → Source control の
+**Show SSH key** の公開鍵を GitHub アカウントの SSH keys か
+`YukaNavi-CubismSDK` の **Deploy keys** に登録し、`.gitmodules` を
+絶対 SSH URL (`git@github.com:bee7813993/YukaNavi-CubismSDK.git`) にする
+(相対パスは親が HTTPS なら HTTPS に解決されるため、SSH に寄せるなら絶対 URL が要る)。
 
-- **submodule を追加・変更した直後は Clean Build を 1 回通す。**
-  Build Automation はワークスペースをキャッシュしていて、2 回目以降は
-  `git pull` で済ませる。`pull` では submodule は初期化されない
-- 使っている **Personal Access Token が `YukaNavi-CubismSDK` を読めること**
-  (classic なら `repo` スコープ、fine-grained なら対象リポジトリに追加。
-   足りなければ Settings → Source control で **Reauthorize**)
-- PAT の権限を広げたくない場合は SSH に切り替える。Settings → Source control の
-  **Show SSH key** の公開鍵を GitHub アカウントの SSH keys か
-  `YukaNavi-CubismSDK` の **Deploy keys** に登録し、`.gitmodules` を
-  絶対 SSH URL (`git@github.com:bee7813993/YukaNavi-CubismSDK.git`) にする
-  (相対パスは親が HTTPS なら HTTPS に解決されるため、SSH に寄せるなら絶対 URL が要る)
+#### 届いたかどうかの見分け方
 
 **SDK が届かなくてもビルドは成功し、iOS だけ Live2D が無効 (静止画) になる。**
-気づけるように、届いていないビルドには次の 2 つの印が出る:
 
-- ビルドログの警告 `[YukaNavi] LIVE2D-SDK-MISSING`
-- **設定画面のビルド情報の末尾に `/ Live2D なし`** (実機で見るのが一番早い)
+- **実機の設定画面**のビルド情報に `/ Live2D なし` が出ていないか。これが一番早い
+- ビルドログに警告 `[YukaNavi] LIVE2D-SDK-MISSING` が出ていないか
+- ビルドログを直接見るなら **`Assets/Live2D/Cubism/**` の import 行があるか**を見る。
+  **`Submodule 'Assets/Live2D'` のような git の出力は出ない** (Build Automation は
+  ruby の git ライブラリ経由で clone していて submodule の出力を表に出さない)。
+  届いていないと `Assets/Live2D` が空フォルダ 1 行だけになり、
+  `Resources/Live2D/yukari/*` に `Script attached to ... is missing` が大量に出る
 
 ## 開発時の接続先
 
